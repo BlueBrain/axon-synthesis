@@ -1,0 +1,15 @@
+*.tox
+*.DS_Store
+.idea
+venv/
+graphs/core/min_spanning_tree/__pycache__/
+graphs/core/__pycache__/
+graphs/__pycache__/
+utils/__pycache__/
+*__pycache__/
+
+.coverage*
+*.egg-info
+build
+dist
+reports
