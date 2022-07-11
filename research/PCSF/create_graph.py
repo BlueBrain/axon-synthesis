@@ -68,6 +68,17 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         min_value=0,
         max_value=float("inf"),
     )
+    min_random_point_distance = luigi_tools.parameter.OptionalNumericalParameter(
+        description="The minimal distance used to add random points.",
+        var_type=float,
+        default=None,
+        min_value=0,
+        max_value=float("inf"),
+    )
+    seed = luigi.IntParameter(
+        description="The seed used to generate random points.",
+        default=0,
+    )
     plot_debug = luigi.BoolParameter(
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "
@@ -122,6 +133,42 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                     )
                 )
             all_pts = np.concatenate([all_pts] + [i[1] for i in inter_pts if i[0] > 0])
+
+            # Add random points
+            if self.min_random_point_distance is not None:
+                n_fails = 0
+                bbox = np.vstack([all_pts.min(axis=0), all_pts.max(axis=0)])
+                rng = np.random.default_rng(self.seed)
+                tree = KDTree(all_pts)
+                new_pts = []
+                while n_fails < 10:
+                    xyz = np.array(
+                        [
+                            rng.uniform(bbox[0,0], bbox[1,0]),
+                            rng.uniform(bbox[0,1], bbox[1,1]),
+                            rng.uniform(bbox[0,2], bbox[1,2]),
+                        ]
+                    )
+                    if np.isinf(
+                        tree.query(
+                            xyz,
+                            distance_upper_bound=self.min_random_point_distance,
+                            k=2,
+                        )[0][1]
+                    ) and (
+                        len(new_pts) == 0 or
+                        np.linalg.norm(
+                            xyz - [i for i in new_pts],
+                            axis=1,
+                        ).min() > self.min_random_point_distance
+                    ):
+                        new_pts.append(xyz)
+                        n_fails = 0
+                    else:
+                        n_fails += 1
+
+                logger.info(f"Random points added: {len(new_pts)}")
+                all_pts = np.concatenate([all_pts, np.array(new_pts)])
 
             # Add Voronoï points
             for i in range(self.voronoi_steps):
