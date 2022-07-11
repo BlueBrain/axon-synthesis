@@ -1,4 +1,4 @@
-"""Add tufts to Steiner solutions."""
+"""Smooth the Steiner solutions."""
 import json
 import logging
 from copy import deepcopy
@@ -20,7 +20,6 @@ from plotly_helper.neuron_viewer import NeuronBuilder
 from plotly.subplots import make_subplots
 from scipy.spatial import KDTree
 
-from smoothing import SmoothSteinerMorphologies
 from create_tuft_props import CreateTuftTerminalProperties
 from PCSF.steiner_morphologies import SteinerMorphologies
 from utils import add_camera_sync
@@ -29,39 +28,22 @@ from utils import append_section_recursive
 logger = logging.getLogger(__name__)
 
 
-class TuftsOutputLocalTarget(TaggedOutputLocalTarget):
-    __prefix = Path("tufts")
+class SmoothingOutputLocalTarget(TaggedOutputLocalTarget):
+    __prefix = Path("smoothing")
 
 
-class AddTufts(luigi_tools.task.WorkflowTask):
+class SmoothSteinerMorphologies(luigi_tools.task.WorkflowTask):
     input_dir = luigi_tools.parameter.OptionalPathParameter(
         description="Path to the input morphologies.",
         default=None,
         exists=True,
     )
-    input_parameters = luigi_tools.parameter.PathParameter(
-        description="Path to the input parameters.",
-        default="tuft_parameters.json",
-        exists=True,
-    )
-    input_distributions = luigi_tools.parameter.PathParameter(
-        description="Path to the input distributions.",
-        default="tuft_distributions.json",
-        exists=True,
-    )
     seed = luigi.NumericalParameter(
-        description="The seed used by the random number generator.",
+        description="The seed used by the random number generator for jittering.",
         var_type=int,
         default=0,
         min_value=0,
         max_value=float("inf"),
-    )
-    use_smooth_trunks = luigi.BoolParameter(
-        description=(
-            "If set to True, the Steiner solutions are smoothed before adding the tufts."
-        ),
-        default=False,
-        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
     )
     plot_debug = luigi.BoolParameter(
         description=(
@@ -73,14 +55,10 @@ class AddTufts(luigi_tools.task.WorkflowTask):
     )
 
     def requires(self):
-        tasks = {
+        return {
             "terminal_properties": CreateTuftTerminalProperties(),
+            "steiner_solutions": SteinerMorphologies(),
         }
-        if self.use_smooth_trunks:
-            tasks["steiner_solutions"] = SmoothSteinerMorphologies()
-        else:
-            tasks["steiner_solutions"] = SteinerMorphologies()
-        return tasks
 
     def run(self):
         input_dir = self.input_dir or self.input()["steiner_solutions"].pathlib_path
@@ -90,23 +68,8 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
         rng = np.random.default_rng(self.seed)
 
-        with self.input_parameters.open() as f:
-            input_parameters = json.load(f)
-            if not input_parameters.get("basal", None):
-                input_parameters["basal"] = input_parameters["apical"]
-        with self.input_distributions.open() as f:
-            input_distributions = json.load(f)
-            if not input_distributions.get("basal", None):
-                input_distributions["basal"] = input_distributions["apical"]
-
-        validate_neuron_distribs(input_distributions)
-        validate_neuron_params(input_parameters)
-
         with self.input()["terminal_properties"].open() as f:
             cluster_props_df = pd.DataFrame.from_records(json.load(f))
-
-        # for morph_file in input_dir.iterdir():
-        #     morph_name = morph_file.name
 
         for group_name, group in cluster_props_df.groupby("morph_file"):
             raw_morph_file = Path(group_name)
@@ -141,37 +104,8 @@ class AddTufts(luigi_tools.task.WorkflowTask):
                     if counter == len(tuft_roots):
                         logger.warning(f"No section could be found for the following tuft: {props}")
 
-            # Create the tufts
-            for tuft_section, tuft_props in tuft_roots:
-                # Create specific parameters
-                params = deepcopy(input_parameters)
-                params["apical"]["orientation"]["values"]["orientations"] = [tuft_props["cluster_orientation"]]
-                logger.debug("Cluster_orientation: %s", tuft_props["cluster_orientation"])
-
-                # Create specific distributions
-                distrib = deepcopy(input_distributions)
-                distrib["apical"]["persistence_diagram"] = [tuft_props["new_cluster_barcode"]]
-                logger.debug("Cluster_barcode: %s", tuft_props["new_cluster_barcode"])
-
-                # Grow a tuft
-                new_morph = MorphIoMorphology()
-                grower = TreeGrower(
-                    new_morph,
-                    initial_direction=tuft_props["cluster_orientation"],
-                    initial_point=tuft_section.points[-1],
-                    parameters=params["apical"],
-                    distributions=distrib["apical"],
-                    context=None,
-                    random_generator=rng,
-                )
-                while not grower.end():
-                    grower.next_point()
-
-                # Graft the tuft to the current terminal
-                append_section_recursive(tuft_section, new_morph.root_sections[0])
-
-            # Merge consecutive sections that are not separated by a bifurcation
-            morph.remove_unifurcations()
+            # Smooth the sections but do not move the tuft roots
+            raise NotImplementedError("The smoothing method is not ready to be used")
 
             # Export the new morphology
             morph_path = (self.output()["morphologies"].pathlib_path / morph_name).with_suffix(".asc").as_posix()
@@ -205,6 +139,6 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
     def output(self):
         return {
-            "figures": TuftsOutputLocalTarget("figures", create_parent=True),
-            "morphologies": TuftsOutputLocalTarget("morphologies", create_parent=True),
+            "figures": SmoothingOutputLocalTarget("figures", create_parent=True),
+            "morphologies": SmoothingOutputLocalTarget("morphologies", create_parent=True),
         }

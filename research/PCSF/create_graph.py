@@ -10,6 +10,7 @@ import luigi_tools
 import matplotlib
 import numpy as np
 import pandas as pd
+from data_validation_framework.target import TaggedOutputLocalTarget
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from neurom.morphmath import angle_between_vectors
@@ -240,7 +241,15 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                         n_fails += 1
 
                 logger.info(f"Random points added: {len(new_pts)}")
-                all_pts = np.concatenate([all_pts, np.array(new_pts)])
+                if new_pts:
+                    all_pts = np.concatenate([all_pts, np.array(new_pts)])
+                else:
+                    logger.warning(
+                        "Could not add random points! The current state is the following: "
+                        f"bbox={bbox} ; "
+                        f"nb_pts={len(all_pts)} ; "
+                        f"min distance={self.min_random_point_distance}"
+                    )
 
             # Add Voronoï points
             for i in range(self.voronoi_steps):
@@ -277,7 +286,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             all_points = all_points_df[["x", "y", "z"]]
 
             # Delaunay triangulation of the union of the terminals and the Voronoï points
-            tri = Delaunay(all_points)
+            tri = Delaunay(all_points, qhull_options="QJ")
 
             # Find all unique edges from the triangulation
             unique_edges = np.unique(
@@ -444,7 +453,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
     def output(self):
         return {
-            "nodes": luigi_tools.target.OutputLocalTarget(self.output_nodes, create_parent=True),
-            "edges": luigi_tools.target.OutputLocalTarget(self.output_edges, create_parent=True),
-            "input_terminals": luigi_tools.target.OutputLocalTarget("graph_input_terminals", create_parent=True),
+            "nodes": TaggedOutputLocalTarget(self.output_nodes, create_parent=True),
+            "edges": TaggedOutputLocalTarget(self.output_edges, create_parent=True),
+            "input_terminals": TaggedOutputLocalTarget("graph_input_terminals", create_parent=True),
         }

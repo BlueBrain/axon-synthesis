@@ -4,6 +4,7 @@ import logging
 import luigi
 import luigi_tools
 import pandas as pd
+from data_validation_framework.target import TaggedOutputLocalTarget
 from neurom import load_morphology
 
 from create_dataset import RepairDataset
@@ -17,7 +18,10 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
         description="Folder containing the input morphologies.",
         default=None,
     )
-    output_dataset = luigi.Parameter(description="Output dataset file", default="terminals.csv")
+    output_dataset = luigi.Parameter(
+        description="Output dataset file",
+        default="input_terminals.csv",
+    )
 
     def requires(self):
         return RepairDataset()
@@ -68,4 +72,4 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
         dataset.to_csv(self.output().path, index=False)
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dataset, create_parent=True)
+        return TaggedOutputLocalTarget(self.output_dataset, create_parent=True)

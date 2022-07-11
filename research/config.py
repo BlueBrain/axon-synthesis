@@ -4,8 +4,19 @@ import luigi_tools
 
 
 class Config(luigi.task.Config):
-    atlas_path = luigi_tools.parameter.PathParameter(
-        description="Atlas path", exists=True
+    output_dir = luigi_tools.parameter.OptionalPathParameter(
+        description="The directory in which all the results will be exported",
+        default=None,
+    )
+    input_data_type = luigi.ChoiceParameter(
+        description=(
+            "The type of input data to use."
+        ),
+        choices=["biological_morphologies", "white_matter"],
+        default="biological_morphologies",
+    )
+    atlas_path = luigi_tools.parameter.OptionalPathParameter(
+        description="Atlas path", exists=True, default=None
     )
     atlas_region_filename = luigi.Parameter(
         description="Atlas regions file.",
@@ -19,13 +30,6 @@ class Config(luigi.task.Config):
         description="Atlas hierarchy file.",
         default="hierarchy.json",
     )
-    white_matter_file = luigi_tools.parameter.PathParameter(
-        description="White matter file", exists=True
-    )
-    input_data_type = luigi.ChoiceParameter(
-        description=(
-            "The type of input data to use."
-        ),
-        choices=["biological_morphologies", "white_matter"],
-        default="biological_morphologies",
+    white_matter_file = luigi_tools.parameter.OptionalPathParameter(
+        description="White matter file", exists=True, default=None
     )

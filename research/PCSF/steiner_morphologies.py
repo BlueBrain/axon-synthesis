@@ -5,6 +5,7 @@ from pathlib import Path
 import luigi_tools
 import numpy as np
 import pandas as pd
+from data_validation_framework.target import TaggedOutputLocalTarget
 from luigi_tools.parameter import OptionalStrParameter
 from luigi_tools.parameter import PathParameter
 from morphio import PointLevel
@@ -164,4 +165,4 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
             logger.info(f"{morph_name}: exported to {morph_path}")
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dir, create_parent=True)
+        return TaggedOutputLocalTarget(self.output_dir, create_parent=True)

@@ -6,6 +6,7 @@ import luigi
 import luigi_tools
 import numpy as np
 import pandas as pd
+from data_validation_framework.target import TaggedOutputLocalTarget
 from scipy.spatial.distance import squareform
 from voxcell import VoxelData
 from voxcell.nexus.voxelbrain import Atlas
@@ -21,7 +22,7 @@ def _fill_diag(mat, val=1):
     return mat
 
 
-class TargetPointsOutputLocalTarget(luigi_tools.target.OutputLocalTarget):
+class TargetPointsOutputLocalTarget(TaggedOutputLocalTarget):
     __prefix = "target_points"
 
 
@@ -215,6 +216,9 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             axis=1,
         )
 
+        # Export the population DataFrame
+        wm_populations.to_csv(self.output()["wm_populations"].path, index=False)
+
         # Get projections
         wm_projections = pd.DataFrame.from_records(wm_recipe["projections"])
         if wm_projections["source"].duplicated().any():
@@ -227,6 +231,9 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         wm_projections = wm_projections.merge(
             wm_populations, left_on="source", right_on="pop_raw_name", how="left"
         )
+
+        # Export the projection DataFrame
+        wm_projections.to_csv(self.output()["wm_projections"].path, index=False)
 
         wm_targets = (
             wm_projections["targets"]
@@ -368,6 +375,8 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                     f"Density for {row['morph_file']} - {term_id}: {target['density']}"
                 )
 
+                # TODO: Create several targets in the region where the density is high?
+
                 # Get a random voxel where the brain region value is equal to the target id
                 voxel = rng.choice(
                     np.argwhere(
@@ -462,9 +471,15 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
 
     def output(self):
         targets = {
-            "terminals": luigi_tools.target.OutputLocalTarget(
+            "terminals": TaggedOutputLocalTarget(
                 self.output_dataset, create_parent=True
-            )
+            ),
+            "wm_populations": TargetPointsOutputLocalTarget(
+                "white_matter_population.csv", create_parent=True
+            ),
+            "wm_projections": TargetPointsOutputLocalTarget(
+                "white_matter_projections.csv", create_parent=True
+            ),
         }
         if self.debug_flatmap:
             targets["flatmap"] = TargetPointsOutputLocalTarget(

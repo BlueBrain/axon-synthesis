@@ -1,14 +1,17 @@
 """Create the dataset that can be used for the Curate workflow from MPoW.
 
 The workflow should be called using the luigi.cfg file from this directory and
-"morphology-processing-workflow==0.0.5".
+"morphology-workflows==0.2.0".
 """
 from pathlib import Path
 
 import luigi
 import luigi_tools
 import pandas as pd
-from morphology_processing_workflow.tasks.workflows import Curate
+from data_validation_framework.target import TaggedOutputLocalTarget
+from morphology_workflows.tasks.workflows import Curate
+
+from config import Config
 
 
 class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
@@ -30,16 +33,16 @@ class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
         return dataset
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dataset, create_parent=True)
+        return TaggedOutputLocalTarget(self.output_dataset, create_parent=True)
 
 
 class RepairDataset(luigi_tools.task.WorkflowWrapperTask):
     def requires(self):
         dataset = CreateDatasetForRepair()
-        return [dataset, Curate(dataset_df=dataset.output().path)]
+        return [dataset, Curate(dataset_df=dataset.output().path, result_path=Config().output_dir.absolute())]
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(
+        return TaggedOutputLocalTarget(
             self.input()[1]["data"].pathlib_path.resolve().parent.parent / "Resample/data/"
         )
 
@@ -49,6 +52,6 @@ class RawDataset(luigi_tools.task.WorkflowWrapperTask):
         return RepairDataset()
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(
+        return TaggedOutputLocalTarget(
             self.input().pathlib_path.resolve().parent.parent / "Collect/data/"
         )

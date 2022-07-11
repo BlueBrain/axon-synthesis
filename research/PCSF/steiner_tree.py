@@ -9,6 +9,7 @@ import luigi
 import luigi_tools
 import pandas as pd
 import pcst_fast as pf
+from data_validation_framework.target import TaggedOutputLocalTarget
 from luigi_tools.parameter import OptionalStrParameter
 
 from PCSF.create_graph import CreateGraph
@@ -82,6 +83,6 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
 
     def output(self):
         return {
-            "nodes": luigi_tools.target.OutputLocalTarget(self.output_nodes, create_parent=True),
-            "edges": luigi_tools.target.OutputLocalTarget(self.output_edges, create_parent=True),
+            "nodes": TaggedOutputLocalTarget(self.output_nodes, create_parent=True),
+            "edges": TaggedOutputLocalTarget(self.output_edges, create_parent=True),
         }

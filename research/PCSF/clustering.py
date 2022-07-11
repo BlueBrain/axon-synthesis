@@ -11,6 +11,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from data_validation_framework.target import TaggedOutputLocalTarget
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from morphio import IterType
@@ -40,11 +41,12 @@ from tmd.view.plot import barcode as plot_barcode
 from PCSF.extract_terminals import ExtractTerminals
 from utils import add_camera_sync
 from utils import get_axons
+from utils import neurite_to_graph
 
 logger = logging.getLogger(__name__)
 
 
-class ClusteringOutputLocalTarget(luigi_tools.target.OutputLocalTarget):
+class ClusteringOutputLocalTarget(TaggedOutputLocalTarget):
     __prefix = "clustering"
 
 
@@ -207,30 +209,6 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         return new_terminal_points, group["cluster_id"]
 
     @staticmethod
-    def _neurite_to_graph(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
-        graph_nodes = []
-        graph_edges = []
-        for section in neurite.iter_sections():
-            is_terminal = not bool(section.children)
-            if section.parent is None:
-                graph_nodes.append((-1, *section.points[0, :3], True))
-                graph_edges.append((-1, section.id))
-
-            graph_nodes.append((section.id, *section.points[-1, :3], is_terminal))
-
-            for child in section.children:
-                graph_edges.append((section.id, child.id))
-
-        nodes = pd.DataFrame(graph_nodes, columns=["id", "x", "y", "z", "is_terminal"])
-        nodes.set_index("id", inplace=True)
-
-        edges = pd.DataFrame(graph_edges, columns=["source", "target"])
-        graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
-        nx.set_node_attributes(graph, nodes[["x", "y", "z", "is_terminal"]].to_dict("index"))
-
-        return nodes, edges, graph
-
-    @staticmethod
     def common_path(graph, nodes, source=None, shortest_paths=None):
         """Compute the common paths of the given nodes.
 
@@ -291,7 +269,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         #     pdb.set_trace()
         # else:
         #     return []
-        nodes, edges, directed_graph = self._neurite_to_graph(axon)
+        nodes, edges, directed_graph = neurite_to_graph(axon)
         graph = nx.Graph(directed_graph)
         terminal_ids = nodes.loc[nodes["is_terminal"]].index
 
@@ -646,7 +624,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Replace terminals by the cluster centers and create sections from common ancestors
             # to cluster centers
-            nodes, edges, directed_graph = self._neurite_to_graph(axon)
+            nodes, edges, directed_graph = neurite_to_graph(axon)
             sections_to_add = defaultdict(list)
             kept_path = None
             shortest_paths = nx.single_source_shortest_path(directed_graph, -1)

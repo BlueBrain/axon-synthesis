@@ -1,5 +1,7 @@
 import re
 
+import networkx as nx
+import pandas as pd
 from neurom import NeuriteType
 
 
@@ -34,6 +36,30 @@ def add_camera_sync(fig_path):
 
 def get_axons(morph):
     return [i for i in morph.neurites if i.type == NeuriteType.axon]
+
+
+def neurite_to_graph(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
+    graph_nodes = []
+    graph_edges = []
+    for section in neurite.iter_sections():
+        is_terminal = not bool(section.children)
+        if section.parent is None:
+            graph_nodes.append((-1, *section.points[0, :3], True))
+            graph_edges.append((-1, section.id))
+
+        graph_nodes.append((section.id, *section.points[-1, :3], is_terminal))
+
+        for child in section.children:
+            graph_edges.append((section.id, child.id))
+
+    nodes = pd.DataFrame(graph_nodes, columns=["id", "x", "y", "z", "is_terminal"])
+    nodes.set_index("id", inplace=True)
+
+    edges = pd.DataFrame(graph_edges, columns=["source", "target"])
+    graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
+    nx.set_node_attributes(graph, nodes[["x", "y", "z", "is_terminal"]].to_dict("index"))
+
+    return nodes, edges, graph
 
 
 def append_section_recursive(source, target):

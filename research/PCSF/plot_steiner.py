@@ -3,6 +3,7 @@ import logging
 
 import luigi
 import luigi_tools
+from data_validation_framework.target import TaggedOutputLocalTarget
 from luigi_tools.parameter import OptionalPathParameter
 from luigi_tools.parameter import PathParameter
 from morph_tool import resampling
@@ -146,4 +147,4 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
             logger.info(f"{morph_name}: exported to {fig_path}")
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dir, create_parent=True)
+        return TaggedOutputLocalTarget(self.output_dir, create_parent=True)

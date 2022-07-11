@@ -12,6 +12,7 @@ import numpy as np
 import neurom as nm
 import pandas as pd
 import seaborn as sns
+from data_validation_framework.target import TaggedOutputLocalTarget
 from matplotlib import cm
 from matplotlib.backends.backend_pdf import PdfPages
 from luigi_tools.parameter import PathParameter
@@ -28,7 +29,7 @@ from add_tufts import AddTufts
 logger = logging.getLogger(__name__)
 
 
-class StatisticsOutputLocalTarget(luigi_tools.target.OutputLocalTarget):
+class StatisticsOutputLocalTarget(TaggedOutputLocalTarget):
     __prefix = Path("statistics")
 
 
