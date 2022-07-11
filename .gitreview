@@ -1,6 +1,0 @@
-[gerrit]
-host=bbpcode.epfl.ch
-port=22
-project=cells/axon-synthesis
-defaultbranch=master
-defaultremote=origin

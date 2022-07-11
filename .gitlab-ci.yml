@@ -5,12 +5,15 @@ include:
         - /ci/jobs/check-version.yml
         - /ci/jobs/check-packaging.yml
         - /ci/jobs/lint.yml
-        - /ci/jobs/py38.yml
-        # - /ci/jobs/docs.yml
+        - /ci/jobs/docs.yml
         - /ci/jobs/build-package.yml
         - /ci/jobs/publish-package.yml
-        # - /ci/jobs/publish-docs.yml
+        - /ci/jobs/publish-docs.yml
         - /ci/jobs/tag.yml
    - project: neuromath/ci
      file:
         - /ci/jobs/auto-release.yml
+        - /ci/jobs/check-merge-request-title.yml
+        - /ci/lib/pytest-template.yml
+        - /ci/jobs/py38.yml
+        - /ci/jobs/py39.yml

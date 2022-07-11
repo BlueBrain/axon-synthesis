@@ -1,4 +1,3 @@
-""" Package version. """
+"""Version of the AxonSynthesis package."""
 
-VERSION = "0.0.7.dev0"
-__version__ = VERSION
+VERSION = "0.1.0.dev0"  # pragma: no cover

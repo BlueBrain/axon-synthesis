@@ -1,0 +1,17 @@
+# pyproject.toml
+[build-system]
+requires = ["setuptools>=42", "wheel", "setuptools_scm[toml]>=3.4"]
+
+[tool.black]
+line-length = 100
+target-version = [
+    'py37',
+    'py38',
+    'py39',
+]
+include = 'axon_synthesis\/.*\.py$|tests\/.*\.py$|doc\/source\/conf\.py$|setup\.py$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+force_single_line = true

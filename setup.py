@@ -1,35 +1,47 @@
-"""Axon synthesis"""
+"""Setup for the AxonSynthesis package."""
+import importlib.util
+from pathlib import Path
 
-import imp
-import sys
+from setuptools import find_packages
+from setuptools import setup
 
-from setuptools import setup, find_packages
+spec = importlib.util.spec_from_file_location(
+    "axon_synthesis.version",
+    "axon_synthesis/version.py",
+)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+VERSION = module.VERSION
 
-if sys.version_info < (3, 6):
-    sys.exit("Python < 3.6 is not supported. Please update the environment")
+with open("requirements.txt", encoding="utf-8") as f:
+    reqs = f.read().splitlines()
 
-
-VERSION = imp.load_source("", "axon_synthesis/version.py").__version__
-
-config = {
-    "description": "axon-synthesis: a python package synthesizing axon morphologies",
-    "name": "axon-synthesis",
-    "version": VERSION,
-    "author_email": "valerii.souchoroukov@epfl.ch",
-    # "url": "https://bbpteam.epfl.ch/documentation/projects/axon-synthesis",
-    "project_urls": {
+setup(
+    name="AxonSynthesis",
+    author="Adrien Berchet",
+    author_email="adrien.berchet@epfl.ch",
+    version=VERSION,
+    description="A package to synthesize artificial axons",
+    long_description=Path("README.md").read_text(encoding="utf-8"),
+    long_description_content_type="text/markdown",
+    url="https://bbpteam.epfl.ch/documentation/projects/AxonSynthesis",
+    project_urls={
         "Tracker": "https://bbpteam.epfl.ch/project/issues/projects/CELLS/issues",
-        "Source": "https://bbpgitlab.epfl.ch/neuromath/axon-synthesis",
+        "Source": "git@bbpgitlab.epfl.ch:neuromath/user/aberchet/axon-synthesis.git",
     },
-    "install_requires": [
-        "tmd==2.0.8",
-        'neurom>=3.0,<4.0',
-        "numpy>=1.18.1",
-        "scipy>=1.4.1",
-        "matplotlib>=1.3.1",
+    license="BBP-internal-confidential",
+    install_requires=reqs,
+    packages=find_packages(exclude=["tests"]),
+    python_requires=">=3.8",
+    extras_require={"docs": ["m2r2", "sphinx", "sphinx-bluebrain-theme"]},
+    classifiers=[
+        "Development Status :: 2 - Pre-Alpha",
+        "Intended Audience :: Education",
+        "Intended Audience :: Science/Research",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Topic :: Scientific/Engineering :: Bio-Informatics",
     ],
-    "packages": find_packages(),
-    "include_package_data": True,
-}
-
-setup(**config)
+)
