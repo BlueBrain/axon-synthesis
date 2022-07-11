@@ -18,9 +18,6 @@ from PCSF.plot_steiner import PlotSolutions
 class GeneralConfig(luigi.Config):
     output_dir = luigi.Parameter(description="The directory in which all the results will be exported", default=None)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
 
 luigi_tools.target.OutputLocalTarget.set_default_prefix(GeneralConfig().output_dir)
 

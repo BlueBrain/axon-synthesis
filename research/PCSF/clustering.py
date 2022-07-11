@@ -29,15 +29,13 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         default=100,
         min_value=0,
         max_value=float("inf"),
-        left_op=luigi.parameter.operator.lt,
     )
     clustering_number = luigi.NumericalParameter(
         description="The min number of points to define a cluster.",
         var_type=int,
         default=20,
-        min_value=0,
+        min_value=1,
         max_value=float("inf"),
-        left_op=luigi.parameter.operator.lt,
     )
     plot_debug = luigi.BoolParameter(
         description=(
@@ -70,7 +68,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Get the connected components
             adjacency_matrix = np.zeros((len(group), len(group)))
-            adjacency_matrix[tuple(np.array(list(pairs)).T.tolist())] = 1
+            if pairs:
+                adjacency_matrix[tuple(np.array(list(pairs)).T.tolist())] = 1
+            np.fill_diagonal(adjacency_matrix, 1)
             graph = csr_matrix(adjacency_matrix)
             _, labels = connected_components(
                 csgraph=graph, directed=False, return_labels=True
