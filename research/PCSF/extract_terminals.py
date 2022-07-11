@@ -3,7 +3,6 @@ import logging
 
 import luigi
 import luigi_tools
-import neurom
 import pandas as pd
 from neurom import load_morphology
 

@@ -7,6 +7,7 @@ TODO: Make a real package and update imports
 """
 import luigi
 import luigi_tools
+import luigi_tools.target
 
 from add_tufts import AddTufts
 from statistics import CompareStatistics

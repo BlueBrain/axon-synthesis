@@ -1,4 +1,4 @@
-"""Cluster the terminal points of a morphology so that a Steiner Tree can be computed on them."""
+"""Add tufts to Steiner solutions."""
 import json
 import logging
 from copy import deepcopy
@@ -19,6 +19,7 @@ from plotly_helper.neuron_viewer import NeuronBuilder
 from plotly.subplots import make_subplots
 from scipy.spatial import KDTree
 
+from smoothing import SmoothSteinerMorphologies
 from create_tuft_props import CreateTuftTerminalProperties
 from PCSF.steiner_morphologies import SteinerMorphologies
 from utils import add_camera_sync
@@ -54,6 +55,13 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         min_value=0,
         max_value=float("inf"),
     )
+    use_smooth_trunks = luigi.BoolParameter(
+        description=(
+            "If set to True, the Steiner solutions are smoothed before adding the tufts."
+        ),
+        default=False,
+        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
+    )
     plot_debug = luigi.BoolParameter(
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "
@@ -64,10 +72,14 @@ class AddTufts(luigi_tools.task.WorkflowTask):
     )
 
     def requires(self):
-        return {
-            "steiner_solutions": SteinerMorphologies(),
+        tasks = {
             "terminal_properties": CreateTuftTerminalProperties(),
         }
+        if self.use_smooth_trunks:
+            tasks["steiner_solutions"] = SmoothSteinerMorphologies()
+        else:
+            tasks["steiner_solutions"] = SteinerMorphologies()
+        return tasks
 
     def run(self):
         input_dir = self.input_dir or self.input()["steiner_solutions"].pathlib_path
@@ -153,6 +165,9 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
                 # Graft the tuft to the current terminal
                 append_section_recursive(tuft_section, new_morph.root_sections[0])
+
+            # Merge consecutive sections that are not separated by a bifurcation
+            morph.remove_unifurcations()
 
             # Export the new morphology
             morph_path = (self.output()["morphologies"].pathlib_path / morph_name).with_suffix(".asc").as_posix()

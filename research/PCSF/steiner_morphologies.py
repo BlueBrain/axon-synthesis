@@ -10,6 +10,7 @@ from luigi_tools.parameter import PathParameter
 from neurom import load_morphology
 from morphio import PointLevel
 from morphio import SectionType
+from morphio.mut import Morphology
 
 from PCSF.steiner_tree import SteinerTree
 
@@ -19,18 +20,23 @@ logger = logging.getLogger(__name__)
 class SteinerMorphologies(luigi_tools.task.WorkflowTask):
     nodes_path = OptionalStrParameter(description="Path to the nodes CSV file.", default=None)
     edges_path = OptionalStrParameter(description="Path to the edges CSV file.", default=None)
-    # smoothing = OptionalStrParameter(description="Path to the edges CSV file.", default=None)
+    smoothing = OptionalStrParameter(
+        description="Path to the edges CSV file.",
+        default=None,
+    )
     output_dir = PathParameter(
         description="Output folder for figures.",
         default="steiner_morphologies",
     )
 
     def requires(self):
-        return SteinerTree()
+        return {
+            "steiner_tree": SteinerTree(),
+        }
 
     def run(self):
-        nodes = pd.read_csv(self.nodes_path or self.input()["nodes"].path)
-        edges = pd.read_csv(self.edges_path or self.input()["edges"].path)
+        nodes = pd.read_csv(self.nodes_path or self.input()["steiner_tree"]["nodes"].path)
+        edges = pd.read_csv(self.edges_path or self.input()["steiner_tree"]["edges"].path)
 
         self.output().mkdir(is_dir=True)
 
@@ -140,6 +146,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                     )
 
             # Merge consecutive sections that are not separated by a bifurcation
+            # TODO: Move it at the very end of the process
             # morph.remove_unifurcations()
 
             # Export the morphology

@@ -17,14 +17,14 @@
             }
         },
         "radius": 0.3,
-        "randomness": 0.0,
+        "randomness": 0.24,
         "step_size": {
             "norm": {
                 "mean": 1.0,
                 "std": 0.2
             }
         },
-        "targeting": 0.2,
+        "targeting": 0.12,
         "tree_type": 2
     },
     "axon": {},

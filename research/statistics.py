@@ -10,14 +10,20 @@ import luigi
 import luigi_tools
 import numpy as np
 import neurom as nm
+import pandas as pd
+import seaborn as sns
+from matplotlib import cm
 from matplotlib.backends.backend_pdf import PdfPages
 from luigi_tools.parameter import PathParameter
 from luigi_tools.parameter import OptionalPathParameter
+from neurom import load_morphologies
+from neurom.apps.morph_stats import extract_dataframe
 from neurom.core.types import NeuriteType
 
 from create_dataset import RepairDataset
-from PCSF.clustering import ClusterTerminals
-from PCSF.steiner_morphologies import SteinerMorphologies
+from add_tufts import AddTufts
+# from PCSF.clustering import ClusterTerminals
+# from PCSF.steiner_morphologies import SteinerMorphologies
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +36,273 @@ def _np_cast(array, do_sum=False):
     if do_sum:
         return np.array(array).sum()
     return np.array(array).tolist()
+
+
+def default_config():
+    return {
+        "neurite": {
+            "number_of_bifurcations": [
+                "sum"
+            ],
+            "number_of_sections_per_neurite": [
+                "mean",
+                "sum"
+            ],
+            "number_of_leaves": [
+                "sum"
+            ],
+            "partition_asymmetry": [
+                "mean",
+                "sum"
+            ],
+            "partition_asymmetry_length": [
+                "mean",
+                "sum"
+            ],
+            "remote_bifurcation_angles": [
+                "mean"
+            ],
+            "section_bif_branch_orders": [
+                "max",
+                "mean"
+            ],
+            "section_bif_lengths": [
+                "min",
+                "max",
+                "mean"
+            ],
+            "section_bif_radial_distances": [
+                "max",
+                "mean"
+            ],
+            "section_branch_orders": [
+                "max",
+                "mean"
+            ],
+            "section_lengths": [
+                "min",
+                "max",
+                "mean",
+                "sum"
+            ],
+            "section_path_distances": [
+                "min",
+                "max",
+                "mean"
+            ],
+            "section_radial_distances": [
+                "min",
+                "max",
+                "mean"
+            ],
+            "section_strahler_orders": [
+                "mean"
+            ],
+            "section_term_branch_orders": [
+                "max",
+                "mean"
+            ],
+            "section_term_lengths": [
+                "min",
+                "max",
+                "mean"
+            ],
+            "section_term_radial_distances": [
+                "max",
+                "mean"
+            ],
+            "section_tortuosity": [
+                "min",
+                "max",
+                "mean"
+            ],
+            "total_length_per_neurite": [
+                "mean"
+            ]
+        },
+        "neurite_type": [
+            "AXON",
+        ]
+    }
+
+
+def relative_score(data1, data2):
+    """Get the score.
+
+    Args:
+        data1 (list): the first data set.
+        data2 (list): the second data set.
+    """
+    score = (data2 - data1) / data1
+    return score
+
+
+def get_scores(df1, df2):
+    """Return scores between two data sets.
+
+    Args:
+        df1 (pandas.DataFrame): the first data set.
+        df2 (pandas.DataFrame): the second data set.
+
+    Returns:
+        The list of feature scores.
+    """
+    scores = []
+    score_names = []
+    key_names = {
+        "basal_dendrite": "Basal",
+        "apical_dendrite": "Apical",
+        "axon": "Axon",
+    }
+    for neurite_type in key_names:
+        if neurite_type in df1.columns and neurite_type in df2.columns:
+            _df1 = df1[neurite_type]
+            _df2 = df2[neurite_type]
+            for k in _df1.columns:
+                data1 = _df1[k].values[0]
+                data2 = _df2[k].values[0]
+                score_name = key_names[neurite_type] + " " + k.replace("_", " ")
+                score_names.append(score_name)
+                if not np.isnan(data1) and not np.isnan(data2):
+                    sc1 = relative_score(data1, data2)
+                    if not np.isnan(sc1):
+                        scores.append(sc1)
+                    else:
+                        scores.append(0.0)
+                else:
+                    scores.append(np.nan)
+                logger.debug(f"Score name: {score_name} ; Biological value: {data1} ; Generated value: {data2} ; Score: {scores[-1]}")
+
+    return score_names, scores
+
+
+def compute_scores(ref, test, config):
+    """Compute scores of a test population against a reference population.
+
+    Args:
+        ref (tuple(str, list)): the reference data.
+        test (tuple(str, list)): the test data.
+        config (dict): the configuration used to compute the scores.
+
+    Returns:
+        The scores and the feature list.
+    """
+    ref_mtype, ref_files = ref
+    test_mtype, test_files = test
+    assert ref_mtype == test_mtype, "The mtypes of ref and test files must be the same."
+
+    ref_pop = load_morphologies(ref_files)
+    test_pop = load_morphologies(test_files)
+
+    ref_features = extract_dataframe(ref_pop, config)
+    test_features = extract_dataframe(test_pop, config)
+
+    logger.debug(ref_files)
+    return get_scores(ref_features, test_features)
+
+
+def plot_score_matrix(
+    ref_morphs_df,
+    test_morphs_df,
+    output_path,
+    config,
+    # mtypes=None,
+    path_col="filepath",
+    dpi=100,
+    nb_jobs=-1,
+):
+    """Plot score matrix for a test population against a reference population."""
+
+    # Build the file list
+    ref_file_lists = [(i.name, [i]) for i in sorted(Path(ref_morphs_df).iterdir())]
+    test_file_lists = [(i.name, [i]) for i in sorted(Path(test_morphs_df).iterdir())]
+    size = len(ref_file_lists)
+    names = [i[0] for i in ref_file_lists]
+    assert size == len(test_file_lists)
+
+    # Compute scores
+    scores = []
+    keys = []
+    for ref_files, test_files in zip(ref_file_lists, test_file_lists):
+        key_name, score = compute_scores(ref_files, test_files, config)
+        keys.append(key_name)
+        scores.append(score)
+
+    n_scores = len(keys[0])
+    for k, s in zip(keys[1:], scores):
+        assert keys[0] == k, "Score names must all be the same for each feature."
+        assert len(k) == n_scores, "The number of keys must be the same for each mtype."
+        assert len(s) == n_scores, "The number of scores must be the same for each mtype."
+
+    # Plot statistics
+    with PdfPages(output_path) as pdf:
+
+        # Compute subplot ratios and figure size
+        height_ratios = [7, (1 + n_scores)]
+        fig_width = size
+        fig_height = sum(height_ratios) * 0.3
+
+        hspace = 0.625 / fig_height
+        wspace = 0.2 / fig_width
+
+        cbar_ratio = 0.4 / fig_width
+
+        # Create the figure and the subplots
+        fig, ((a0, a2), (a1, a3)) = plt.subplots(
+            2,
+            2,
+            gridspec_kw={
+                "height_ratios": height_ratios,
+                "width_ratios": [1 - cbar_ratio, cbar_ratio],
+                "hspace": hspace,
+                "wspace": wspace,
+            },
+            figsize=(fig_width, fig_height),
+        )
+
+        # Plot score errors
+        a0.errorbar(
+            np.arange(size),
+            np.nanmean(np.abs(scores), axis=1),
+            yerr=np.nanstd(np.abs(scores), axis=1),
+            color="black",
+            label="Synthesized",
+        )
+        a0.tick_params(bottom=False, top=True, labelbottom=False, labeltop=True)
+        a0.xaxis.set_tick_params(rotation=45)
+        a0.set_xticks(np.arange(size))
+        a0.set_xticklabels(names)
+
+        a0.set_xlim([a0.xaxis.get_ticklocs().min() - 0.5, a0.xaxis.get_ticklocs().max() + 0.5])
+        a0.set_ylim([-0.1, 1.1])
+
+        # Plot score heatmap
+        scores_T = np.transpose(scores)
+        scores_df = pd.DataFrame(scores_T, index=keys[0], columns=names)
+
+        g = sns.heatmap(
+            scores_df,
+            vmin=-1,
+            vmax=1,
+            mask=np.isnan(scores_T),
+            ax=a1,
+            cmap=cm.seismic,  # pylint: disable=no-member
+            cbar_ax=a3,
+        )
+
+        g.xaxis.set_tick_params(rotation=45)
+        g.set_facecolor("xkcd:black")
+
+        # Remove upper right subplot
+        a2.remove()
+
+        # Export the figure
+        try:
+            logging.disable(logging.CRITICAL)
+            pdf.savefig(fig, bbox_inches="tight", dpi=dpi)
+        finally:
+            logging.disable(0)
+        plt.close(fig)
 
 
 @attr.s(auto_attribs=True)
@@ -222,56 +495,69 @@ class CompareStatistics(luigi_tools.task.WorkflowTask):
     )
 
     def requires(self):
-        bio_kwargs = {"output_dataset": self.output_dir / "bio_stats.json"}
-        if self.morph_dir_biological is not None:
-            bio_kwargs["morph_dir"] = self.morph_dir_biological
-        else:
-            bio_kwargs["morph_dir"] = ClusterTerminals().output()["morphologies"].path
-            # bio_kwargs["morph_dir"] = RepairDataset().output().path
-
-        gen_kwargs = {"output_dataset": self.output_dir / "gen_stats.json"}
-        if self.morph_dir_generated is not None:
-            gen_kwargs["morph_dir"] = self.morph_dir_generated
-        else:
-            gen_kwargs["morph_dir"] = SteinerMorphologies().output().path
-
         return {
-            "bio": ComputeStatistics(**bio_kwargs),
-            "gen": ComputeStatistics(**gen_kwargs),
+            "bio": RepairDataset(),
+            "gen": AddTufts(),
         }
+        # bio_kwargs = {"output_dataset": self.output_dir / "bio_stats.json"}
+        # if self.morph_dir_biological is not None:
+        #     bio_kwargs["morph_dir"] = self.morph_dir_biological
+        # else:
+        #     bio_kwargs["morph_dir"] = ClusterTerminals().output()["morphologies"].path
+        #     # bio_kwargs["morph_dir"] = RepairDataset().output().path
+
+        # gen_kwargs = {"output_dataset": self.output_dir / "gen_stats.json"}
+        # if self.morph_dir_generated is not None:
+        #     gen_kwargs["morph_dir"] = self.morph_dir_generated
+        # else:
+        #     gen_kwargs["morph_dir"] = SteinerMorphologies().output().path
+
+        # return {
+        #     "bio": ComputeStatistics(**bio_kwargs),
+        #     "gen": ComputeStatistics(**gen_kwargs),
+        # }
 
     def run(self):
         self.output().pathlib_path.mkdir(parents=True, exist_ok=True)
 
-        with open(self.input()["bio"].path, encoding="utf-8") as f:
-            bio_statistics = json.load(f)
-        with open(self.input()["gen"].path, encoding="utf-8") as f:
-            gen_statistics = json.load(f)
+        # import pdb
+        # pdb.set_trace()
+        plot_score_matrix(
+            self.input()["bio"].path,
+            self.input()["gen"]["morphologies"].path,
+            self.output().pathlib_path / "score_matrix.pdf",
+            default_config(),
+        )
 
-        with PdfPages(self.output().pathlib_path / "compare_statistics.pdf") as pdf:
+        # with open(self.input()["bio"].path, encoding="utf-8") as f:
+        #     bio_statistics = json.load(f)
+        # with open(self.input()["gen"].path, encoding="utf-8") as f:
+        #     gen_statistics = json.load(f)
 
-            for key, bio_values in bio_statistics.items():
+        # with PdfPages(self.output().pathlib_path / "compare_statistics.pdf") as pdf:
 
-                gen_values = gen_statistics.get(key)
+        #     for key, bio_values in bio_statistics.items():
 
-                if gen_values is None:
-                    logger.error(f"'{key}' was not found in {self.input()['gen'].path}")
+        #         gen_values = gen_statistics.get(key)
 
-                fig = plt.figure()
-                ax = fig.gca()
+        #         if gen_values is None:
+        #             logger.error(f"'{key}' was not found in {self.input()['gen'].path}")
 
-                gen_values = np.array(gen_values)
-                bio_values = np.array(bio_values)
+        #         fig = plt.figure()
+        #         ax = fig.gca()
 
-                values = gen_values / bio_values
+        #         gen_values = np.array(gen_values)
+        #         bio_values = np.array(bio_values)
 
-                ax.hist(values, bins=self.nb_bins, density=True)
+        #         values = gen_values / bio_values
 
-                ax.set_xlabel(f"Relative deviation for {key}")
-                ax.set_ylabel("Density")
-                fig.suptitle(f"Relative deviation for {key}")
-                pdf.savefig()
-                plt.close(fig)
+        #         ax.hist(values, bins=self.nb_bins, density=True)
+
+        #         ax.set_xlabel(f"Relative deviation for {key}")
+        #         ax.set_ylabel("Density")
+        #         fig.suptitle(f"Relative deviation for {key}")
+        #         pdf.savefig()
+        #         plt.close(fig)
 
     def output(self):
         return StatisticsOutputLocalTarget(self.output_dir)

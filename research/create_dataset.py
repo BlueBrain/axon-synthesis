@@ -42,3 +42,13 @@ class RepairDataset(luigi_tools.task.WorkflowWrapperTask):
         return luigi_tools.target.OutputLocalTarget(
             self.input()[1]["data"].pathlib_path.resolve().parent.parent / "Resample/data/"
         )
+
+
+class RawDataset(luigi_tools.task.WorkflowWrapperTask):
+    def requires(self):
+        return RepairDataset()
+
+    def output(self):
+        return luigi_tools.target.OutputLocalTarget(
+            self.input().pathlib_path.resolve().parent.parent / "Collect/data/"
+        )
