@@ -42,9 +42,9 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
         edge_groups = edges.groupby("morph_file")
 
         group_names = node_groups.groups.keys()
-        assert set(group_names) == set(edge_groups.groups.keys()), (
-            "The nodes and edges have different 'morph_file' entries"
-        )
+        assert set(group_names) == set(
+            edge_groups.groups.keys()
+        ), "The nodes and edges have different 'morph_file' entries"
 
         for group_name in group_names:
             group_nodes = node_groups.get_group(group_name)
@@ -69,10 +69,8 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
             logger.info(f"{group_name}: The solution has {len(solution_edges)} edges")
 
             nodes.loc[
-                (
-                    (nodes["morph_file"] == group_name)
-                    & (nodes["id"].isin(solution_nodes))
-                ), "is_solution"
+                ((nodes["morph_file"] == group_name) & (nodes["id"].isin(solution_nodes))),
+                "is_solution",
             ] = True
 
             group_edge_ids = group_edges.reset_index()["index"]
@@ -80,10 +78,8 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
             reverted_group_edge_ids = pd.Series(group_edge_ids.index, index=group_edge_ids.values)
             edge_ids.loc[reverted_group_edge_ids.index] = reverted_group_edge_ids
             edges.loc[
-                (
-                    (edges["morph_file"] == group_name)
-                    & (edge_ids.isin(solution_edges))
-                ), "is_solution"
+                ((edges["morph_file"] == group_name) & (edge_ids.isin(solution_edges))),
+                "is_solution",
             ] = True
 
         # Export the solutions

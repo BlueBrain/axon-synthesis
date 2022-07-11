@@ -1,14 +1,17 @@
 """Extract the terminal points of a morphology so that a Steiner Tree can be computed on them."""
+import logging
 from pathlib import Path
 
 import luigi
 import luigi_tools
 import neurom
 import pandas as pd
-from neurom import load_neuron
 from morphology_processing_workflow.tasks.workflows import Curate
+from neurom import load_neuron
 
 from create_dataset import CreateDatasetForRepair
+
+logger = logging.getLogger(__name__)
 
 
 class ExtractTerminals(luigi_tools.task.WorkflowTask):
@@ -20,7 +23,9 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
         return [dataset, Curate(dataset_df=dataset.output().path)]
 
     def run(self):
-        morph_dir = Path(self.morph_dir or self.input()[1]["data"].get_default_prefix() / "CheckNeurites/data/")
+        morph_dir = Path(
+            self.morph_dir or self.input()[1]["data"].get_default_prefix() / "CheckNeurites/data/"
+        )
         dataset_file = Path(self.output().path)
         dataset_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -30,6 +35,14 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
             neuron = load_neuron(morph_path)
 
             axons = [i for i in neuron.neurites if i.type == neurom.NeuriteType.axon]
+
+            nb_axons = len(axons)
+            if nb_axons != 1:
+                logger_func = logger.warning
+            else:
+                logger_func = logger.debug
+
+            logger_func(f"{morph_path}: {nb_axons} axon(s) found")
 
             for axon_id, axon in enumerate(axons):
                 # Add root point

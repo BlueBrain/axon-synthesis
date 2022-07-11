@@ -130,31 +130,35 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 }
             )
 
-            # Remove edges between two terminals (except if a terminal is only connected to other
-            # terminals)
-            from_to_index, from_to_data = np.unique(edges_df[["from", "to"]].values, return_counts=True)
-            terminal_edges = edges_df[["from", "to"]].isin(
-                all_points_df.loc[all_points_df["is_terminal"], "id"].values
-            )
-            from_all_terminals = edges_df[["from"]].join(terminal_edges["from"].rename("from_all_terminals")).groupby("from").all()
-            to_all_terminals = edges_df[["to"]].join(terminal_edges["to"].rename("to_all_terminals")).groupby("to").all()
-            edges_df_terminals = edges_df.join(from_all_terminals, on="from")
-            edges_df_terminals = edges_df_terminals.join(to_all_terminals, on="to")
-            edges_df.drop(
-                edges_df[
-                    (terminal_edges.all(axis=1))
-                    & (~edges_df_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1))
-                ].index,
-                inplace=True
-            )
-            # TODO: remove more impossible edges
-
-            # Add coordinates
+            # Add coordinates and compute lengths
             edges_df[from_coord_cols] = all_points.loc[edges_df["from"]].values
             edges_df[to_coord_cols] = all_points.loc[edges_df["to"]].values
             edges_df["length"] = np.linalg.norm(
                 edges_df[from_coord_cols].values - edges_df[to_coord_cols].values, axis=1
             )
+
+            # Increase edge lengths edges between two terminals (except if a terminal is only connected to other
+            # terminals)
+            terminal_edges = edges_df[["from", "to"]].isin(
+                all_points_df.loc[all_points_df["is_terminal"], "id"].values
+            )
+            edges_df_terminals = edges_df.join(terminal_edges, rsuffix="_is_terminal")
+            from_to_all_terminals = edges_df_terminals.groupby("from")[
+                ["from_is_terminal", "to_is_terminal"]
+            ].all()
+
+            edges_df_terminals = edges_df_terminals.join(
+                from_to_all_terminals["from_is_terminal"].rename("from_all_terminals"), on="from"
+            )
+            edges_df_terminals = edges_df_terminals.join(
+                from_to_all_terminals["to_is_terminal"].rename("to_all_terminals"), on="to"
+            )
+            edges_df.loc[
+                (edges_df_terminals[["from_is_terminal", "to_is_terminal"]].all(axis=1))
+                & (~edges_df_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1)),
+                "length",
+            ] += edges_df["length"].sum()
+            # TODO: increase lengths of more impossible edges
 
             # Save edges
             all_edges.append(edges_df)

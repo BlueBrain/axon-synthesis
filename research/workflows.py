@@ -11,12 +11,14 @@ from morphology_processing_workflow.tasks.workflows import Curate
 
 from create_dataset import CreateDatasetForRepair
 from PCSF.create_graph import CreateGraph
-from PCSF.steiner_tree import SteinerTree
 from PCSF.plot_steiner import PlotSolutions
+from PCSF.steiner_tree import SteinerTree
 
 
 class GeneralConfig(luigi.Config):
-    output_dir = luigi.Parameter(description="The directory in which all the results will be exported", default=None)
+    output_dir = luigi.Parameter(
+        description="The directory in which all the results will be exported", default=None
+    )
 
 
 luigi_tools.target.OutputLocalTarget.set_default_prefix(GeneralConfig().output_dir)

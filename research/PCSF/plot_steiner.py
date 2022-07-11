@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 class PlotSolutions(luigi_tools.task.WorkflowTask):
     nodes_path = luigi.Parameter(description="Path to the nodes CSV file.", default=None)
     edges_path = luigi.Parameter(description="Path to the edges CSV file.", default=None)
-    output_dir = luigi.Parameter(description="Output folder for figures.", default="steiner_solutions")
+    output_dir = luigi.Parameter(
+        description="Output folder for figures.", default="steiner_solutions"
+    )
 
     def requires(self):
         return SteinerTree()
@@ -36,9 +38,9 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
         edge_groups = edges.groupby("morph_file")
 
         group_names = node_groups.groups.keys()
-        assert set(group_names) == set(edge_groups.groups.keys()), (
-            "The nodes and edges have different 'morph_file' entries"
-        )
+        assert set(group_names) == set(
+            edge_groups.groups.keys()
+        ), "The nodes and edges have different 'morph_file' entries"
 
         for group_name in group_names:
             group_nodes = node_groups.get_group(group_name)
@@ -76,13 +78,17 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
                 z=edges_z.values.flatten().tolist(),
                 hoverinfo="none",
                 mode="lines",
-                scene="scene2"
+                scene="scene2",
             )
 
             # Export the solution
-            fig = make_subplots(cols=2, specs=[[{'is_3d': True}, {'is_3d': True}]])
+            fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
             fig.add_traces([node_trace, edge_trace], rows=[1, 1], cols=[1, 1])
-            fig.add_traces(neuron_fig["data"], rows=[1] * len(neuron_fig["data"]), cols=[2] * len(neuron_fig["data"]))
+            fig.add_traces(
+                neuron_fig["data"],
+                rows=[1] * len(neuron_fig["data"]),
+                cols=[2] * len(neuron_fig["data"]),
+            )
             fig_path = str((output_dir / Path(group_name).name).with_suffix(".html"))
             fig.write_html(fig_path)
 
@@ -91,7 +97,7 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
                 tmp = f.read()
                 fig_id = re.match('.*id="([^ ]*)" .*', tmp, flags=re.DOTALL).group(1)
 
-            js = '''
+            js = """
     <script>
     var gd = document.getElementById('{fig_id}');
     var isUnderRelayout = false
@@ -106,7 +112,9 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
       isUnderRelayout = true;
     }})
     </script>
-    '''.format(fig_id=fig_id)
+    """.format(
+                fig_id=fig_id
+            )
 
             with open(fig_path, "w") as f:
                 f.write(tmp.replace("</body>", js + "</body>"))
