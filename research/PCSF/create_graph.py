@@ -16,8 +16,11 @@ from neurom.morphmath import angle_between_vectors
 from scipy.spatial import Delaunay
 from scipy.spatial import KDTree
 from scipy.spatial import Voronoi
+from voxcell.nexus.voxelbrain import Atlas
 
+from config import Config
 from PCSF.clustering import ClusterTerminals
+from target_points import FindTargetPoints
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +98,19 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         ),
         default=True,
     )
+    atlas_path = luigi_tools.parameter.OptionalPathParameter(
+        description="Path to the atlas directory.",
+        default=None,
+        exists=True,
+    )
+    atlas_hierarchy_filename = luigi.Parameter(
+        description="Atlas hierarchy file.",
+        default="hierarchy.json",
+    )
+    atlas_region_filename = luigi.Parameter(
+        description="Atlas regions file.",
+        default="brain_regions",
+    )
     plot_debug = luigi.BoolParameter(
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "
@@ -104,10 +120,30 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
     )
 
     def requires(self):
-        return ClusterTerminals()
+        input_data_type = Config().input_data_type
+        if input_data_type == "biological_morphologies":
+            return ClusterTerminals()
+        elif input_data_type == "white_matter":
+            return FindTargetPoints()
+        else:
+            raise ValueError(f"The value of 'input_data_type' is unknown ({input_data_type}).")
 
     def run(self):
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
+        terminals.to_csv(self.output()["input_terminals"].path, index=False)
+
+        if self.atlas_path is not None:
+            atlas = Atlas.open(atlas_path)
+            region_map = atlas.load_region_map(self.atlas_hierarchy_filename)
+            brain_regions = atlas.load_data(self.atlas_region_filename)
+            fiber_tracts_ids = region_map.find("fiber tracts", attr="name", with_descendants=True)
+            fiber_tracts_mask = np.isin(brain_regions.raw, list(fiber_tracts_ids))
+            brain_regions.raw[~fiber_tracts_mask] = 0  # Zeroes the complement region
+            fiber_tract_points = brain_regions.indices_to_positions(np.argwhere(brain_regions.raw))
+            fiber_tract_tree = KDTree(fiber_tract_points)
+        else:
+            fiber_tract_points = None
+            fiber_tract_tree = None
 
         if self.use_ancestors:
             if self.terminals_path:
@@ -327,60 +363,73 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             logger.info(f"{group_name}: {len(edges_df)} edges")
 
             if self.plot_debug:
-                # Prepare data for plot
-                mask_from = (edges_df[from_coord_cols] < pts.min(axis=0)).any(axis=1) | (
-                    edges_df[from_coord_cols] > pts.max(axis=0)
-                ).any(axis=1)
-                mask_to = (edges_df[to_coord_cols] < pts.min(axis=0)).any(axis=1) | (
-                    edges_df[to_coord_cols] > pts.max(axis=0)
-                ).any(axis=1)
-                out_pts = np.unique(
-                    np.concatenate([edges_df.loc[mask_from, "from"], edges_df.loc[mask_to, "to"]])
-                )
+                try:
+                    disabled_loggers = [
+                        logging.getLogger('matplotlib.font_manager'),
+                        logging.getLogger('PIL.PngImagePlugin'),
+                    ]
+                    for dl in disabled_loggers:
+                        dl.disabled = True
 
-                masked_tri = tri.simplices[~np.isin(tri.simplices, out_pts).any(axis=1)]
-                triangles = np.unique(
-                    np.apply_along_axis(
-                        np.sort,
-                        1,
-                        np.vstack(
-                            np.stack(
-                                (
-                                    masked_tri,
-                                    np.roll(masked_tri, -1, axis=1),
-                                    np.roll(masked_tri, -2, axis=1),
-                                ),
-                                axis=2,
-                            )
+                    # Prepare data for plot
+                    mask_from = (edges_df[from_coord_cols] < pts.min(axis=0)).any(axis=1) | (
+                        edges_df[from_coord_cols] > pts.max(axis=0)
+                    ).any(axis=1)
+                    mask_to = (edges_df[to_coord_cols] < pts.min(axis=0)).any(axis=1) | (
+                        edges_df[to_coord_cols] > pts.max(axis=0)
+                    ).any(axis=1)
+                    out_pts = np.unique(
+                        np.concatenate([edges_df.loc[mask_from, "from"], edges_df.loc[mask_to, "to"]])
+                    )
+
+                    masked_tri = tri.simplices[~np.isin(tri.simplices, out_pts).any(axis=1)]
+                    triangles = np.unique(
+                        np.apply_along_axis(
+                            np.sort,
+                            1,
+                            np.vstack(
+                                np.stack(
+                                    (
+                                        masked_tri,
+                                        np.roll(masked_tri, -1, axis=1),
+                                        np.roll(masked_tri, -2, axis=1),
+                                    ),
+                                    axis=2,
+                                )
+                            ),
                         ),
-                    ),
-                    axis=0,
-                )
-                tri_col = Poly3DCollection(
-                    all_points.values[triangles],
-                    edgecolors="k",
-                    facecolors=None,
-                    linewidths=0.5,
-                    alpha=0,
-                )
+                        axis=0,
+                    )
+                    tri_col = Poly3DCollection(
+                        all_points.values[triangles],
+                        edgecolors="k",
+                        facecolors=None,
+                        linewidths=0.5,
+                        alpha=0,
+                    )
 
-                # Create the figure
-                fig = plt.figure(figsize=(12, 9))
-                ax = fig.gca(projection="3d")
-                ax.add_collection3d(tri_col)
+                    # Create the figure
+                    fig = plt.figure(figsize=(12, 9))
+                    ax = fig.gca(projection="3d")
+                    ax.add_collection3d(tri_col)
 
-                # Plot the terminal points
-                ax.scatter3D(*pts.T, c="red")
+                    # Plot the terminal points
+                    ax.scatter3D(*pts.T, c="red")
 
-                # Set rotation center
-                pts_center = pts.mean(axis=0)
-                half_delta = 0.5 * (pts.max(axis=0) - pts.min(axis=0))
-                ax.set_xbound(pts_center[0] - half_delta[0], pts_center[0] + half_delta[0])
-                ax.set_ybound(pts_center[1] - half_delta[1], pts_center[1] + half_delta[1])
-                ax.set_zbound(pts_center[2] - half_delta[2], pts_center[2] + half_delta[2])
+                    # Set rotation center
+                    pts_center = pts.mean(axis=0)
+                    half_delta = 0.5 * (pts.max(axis=0) - pts.min(axis=0))
+                    ax.set_xbound(pts_center[0] - half_delta[0], pts_center[0] + half_delta[0])
+                    ax.set_ybound(pts_center[1] - half_delta[1], pts_center[1] + half_delta[1])
+                    ax.set_zbound(pts_center[2] - half_delta[2], pts_center[2] + half_delta[2])
 
-                plt.show()
-                time.sleep(1)
+                    plt.show()
+                    time.sleep(1)
+
+                finally:
+                    for dl in disabled_loggers:
+                        dl.disabled = False
+
 
         if self.plot_debug:
             matplotlib.use(old_backend)
@@ -397,4 +446,5 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         return {
             "nodes": luigi_tools.target.OutputLocalTarget(self.output_nodes, create_parent=True),
             "edges": luigi_tools.target.OutputLocalTarget(self.output_edges, create_parent=True),
+            "input_terminals": luigi_tools.target.OutputLocalTarget("graph_input_terminals", create_parent=True),
         }

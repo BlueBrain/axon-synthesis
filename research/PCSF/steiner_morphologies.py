@@ -7,11 +7,13 @@ import numpy as np
 import pandas as pd
 from luigi_tools.parameter import OptionalStrParameter
 from luigi_tools.parameter import PathParameter
-from neurom import load_morphology
 from morphio import PointLevel
 from morphio import SectionType
-from morphio.mut import Morphology
+from morphio.mut import Morphology as MutableMorphology
+from neurom import load_morphology
+from neurom.core import Morphology
 
+from PCSF.create_graph import CreateGraph
 from PCSF.steiner_tree import SteinerTree
 
 logger = logging.getLogger(__name__)
@@ -20,6 +22,7 @@ logger = logging.getLogger(__name__)
 class SteinerMorphologies(luigi_tools.task.WorkflowTask):
     nodes_path = OptionalStrParameter(description="Path to the nodes CSV file.", default=None)
     edges_path = OptionalStrParameter(description="Path to the edges CSV file.", default=None)
+    somata_path = OptionalStrParameter(description="Path to the somata CSV file.", default=None)
     smoothing = OptionalStrParameter(
         description="Path to the edges CSV file.",
         default=None,
@@ -32,11 +35,17 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
     def requires(self):
         return {
             "steiner_tree": SteinerTree(),
+            "terminals": CreateGraph(),
         }
 
     def run(self):
         nodes = pd.read_csv(self.nodes_path or self.input()["steiner_tree"]["nodes"].path)
         edges = pd.read_csv(self.edges_path or self.input()["steiner_tree"]["edges"].path)
+
+        # import pdb
+        # pdb.set_trace()
+        somata = pd.read_csv(self.somata_path or self.input()["terminals"]["input_terminals"].path)
+        soma_centers = somata.loc[somata["axon_id"] == -1].copy()
 
         self.output().mkdir(is_dir=True)
 
@@ -56,12 +65,10 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
             logger.debug(f"{group_name}: {len(group_nodes)} nodes and {len(group_edges)} edges")
 
             # Load the biological neuron
-            morph = load_morphology(group_name)
-
-            # Remove all neurites and keep only soma
-            root_sections = [i for i in morph.root_sections]
-            for i in root_sections:
-                morph.delete_section(i)
+            morph = MutableMorphology()
+            morph.soma.points = soma_centers.loc[soma_centers["morph_file"] == group_name, ["x", "y", "z"]].values
+            morph.soma.diameters = [2]  # So the radius is 1
+            morph = Morphology(morph)
 
             # Create the synthesized axon
             active_sections = []
@@ -150,7 +157,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
             # morph.remove_unifurcations()
 
             # Export the morphology
-            morph_name = Path(group_name).name
+            morph_name = Path(str(group_name)).name
             morph_path = str((self.output().pathlib_path / morph_name).with_suffix(".asc"))
             morph.write(morph_path)
 

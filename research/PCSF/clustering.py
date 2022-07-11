@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 class ClusteringOutputLocalTarget(luigi_tools.target.OutputLocalTarget):
-    __prefix = Path("clustering")
+    __prefix = "clustering"
 
 
 class ClusterTerminals(luigi_tools.task.WorkflowTask):
