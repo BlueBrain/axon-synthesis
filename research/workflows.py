@@ -1,11 +1,9 @@
 """The main workflows."""
 import luigi_tools
-
 from morphology_processing_workflow.tasks.workflows import Curate
 
 from create_dataset import CreateDatasetForRepair
-from PCSF.extract_terminals import ExtractTerminals
-from PCSF.clustering import ClusterTerminals
+from PCSF.create_graph import CreateGraph
 
 
 class DiscoverRawData(luigi_tools.task.WorkflowWrapperTask):
@@ -20,4 +18,4 @@ class PrepareSteinerData(luigi_tools.task.WorkflowWrapperTask):
     """This workflow prepares the data used for Steiner Tree computation."""
 
     def requires(self):
-        return ClusterTerminals()
+        return CreateGraph()

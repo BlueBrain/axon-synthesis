@@ -4,7 +4,6 @@ from pathlib import Path
 import luigi
 import luigi_tools
 import neurom
-import numpy as np
 import pandas as pd
 from neurom import load_neuron
 
