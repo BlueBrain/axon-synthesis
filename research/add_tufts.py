@@ -1,6 +1,7 @@
 """Add tufts to Steiner solutions."""
 import json
 import logging
+import sys
 from copy import deepcopy
 from pathlib import Path
 
@@ -20,9 +21,10 @@ from plotly_helper.neuron_viewer import NeuronBuilder
 from plotly.subplots import make_subplots
 from scipy.spatial import KDTree
 
-from smoothing import SmoothSteinerMorphologies
+from config import Config
 from create_tuft_props import CreateTuftTerminalProperties
 from PCSF.steiner_morphologies import SteinerMorphologies
+from smoothing import SmoothSteinerMorphologies
 from utils import add_camera_sync
 from utils import append_section_recursive
 
@@ -54,7 +56,7 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         var_type=int,
         default=0,
         min_value=0,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     use_smooth_trunks = luigi.BoolParameter(
         description=(
@@ -83,7 +85,8 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         return tasks
 
     def run(self):
-        input_dir = self.input_dir or self.input()["steiner_solutions"].pathlib_path
+        config = Config()
+        input_dir = self.input_dir or self.input()["steiner_solutions"]["morphologies"].pathlib_path
 
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
@@ -105,21 +108,20 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         with self.input()["terminal_properties"].open() as f:
             cluster_props_df = pd.DataFrame.from_records(json.load(f))
 
-        # for morph_file in input_dir.iterdir():
-        #     morph_name = morph_file.name
-
-        for group_name, group in cluster_props_df.groupby("morph_file"):
-            raw_morph_file = Path(group_name)
-            morph_name = raw_morph_file.name
-            morph_file = (input_dir / morph_name).with_suffix(".asc")
-            morph = load_morphology(morph_file)
+        for group_name, group in cluster_props_df.groupby("steiner_morph_file"):
+            steiner_morph_file = Path(group_name)
+            morph_file = Path(group["morph_file"].iloc[0])
+            morph_name = steiner_morph_file.name
+            morph = load_morphology(steiner_morph_file)
 
             # Get reference terminals
             ref_terminal_props = cluster_props_df.loc[
-                (cluster_props_df["morph_file"] == str(raw_morph_file))
+                (cluster_props_df["morph_file"] == str(morph_file))
             ]
 
             # Find the root sections of the future tufts
+            # (all unifurcations may not be actual tuft roots, so we have to retrieve them using
+            # the coordinates)
             tuft_roots = []
             tree = KDTree(ref_terminal_props["common_ancestor_coords"].to_list())
             for section in morph.iter():
@@ -179,18 +181,25 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             morph.write(morph_path)
 
             if self.plot_debug:
-                raw_morph = load_morphology(raw_morph_file)
-                raw_morph = Morphology(resampling.resample_linear_density(raw_morph, 0.005))
-
-                raw_builder = NeuronBuilder(
-                    raw_morph, "3d", line_width=4, title=f"{morph_name}"
-                )
                 fig_builder = NeuronBuilder(
                     morph, "3d", line_width=4, title=f"{morph_name}"
                 )
+                fig_data = [fig_builder.get_figure()["data"]]
 
-                fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
-                for col_num, data in enumerate([fig_builder.get_figure()["data"], raw_builder.get_figure()["data"]]):
+                if config.input_data_type == "biological_morphologies":
+                    raw_morph = load_morphology(morph_file)
+                    raw_morph = Morphology(resampling.resample_linear_density(raw_morph, 0.005))
+
+                    raw_builder = NeuronBuilder(
+                        raw_morph, "3d", line_width=4, title=f"{morph_name}"
+                    )
+
+                    fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
+                    fig_data.append(raw_builder.get_figure()["data"])
+                else:
+                    fig = make_subplots(cols=1, specs=[[{"is_3d": True}]])
+
+                for col_num, data in enumerate(fig_data):
                     fig.add_traces(data, rows=[1] * len(data), cols=[col_num + 1] * len(data))
 
                 # Export figure

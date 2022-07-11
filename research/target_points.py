@@ -1,21 +1,18 @@
 """Find the target points of the input morphologies."""
+import json
 import logging
-import yaml
 
 import luigi
 import luigi_tools
 import numpy as np
 import pandas as pd
 from data_validation_framework.target import TaggedOutputLocalTarget
-from scipy.spatial.distance import squareform
-from voxcell import VoxelData
-from voxcell.nexus.voxelbrain import Atlas
 
 from atlas import load as load_atlas
 from config import Config
 from source_points import CreateSourcePoints
 from white_matter_recipe import load as load_wmr
-from white_matter_recipe import process
+from white_matter_recipe import process as process_wmr
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +32,11 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         default=None,
         exists=True,
     )
-    output_dataset = luigi.Parameter(
-        description="Output dataset file", default="terminals.csv"
+    output_terminals = luigi.Parameter(
+        description="Output dataset file", default="target_terminals.csv"
+    )
+    output_source_populations = luigi.Parameter(
+        description="Output source population dataset file", default="source_populations.csv"
     )
     sub_region_separator = luigi.Parameter(
         description="Separator use between region and subregion names to build the acronym.",
@@ -81,149 +81,41 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         )
 
         # Get atlas data
-        atlas, brain_regions, region_map = load_atlas(str(config.atlas_path))
+        atlas, brain_regions, region_map = load_atlas(str(config.atlas_path), config.atlas_region_filename, config.atlas_hierarchy_filename)
 
         # Get the white matter recipe
         wm_recipe = load_wmr(config.white_matter_file)
 
         # Process the white matter recipe
-        # wm_populations, wm_projections, wm_targets, wm_fractions, wm_interaction_strengths = process(wm_recipe)
-
-        # Get populations
-        wm_populations = pd.DataFrame.from_records(wm_recipe["populations"])
-        wm_populations_sub = wm_populations.loc[
-            wm_populations["atlas_region"].apply(lambda x: isinstance(x, list)),
-            "atlas_region",
-        ]
-        if not wm_populations_sub.empty:
-            wm_populations_sub = (
-                wm_populations_sub.apply(pd.Series)
-                .stack()
-                .dropna()
-                .rename("atlas_region_split")
-                .reset_index(level=1, drop=True)
-            )
-            wm_populations = wm_populations.join(wm_populations_sub, how="left")
-            wm_populations["atlas_region_split"].fillna(
-                wm_populations["atlas_region"], inplace=True
-            )
-            wm_populations.drop(columns=["atlas_region"], inplace=True)
-            wm_populations.rename(
-                columns={
-                    "atlas_region_split": "atlas_region",
-                },
-                inplace=True,
-            )
-        wm_populations.rename(
-            columns={
-                "name": "pop_raw_name",
-            },
-            inplace=True,
-        )
-        wm_populations["region_acronym"] = wm_populations["atlas_region"].apply(
-            lambda row: row["name"]
-        )
-        wm_populations_sub = (
-            wm_populations["atlas_region"]
-            .apply(lambda row: pd.Series(row.get("subregions", [])))
-            .stack()
-            .dropna()
-            .rename("sub_region")
-            .reset_index(level=1, drop=True)
-        )
-        wm_populations = wm_populations.join(wm_populations_sub, how="left")
-
-        # Get subregion names
-        wm_populations["formatted_subregion"] = wm_populations["sub_region"]
-        if self.subregion_uppercase:
-            wm_populations["formatted_subregion"] = wm_populations[
-                "formatted_subregion"
-            ].str.upper()
-        if self.subregion_remove_prefix:
-            wm_populations["formatted_subregion"] = wm_populations[
-                "formatted_subregion"
-            ].str.extract(r"(\d+.*)")
-        wm_populations["subregion_acronym"] = (
-            wm_populations["region_acronym"]
-            + self.sub_region_separator
-            + wm_populations["formatted_subregion"]
-        )
-
-        def get_atlas_region_id(region_map, pop_row, col_name, second_col_name=None):
-            def get_ids(region_map, pop_row, col_name):
-                if not pop_row.isnull()[col_name]:
-                    acronym = pop_row[col_name]
-                    ids = region_map.find(acronym, attr="acronym")
-                else:
-                    acronym = None
-                    ids = []
-                return ids, acronym
-
-            ids, acronym = get_ids(region_map, pop_row, col_name)
-            if len(ids) == 0 and second_col_name is not None:
-                ids, new_acronym = get_ids(region_map, pop_row, second_col_name)
-                if len(ids) == 1 and acronym is not None:
-                    logger.warning(
-                        f"Could not find any ID for {acronym} in the region map but found one for "
-                        f"{new_acronym}"
-                    )
-            else:
-                new_acronym = None
-            if len(ids) > 1:
-                raise ValueError(
-                    f"Found several IDs for the acronym '{acronym or new_acronym}' in the region "
-                    f"map: {sorted(ids)}"
-                )
-            elif len(ids) == 0:
-                raise ValueError(
-                    f"Could not find the acronym '{acronym or new_acronym}' in the region map"
-                )
-            return ids.pop()
-
-        # Get atlas subregion IDs
-        wm_populations["atlas_region_id"] = wm_populations.apply(
-            lambda row: get_atlas_region_id(
-                region_map, row, "subregion_acronym", "region_acronym"
-            ),
-            axis=1,
+        (
+            wm_populations, wm_projections, wm_targets, wm_fractions, wm_interaction_strengths, projection_targets
+        ) = process_wmr(
+            wm_recipe,
+            region_map,
+            self.subregion_uppercase,
+            self.subregion_remove_prefix,
+            self.sub_region_separator,
         )
 
         # Export the population DataFrame
         wm_populations.to_csv(self.output()["wm_populations"].path, index=False)
 
-        # Get projections
-        wm_projections = pd.DataFrame.from_records(wm_recipe["projections"])
-        if wm_projections["source"].duplicated().any():
-            raise ValueError(
-                "Found several equal sources in the 'projections' entry: "
-                f"{sorted(wm_projections.loc[wm_projections['a'].duplicated(), 'a'].tolist())}"
-            )
-
-        # Map projections
-        wm_projections = wm_projections.merge(
-            wm_populations, left_on="source", right_on="pop_raw_name", how="left"
-        )
-
         # Export the projection DataFrame
         wm_projections.to_csv(self.output()["wm_projections"].path, index=False)
 
-        wm_targets = (
-            wm_projections["targets"]
-            .apply(pd.Series)
-            .stack()
-            .rename("target")
-            .reset_index(level=1)
-            .rename(columns={"level_1": "target_num"})
-        )
-        projection_targets = wm_projections.join(wm_targets).set_index(
-            "target_num", append=True
-        )
-        projection_targets["strength"] = projection_targets["target"].apply(
-            lambda row: row["density"]
-        )
-        projection_targets["topographical_mapping"] = projection_targets[
-            "target"
-        ].apply(lambda row: row["presynaptic_mapping"])
+        # Export the projection DataFrame
+        projection_targets.to_csv(self.output()["wm_projection_targets"].path, index=False)
+
+        # Export the fractions
+        with self.output()["wm_fractions"].pathlib_path.open("w", encoding="utf-8") as f:
+            json.dump(wm_fractions, f)
+
+        # Export the targets DataFrame
+        wm_targets.to_csv(self.output()["wm_targets"].path, index=False)
+
+        # Export the interaction strengths
+        with self.output()["wm_interaction_strengths"].pathlib_path.open("w", encoding="utf-8") as f:
+            json.dump({k: v.to_dict("index") for k, v in wm_interaction_strengths.items()}, f)
 
         # Get brain regions from source positions
         source_points["brain_region"] = brain_regions.lookup(
@@ -295,24 +187,8 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                 logger.warning(f"Could not map fractions for: {i}")
             source_pop.dropna(subset=["pop_raw_name"], inplace=True)
 
-        # Get fractions
-        wm_fractions = {i["population"]: i["fractions"] for i in wm_recipe["p-types"]}
-
-        # Get interaction_mat and strengths
-        wm_interaction_mat = {
-            i["population"]: i["interaction_mat"]
-            for i in wm_recipe["p-types"]
-            if "interaction_mat" in i
-        }
-
-        wm_interaction_strengths = {
-            k: pd.DataFrame(
-                _fill_diag(squareform(v["strengths"]), 1),
-                columns=wm_interaction_mat[k]["projections"],
-                index=wm_interaction_mat[k]["projections"],
-            )
-            for k, v in wm_interaction_mat.items()
-        }
+        # Export the source populations
+        source_pop.to_csv(self.output()["source_populations"].path, index=False)
 
         # Compute connections (find regions and pick random coordinates in these regions)
         targets = []
@@ -348,7 +224,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                     f"Density for {row['morph_file']} - {term_id}: {target['density']}"
                 )
 
-                # TODO: Create several targets in the region where the density is high? => We could find a ratio between input axons and number of tufts in the region ?
+                # TODO: Create several targets in the region where the density is high? => We could find a ratio between input axons and number of tufts in the region?
 
                 # TODO: Use the topographical mapping to refine targeted area in the target region
 
@@ -379,7 +255,10 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                     ]
                 )
 
-                targets.append([row["morph_file"], 0, term_id] + coords.tolist())
+                # Convert to float32 to avoid rounding error later in MorphIO
+                coords = coords.astype(np.float32)
+
+                targets.append([row["morph_file"], 0, term_id] + coords.tolist() + [target])
                 term_id += 1
 
         # Format the results
@@ -392,6 +271,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                 "x",
                 "y",
                 "z",
+                "target_properties"
             ],
         )
 
@@ -426,6 +306,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         )
         soma_points["axon_id"] = -1
         soma_points["terminal_id"] = -1
+        soma_points["target_properties"] = None
 
         # Add source points as terminals
         root_pts = soma_points.copy(deep=True)
@@ -447,13 +328,28 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
     def output(self):
         targets = {
             "terminals": TaggedOutputLocalTarget(
-                self.output_dataset, create_parent=True
+                self.output_terminals, create_parent=True
+            ),
+            "source_populations": TaggedOutputLocalTarget(
+                self.output_source_populations, create_parent=True
             ),
             "wm_populations": TargetPointsOutputLocalTarget(
                 "white_matter_population.csv", create_parent=True
             ),
             "wm_projections": TargetPointsOutputLocalTarget(
                 "white_matter_projections.csv", create_parent=True
+            ),
+            "wm_projection_targets": TargetPointsOutputLocalTarget(
+                "white_matter_projection_targets.csv", create_parent=True
+            ),
+            "wm_fractions": TargetPointsOutputLocalTarget(
+                "white_matter_fractions.csv", create_parent=True
+            ),
+            "wm_targets": TargetPointsOutputLocalTarget(
+                "white_matter_targets.csv", create_parent=True
+            ),
+            "wm_interaction_strengths": TargetPointsOutputLocalTarget(
+                "white_matter_interaction_strengths.csv", create_parent=True
             ),
         }
         if self.debug_flatmap:

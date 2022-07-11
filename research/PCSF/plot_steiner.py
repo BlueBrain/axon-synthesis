@@ -54,7 +54,7 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
         return reqs
 
     def run(self):
-        input_dir = self.input_dir or self.input()["generated"].pathlib_path
+        input_dir = self.input_dir or self.input()["generated"]["morphologies"].pathlib_path
 
         self.output().mkdir(is_dir=True)
 

@@ -43,12 +43,10 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
         nodes = pd.read_csv(self.nodes_path or self.input()["steiner_tree"]["nodes"].path)
         edges = pd.read_csv(self.edges_path or self.input()["steiner_tree"]["edges"].path)
 
-        # import pdb
-        # pdb.set_trace()
         somata = pd.read_csv(self.somata_path or self.input()["terminals"]["input_terminals"].path)
         soma_centers = somata.loc[somata["axon_id"] == -1].copy()
 
-        self.output().mkdir(is_dir=True)
+        self.output()["morphologies"].mkdir(is_dir=True)
 
         node_groups = nodes.groupby("morph_file")
         edge_groups = edges.groupby("morph_file")
@@ -58,12 +56,16 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
             edge_groups.groups.keys()
         ), "The nodes and edges have different 'morph_file' entries"
 
+        # Create an empty column for future file locations
+        nodes["steiner_morph_file"] = None
+
         for group_name in group_names:
             group_nodes = node_groups.get_group(group_name)
             group_edges = edge_groups.get_group(group_name)
+            in_solution_nodes = group_nodes.loc[group_nodes["is_solution"]]
             in_solution_edges = group_edges.loc[group_edges["is_solution"]]
 
-            logger.debug(f"{group_name}: {len(group_nodes)} nodes and {len(group_edges)} edges")
+            logger.debug(f"{group_name}: {len(in_solution_nodes)} on {len(group_nodes)} nodes in solution and {len(in_solution_edges)} on {len(group_edges)} edges in solution")
 
             # Load the biological neuron
             morph = MutableMorphology()
@@ -153,16 +155,25 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                         )
                     )
 
-            # Merge consecutive sections that are not separated by a bifurcation
-            # TODO: Move it at the very end of the process
-            # morph.remove_unifurcations()
+            # At this point we do not merge consecutive sections that are not separated by a
+            # bifurcation, we do it only at the very end of the process. This is to keep section
+            # IDs synced with point IDs.
 
             # Export the morphology
             morph_name = Path(str(group_name)).name
-            morph_path = str((self.output().pathlib_path / morph_name).with_suffix(".asc"))
+            morph_path = str((self.output()["morphologies"].pathlib_path / morph_name).with_suffix(".asc"))
             morph.write(morph_path)
 
             logger.info(f"{morph_name}: exported to {morph_path}")
 
+            # Set the path of the new morph in the node DF
+            nodes.loc[nodes["morph_file"] == group_name, "steiner_morph_file"] = morph_path
+
+        # Export the node DF
+        nodes.to_csv(self.output()["nodes"].path, index=False)
+
     def output(self):
-        return TaggedOutputLocalTarget(self.output_dir, create_parent=True)
+        return {
+            "nodes": TaggedOutputLocalTarget(self.output_dir / "steiner_morph_nodes.csv", create_parent=True),
+            "morphologies": TaggedOutputLocalTarget(self.output_dir, create_parent=True),
+        }

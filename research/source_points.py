@@ -20,7 +20,7 @@ def _fill_diag(mat, val=1):
 
 class CreateSourcePoints(luigi_tools.task.WorkflowTask):
     output_dataset = luigi.Parameter(
-        description="Output dataset file", default="terminals.csv"
+        description="Output dataset file", default="source_terminals.csv"
     )
     nb_points = luigi.IntParameter(
         description="The number of random points generated.",

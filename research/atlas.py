@@ -1,5 +1,6 @@
 """Helpers for atlas."""
 import logging
+from functools import lru_cache
 from pathlib import Path
 
 # import numpy as np
@@ -9,6 +10,7 @@ from voxcell.nexus.voxelbrain import Atlas
 logger = logging.getLogger(__name__)
 
 
+@lru_cache
 def load(atlas_path: str, atlas_region_filename: str, atlas_hierarchy_filename:str):
     """Read Atlas data from directory."""
     # Get atlas data

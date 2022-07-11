@@ -1,6 +1,7 @@
 """Cluster the terminal points of a morphology so that a Steiner Tree can be computed on them."""
 import json
 import logging
+import sys
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
@@ -16,6 +17,7 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from morphio import IterType
 from morphio import PointLevel
+from morphio.mut import Morphology as MorphIoMorphology
 from morph_tool import resampling
 from neurom import COLS
 from neurom import NeuriteType
@@ -61,7 +63,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         var_type=float,
         default=100,
         min_value=0,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     max_path_clustering_distance = luigi_tools.parameter.OptionalNumericalParameter(
         description=(
@@ -70,14 +72,14 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         var_type=float,
         default=None,
         min_value=0,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     clustering_number = luigi.NumericalParameter(
         description="The min number of points to define a cluster in 'sphere' mode.",
         var_type=int,
         default=20,
         min_value=1,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     clustering_mode = luigi.ChoiceParameter(
         description="The method used to define a cluster.",
@@ -689,7 +691,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
 
                 # Compute the barcode
-                tmd_axon = list(convert_morphio_trees(Morphology(tuft_morph)))[axon_id]
+                tmd_axon = list(convert_morphio_trees(MorphIoMorphology(tuft_morph).as_immutable()))[axon_id]
                 tuft_barcode, _ = tree_to_property_barcode(
                     tmd_axon,
                     lambda tree: tree.get_point_path_distances(),
@@ -700,6 +702,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 # Add tuft category data
                 path_distance = sum([section_length(i.points) for i in common_section.iter(IterType.upstream)])
                 radial_distance = np.linalg.norm(axons[axon_id].points[0, COLS.XYZ] - common_section.points[-1])
+                path_length = sum([section_length(i.points) for i in common_section.iter()])
+
                 cluster_props.append(
                     (
                         group_name,
@@ -710,6 +714,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                         tuft_ancestor.points[-1].tolist(),
                         path_distance,
                         radial_distance,
+                        path_length,
                         len(cluster),
                         tuft_orientation.tolist(),
                         np.array(tuft_barcode).tolist(),
@@ -895,6 +900,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 "common_ancestor_coords",
                 "path_distance",
                 "radial_distance",
+                "path_length",
                 "cluster_size",
                 "cluster_orientation",
                 "cluster_barcode",
@@ -935,6 +941,33 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     ).apply(np.linalg.norm)
                 ).get_figure().gca()
                 ax.set_title("Cluster radial length vs radial distance")
+                pdf.savefig()
+                plt.close()
+
+                ax = cluster_props_df.plot.scatter(
+                    x="cluster_size",
+                    y="path_length",
+                    title="Path length vs cluster size",
+                    legend=True,
+                )
+                pdf.savefig()
+                plt.close()
+
+                ax = cluster_props_df.plot.scatter(
+                    x="path_distance",
+                    y="path_length",
+                    title="Path length vs path distance",
+                    legend=True,
+                )
+                pdf.savefig()
+                plt.close()
+
+                ax = cluster_props_df.plot.scatter(
+                    x="radial_distance",
+                    y="path_length",
+                    title="Path length vs radial distance",
+                    legend=True,
+                )
                 pdf.savefig()
                 plt.close()
 

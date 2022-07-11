@@ -3,6 +3,7 @@
 This is needed to easily compute a Steiner Tree (Euclidean Steiner Tree is complicated).
 """
 import logging
+import sys
 import time
 
 import luigi
@@ -39,42 +40,42 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         var_type=int,
         default=5,
         min_value=0,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     min_intermediate_distance = luigi.NumericalParameter(
         description="The min distance between two successive intermediate points.",
         var_type=int,
         default=1000,
         min_value=0,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     orientation_penalty_exponent = luigi.NumericalParameter(
         description="The exponent used for the orientation penalty.",
         var_type=int,
         default=0.1,
         min_value=0,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     voronoi_steps = luigi.NumericalParameter(
         description="The number of Voronoi steps.",
         var_type=int,
         default=1,
         min_value=1,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     duplicate_precision = luigi.NumericalParameter(
         description="The precision used to detect duplicated points.",
         var_type=float,
         default=1e-3,
         min_value=0,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     min_random_point_distance = luigi_tools.parameter.OptionalNumericalParameter(
         description="The minimal distance used to add random points.",
         var_type=float,
         default=None,
         min_value=0,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     seed = luigi.IntParameter(
         description="The seed used to generate random points.",

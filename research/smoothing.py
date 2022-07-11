@@ -1,6 +1,7 @@
 """Smooth the Steiner solutions."""
 import json
 import logging
+import sys
 from copy import deepcopy
 from pathlib import Path
 
@@ -43,7 +44,7 @@ class SmoothSteinerMorphologies(luigi_tools.task.WorkflowTask):
         var_type=int,
         default=0,
         min_value=0,
-        max_value=float("inf"),
+        max_value=sys.float_info.max,
     )
     plot_debug = luigi.BoolParameter(
         description=(
@@ -61,7 +62,7 @@ class SmoothSteinerMorphologies(luigi_tools.task.WorkflowTask):
         }
 
     def run(self):
-        input_dir = self.input_dir or self.input()["steiner_solutions"].pathlib_path
+        input_dir = self.input_dir or self.input()["steiner_solutions"]["morphologies"].pathlib_path
 
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)

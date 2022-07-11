@@ -36,15 +36,16 @@ class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
         return TaggedOutputLocalTarget(self.output_dataset, create_parent=True)
 
 
-class RepairDataset(luigi_tools.task.WorkflowWrapperTask):
+class RepairDataset(luigi_tools.task.WorkflowTask):
     def requires(self):
         dataset = CreateDatasetForRepair()
-        return [dataset, Curate(dataset_df=dataset.output().path, result_path=Config().output_dir.absolute())]
+        return dataset
+
+    def run(self):
+        repair = yield Curate(dataset_df=self.input().path, result_path=Config().output_dir.absolute())
 
     def output(self):
-        return TaggedOutputLocalTarget(
-            self.input()[1]["data"].pathlib_path.resolve().parent.parent / "Resample/data/"
-        )
+        return TaggedOutputLocalTarget("Resample/data/")
 
 
 class RawDataset(luigi_tools.task.WorkflowWrapperTask):
