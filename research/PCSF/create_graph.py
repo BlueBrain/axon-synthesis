@@ -91,7 +91,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         return ClusterTerminals()
 
     def run(self):
-        terminals = pd.read_csv(self.terminals_path or self.input().path)
+        terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
 
         soma_centers = terminals.loc[terminals["axon_id"] == -1].copy()
         terminals = terminals.loc[terminals["axon_id"] != -1].copy()

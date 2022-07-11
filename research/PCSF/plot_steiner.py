@@ -1,7 +1,6 @@
 """Plot the Steiner Tree solutions."""
 import logging
 import re
-from pathlib import Path
 
 import luigi_tools
 from luigi_tools.parameter import OptionalPathParameter
@@ -11,7 +10,9 @@ from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 
 from create_dataset import RepairDataset
+from PCSF.clustering import ClusterTerminals
 from PCSF.steiner_morphologies import SteinerMorphologies
+from utils import add_camera_sync
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,8 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
 
     def requires(self):
         return {
-            "biological": RepairDataset(),
+            # "biological": RepairDataset(),
+            "biological": ClusterTerminals(),
             "generated": SteinerMorphologies(),
         }
 
@@ -40,7 +42,7 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
                 continue
 
             morph_name = morph_file.name
-            bio_file = self.input()["biological"].pathlib_path / morph_name
+            bio_file = self.input()["biological"]["morphologies"].pathlib_path / morph_name
             if not bio_file.exists():
                 logger.error(f"{morph_name} was not found in {bio_file.parent}")
                 continue
@@ -74,31 +76,7 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
             fig.write_html(fig_path)
 
             # Update the HTML file to synchronize the cameras between the two plots
-            with open(fig_path) as f:
-                tmp = f.read()
-                fig_id = re.match('.*id="([^ ]*)" .*', tmp, flags=re.DOTALL).group(1)
-
-            js = """
-    <script>
-    var gd = document.getElementById('{fig_id}');
-    var isUnderRelayout = false
-
-    gd.on('plotly_relayout', () => {{
-      console.log('relayout', isUnderRelayout)
-      if (!isUnderRelayout) {{
-        Plotly.relayout(gd, 'scene2.camera', gd.layout.scene.camera)
-          .then(() => {{ isUnderRelayout = false }}  )
-      }}
-
-      isUnderRelayout = true;
-    }})
-    </script>
-    """.format(
-                fig_id=fig_id
-            )
-
-            with open(fig_path, "w") as f:
-                f.write(tmp.replace("</body>", js + "</body>"))
+            add_camera_sync(fig_path)
 
             logger.info(f"{morph_name}: exported to {fig_path}")
 

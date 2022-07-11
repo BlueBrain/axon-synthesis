@@ -1,23 +1,25 @@
 """Cluster the terminal points of a morphology so that a Steiner Tree can be computed on them."""
 import logging
-import time
 from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
 
 import luigi
 import luigi_tools
-import matplotlib
 import networkx as nx
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from matplotlib import pyplot as plt
 from morphio import IterType
+from morphio import PointLevel
 from morph_tool import resampling
+from neurom import COLS
 from neurom import NeuriteType
 from neurom import load_morphology
 from neurom.core import Morphology
 from plotly_helper.neuron_viewer import NeuronBuilder
+from plotly.subplots import make_subplots
 from scipy import stats
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
@@ -31,8 +33,13 @@ from tmd.Topology.methods import tree_to_property_barcode
 from tmd.view.plot import barcode as plot_barcode
 
 from PCSF.extract_terminals import ExtractTerminals
+from utils import add_camera_sync
 
 logger = logging.getLogger(__name__)
+
+
+class ClusteringOutputLocalTarget(luigi_tools.target.OutputLocalTarget):
+    __prefix = Path("clustering")
 
 
 class ClusterTerminals(luigi_tools.task.WorkflowTask):
@@ -41,7 +48,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         default=None,
         exists=True,
     )
-    output_dataset = luigi.Parameter(
+    output_dataset = luigi_tools.parameter.PathParameter(
         description="Output dataset file.", default="clustered_terminals.csv"
     )
     clustering_distance = luigi.NumericalParameter(
@@ -84,7 +91,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
     def requires(self):
         return ExtractTerminals()
 
-    def clusters_from_spheres(self, group_name, group, output_cols):
+    def clusters_from_spheres(self, axon, axon_id, group_name, group, output_cols, _):
         """The points must be inside the ball to be merged."""
         new_terminal_points = []
 
@@ -194,156 +201,217 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             ].values.tolist()
         )
 
-        return new_terminal_points
+        return new_terminal_points, group["cluster_id"]
 
-    def clusters_from_sphere_parents(self, group_name, group, output_cols):
+    @staticmethod
+    def _neurite_to_graph(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
+        graph_nodes = []
+        graph_edges = []
+        for section in neurite.iter_sections():
+            is_terminal = not bool(section.children)
+            if section.parent is None:
+                graph_nodes.append((-1, *section.points[0, :3], True))
+                graph_edges.append((-1, section.id))
+
+            graph_nodes.append((section.id, *section.points[-1, :3], is_terminal))
+
+            for child in section.children:
+                graph_edges.append((section.id, child.id))
+
+        nodes = pd.DataFrame(graph_nodes, columns=["id", "x", "y", "z", "is_terminal"])
+        nodes.set_index("id", inplace=True)
+
+        edges = pd.DataFrame(graph_edges, columns=["source", "target"])
+        graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
+
+        return nodes, edges, graph
+
+    @staticmethod
+    def common_path(graph, nodes, source=None, shortest_paths=None):
+        """Compute the common paths of the given nodes.
+
+        Source should be given only if the graph if undirected.
+        Shortest paths can be given if they were already computed before.
+
+        .. warning:: The graph must have only one component.
+        """
+        if not isinstance(graph, nx.DiGraph) and source is None and shortest_paths is None:
+            raise ValueError(
+                "Either the source or the pre-computed shortest paths must be provided when using "
+                "an undirected graph."
+            )
+
+        if shortest_paths is None:
+            if isinstance(graph, nx.DiGraph):
+                try:
+                    sources = [k for k, v in graph.in_degree if v == 0]
+                    if len(sources) > 1:
+                        raise RuntimeError("Several roots found in the directed graph.")
+                    source = sources[0]
+                except IndexError:
+                    raise RuntimeError("Could not find the root of the directed graph.")
+            shortest_paths = nx.single_source_shortest_path(graph, source)
+
+        # Compute the common ancestor
+        common_nodes = set(shortest_paths[nodes[0]])
+        for i in nodes[1:]:
+            common_nodes.intersection_update(set(shortest_paths[i]))
+        common_nodes = list(common_nodes)
+        common_path = [i for i in shortest_paths[nodes[0]] if i in common_nodes]
+
+        return common_path
+
+    @staticmethod
+    def nodes_to_terminals_mapping(graph, node_df, source=None, shortest_paths=None):
+        if shortest_paths is None:
+            shortest_paths = nx.single_source_shortest_path(graph, source)
+        elif source is not None:
+            raise ValueError("Either 'source' or 'shortest_paths' must be given but not both.")
+        node_to_terminals = defaultdict(set)
+        for node_id, parent_ids in shortest_paths.items():
+            # TODO: use graph property instead of DF
+            if not node_df.loc[node_id, "is_terminal"]:
+                continue
+            for j in parent_ids:
+                node_to_terminals[j].add(node_id)
+        return node_to_terminals
+
+    def clusters_from_sphere_parents(self, axon, axon_id, group_name, group, output_cols, _):
         """All parents up to the common ancestor must be inside the sphere to be merged."""
         if self.max_path_clustering_distance is None:
             self.max_path_clustering_distance = self.clustering_distance
 
         # Get the complete morphology
-        neuron = load_morphology(group_name)
-        axons = [i for i in neuron.neurites if i.type == NeuriteType.axon]
         new_terminal_points = []
         # if group_name == "out_curated/CheckNeurites/data/AA0411.asc":
         #     import pdb
         #     pdb.set_trace()
         # else:
         #     return []
-        for axon_id, axon in enumerate(axons):
-            graph_nodes = []
-            graph_edges = []
-            for section in axon.iter_sections():
-                is_terminal = not bool(section.children)
-                if section.parent is None:
-                    graph_nodes.append((-1, *section.points[0, :3], True))
-                    graph_edges.append((-1, section.id))
+        nodes, edges, directed_graph = self._neurite_to_graph(axon)
+        graph = nx.Graph(directed_graph)
+        terminal_ids = nodes.loc[nodes["is_terminal"]].index
 
-                graph_nodes.append((section.id, *section.points[-1, :3], is_terminal))
+        pair_paths = dict(i for i in nx.all_pairs_shortest_path(graph) if i[0] in terminal_ids)
 
-                for child in section.children:
-                    graph_edges.append((section.id, child.id))
+        # Get the pairs of terminals closer to the given distance
+        terminal_nodes = nodes.loc[terminal_ids, ["x", "y", "z"]]
+        terminal_tree = KDTree(terminal_nodes.values)
+        terminal_pairs = terminal_tree.query_pairs(self.clustering_distance)
 
-            nodes = pd.DataFrame(graph_nodes, columns=["id", "x", "y", "z", "is_terminal"])
-            nodes.set_index("id", inplace=True)
-            terminal_ids = nodes.loc[nodes["is_terminal"]].index
+        # Initialize cluster IDs
+        nodes["cluster_id"] = -1
 
-            edges = pd.DataFrame(graph_edges, columns=["source", "target"])
-            graph = nx.from_pandas_edgelist(edges)
-            pair_paths = dict(i for i in nx.all_pairs_shortest_path(graph) if i[0] in terminal_ids)
+        # The root can not be part of a cluster so it is given a specific cluster ID
+        nodes.loc[-1, "cluster_id"] = nodes["cluster_id"].max() + 1
+        group.loc[group["terminal_id"] == 0, "cluster_id"] = nodes.loc[-1, "cluster_id"]
 
-            # Get the pairs of terminals closer to the given distance
-            terminal_nodes = nodes.loc[terminal_ids, ["x", "y", "z"]]
-            terminal_tree = KDTree(terminal_nodes.values)
-            terminal_pairs = terminal_tree.query_pairs(self.clustering_distance)
+        # Check that the paths between each pair do not exceed the given distance
+        for a, b in terminal_pairs:
+            term_a = terminal_nodes.iloc[a].name
+            term_b = terminal_nodes.iloc[b].name
+            if term_a == -1 or term_b == -1:
+                continue
+            try:
+                path = pair_paths[term_a][term_b]
+            except KeyError:
+                path = pair_paths[term_b][term_a]
+            path_points = nodes.loc[path]
 
-            # Check that the paths between each pair do not exceed the given distance
-            nodes["cluster_id"] = -1
-            for a, b in terminal_pairs:
-                term_a = terminal_nodes.iloc[a].name
-                term_b = terminal_nodes.iloc[b].name
-                if term_a == -1 or term_b == -1:
-                    continue
-                try:
-                    path = pair_paths[term_a][term_b]
-                except KeyError:
-                    path = pair_paths[term_b][term_a]
-                path_points = nodes.loc[path]
+            if pdist(path_points[["x", "y", "z"]].values).max() > self.max_path_clustering_distance:
+                # Skip if a point on the path exceeds the clustering distance
+                continue
 
-                if pdist(path_points[["x", "y", "z"]].values).max() > self.max_path_clustering_distance:
-                    # Skip if a point on the path exceeds the clustering distance
-                    continue
+            # Add points to clusters
+            term_a_cluster_id = nodes.loc[term_a, "cluster_id"]
+            term_b_cluster_id = nodes.loc[term_b, "cluster_id"]
 
-                # Add points to clusters
-                term_a_cluster_id = nodes.loc[term_a, "cluster_id"]
-                term_b_cluster_id = nodes.loc[term_b, "cluster_id"]
-
-                # If term_a is already in a cluster
-                if term_a_cluster_id != -1:
-                    # If term_b is also already in a cluster
-                    if term_b_cluster_id != -1:
-                        # Transfert all terminals from the cluster of term_b to the one of term_a
-                        nodes.loc[
-                            nodes["cluster_id"] == term_b_cluster_id, "cluster_id"
-                        ] = term_a_cluster_id
-                    else:
-                        # Add term_b to the cluster of term_a
-                        nodes.loc[term_b, "cluster_id"] = term_a_cluster_id
+            # If term_a is already in a cluster
+            if term_a_cluster_id != -1:
+                # If term_b is also already in a cluster
+                if term_b_cluster_id != -1:
+                    # Transfert all terminals from the cluster of term_b to the one of term_a
+                    nodes.loc[
+                        nodes["cluster_id"] == term_b_cluster_id, "cluster_id"
+                    ] = term_a_cluster_id
                 else:
-                    # If term_b is already in a cluster
-                    if term_b_cluster_id != -1:
-                        # Add term_a to the cluster of term_b
-                        nodes.loc[term_a, "cluster_id"] = term_b_cluster_id
-                    else:
-                        # Create new cluster
-                        nodes.loc[[term_a, term_b], "cluster_id"] = nodes["cluster_id"].max() + 1
+                    # Add term_b to the cluster of term_a
+                    nodes.loc[term_b, "cluster_id"] = term_a_cluster_id
+            else:
+                # If term_b is already in a cluster
+                if term_b_cluster_id != -1:
+                    # Add term_a to the cluster of term_b
+                    nodes.loc[term_a, "cluster_id"] = term_b_cluster_id
+                else:
+                    # Create new cluster
+                    nodes.loc[[term_a, term_b], "cluster_id"] = nodes["cluster_id"].max() + 1
 
-            # Create cluster IDs for not clustered terminals
-            not_clustered_mask = (nodes["is_terminal"]) & (nodes["cluster_id"] == -1)
-            nodes.loc[not_clustered_mask, "cluster_id"] = (
-                nodes.loc[not_clustered_mask].reset_index(drop=True).index
-                + nodes["cluster_id"].max()
-                + 1
+        # Create cluster IDs for not clustered terminals
+        not_clustered_mask = (nodes["is_terminal"]) & (nodes["cluster_id"] == -1)
+        nodes.loc[not_clustered_mask, "cluster_id"] = (
+            nodes.loc[not_clustered_mask].reset_index(drop=True).index
+            + nodes["cluster_id"].max()
+            + 1
+        )
+
+        clusters = nodes.loc[nodes["is_terminal"]].groupby("cluster_id")
+        sorted_clusters = sorted(
+            [(k, g) for k, g in clusters], key=lambda x: x[1].size, reverse=True
+        )
+
+        new_terminal_id = 1
+        paths_from_root = nx.single_source_shortest_path(graph, -1)
+        node_to_terminals = self.nodes_to_terminals_mapping(graph, nodes, shortest_paths=paths_from_root)
+
+        # Ensure there are at least 4 clusters
+        for num_cluster, (cluster_id, cluster) in enumerate(sorted_clusters):
+            # Compute the common ancestor
+            common_path = self.common_path(
+                directed_graph,
+                cluster.index.tolist(),
+                shortest_paths=paths_from_root,
             )
+            common_ancestors = [common_path[-1]]
 
-            clusters = nodes.loc[nodes["is_terminal"]].groupby("cluster_id")
-            sorted_clusters = sorted(
-                [(k, g) for k, g in clusters], key=lambda x: x[1].size, reverse=True
+            # Compute the number of missing clusters
+            missing_points = max(
+                0, 3 - (len(sorted_clusters[num_cluster + 1 :]) + len(new_terminal_points))
             )
+            is_root = (-1 in cluster.index)
+            if is_root:
+                # The root node can not be splitted
+                missing_points = 0
 
-            new_terminal_id = 0
-            paths_from_root = nx.single_source_shortest_path(graph, -1)
-            lengths_from_root = nx.single_source_shortest_path_length(graph, -1)
-            point_to_terminals = defaultdict(list)
-            for point_id, parent_ids in paths_from_root.items():
-                if not nodes.loc[point_id, "is_terminal"]:
-                    continue
-                for j in parent_ids:
-                    point_to_terminals[j].append(point_id)
+            # Split the cluster if needed in order to get at least 3 points
+            common_ancestor_ind = 0
+            while 0 < len(common_ancestors) <= missing_points:
+                if common_ancestor_ind >= len(common_ancestors):
+                    break
+                sub_ancestors = edges.loc[
+                    edges["source"] == common_ancestors[common_ancestor_ind], "target"
+                ].tolist()
+                if sub_ancestors:
+                    common_ancestors.pop(common_ancestor_ind)
+                    common_ancestors.extend(sub_ancestors)
+                else:
+                    common_ancestor_ind += 1
 
-            # Ensure there are at least 4 clusters
-            for num_cluster, (cluster_id, cluster) in enumerate(sorted_clusters):
-                # Compute the common ancestor
-                base_path = set(paths_from_root[cluster.index[0]])
-                for i in cluster.index[1:]:
-                    base_path.intersection_update(set(paths_from_root[i]))
-                base_path = list(base_path)
-                common_ancestors = [base_path[np.argmax([lengths_from_root[i] for i in base_path])]]
-
-                # Compute the number of missing clusters
-                missing_points = max(
-                    0, 3 - (len(sorted_clusters[num_cluster + 1 :]) + len(new_terminal_points))
+            # Add the points of the cluster
+            for common_ancestor in common_ancestors:
+                terminals_with_current_ancestor = cluster.loc[set(node_to_terminals[common_ancestor]).intersection(cluster.index)]
+                new_terminal_points.append(
+                    [
+                        group_name,
+                        axon_id,
+                        new_terminal_id if not is_root else 0,
+                    ]
+                    + terminals_with_current_ancestor[["x", "y", "z"]].mean().tolist()
                 )
-
-                # Split the cluster if needed in order to get at least 3 points
-                common_ancestor_ind = 0
-                while 0 < len(common_ancestors) <= missing_points:
-                    if common_ancestor_ind >= len(common_ancestors):
-                        break
-                    sub_ancestors = edges.loc[
-                        edges["source"] == common_ancestors[common_ancestor_ind], "target"
-                    ].tolist()
-                    if sub_ancestors:
-                        common_ancestors.pop(common_ancestor_ind)
-                        common_ancestors.extend(sub_ancestors)
-                    else:
-                        common_ancestor_ind += 1
-
-                # Add the points of the cluster
-                for common_ancestor in common_ancestors:
-                    terminals_with_current_ancestor = cluster.loc[set(point_to_terminals[common_ancestor]).intersection(cluster.index)]
-                    new_terminal_points.append(
-                        [
-                            group_name,
-                            axon_id,
-                            new_terminal_id,
-                        ]
-                        + terminals_with_current_ancestor[["x", "y", "z"]].mean().tolist()
-                    )
+                if not is_root:
                     group.loc[group["section_id"].isin(terminals_with_current_ancestor.index), "cluster_id"] = new_terminal_id
                     new_terminal_id += 1
 
-        return new_terminal_points
+        return new_terminal_points, group["cluster_id"]
 
     def barcode_mins(self, barcode, nb_bins=100, threshold=0.1):
         """Compute min values of a barcode."""
@@ -412,7 +480,10 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 lambda tree: tree.get_point_radial_distances(point=origin),
             )
 
-            min_indices, min_positions, bin_centers, der1, der2 = self.barcode_mins(barcode, nb_bins)
+            min_indices, min_positions, bin_centers, der1, der2 = self.barcode_mins(
+                barcode,
+                nb_bins,
+            )
 
             # Plot
             if self.plot_debug:
@@ -505,10 +576,13 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
     def run(self):
         terminals = pd.read_csv(self.terminals_path or self.input().path)
 
+        self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
+        self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
+
         all_terminal_points = []
         output_cols = ["morph_file", "axon_id", "terminal_id", "x", "y", "z"]
 
-        # Drop soma terminals
+        # Drop soma terminals and add them to the final points
         soma_centers_mask = (terminals["axon_id"] == -1)
         soma_centers = terminals.loc[soma_centers_mask].copy()
         all_terminal_points.extend(
@@ -517,40 +591,141 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         terminals.drop(soma_centers.index, inplace=True)
         terminals["cluster_id"] = -1
 
-        if self.plot_debug:
-            old_backend = matplotlib.get_backend()
-            matplotlib.use("TkAgg")
-
         for group_name, group in terminals.groupby("morph_file"):
             logger.debug(f"{group_name}: {len(group)} points")
 
-            if self.clustering_mode == "sphere":
-                new_terminal_points = self.clusters_from_spheres(group_name, group, output_cols)
-            elif self.clustering_mode == "sphere_parents":
-                new_terminal_points = self.clusters_from_sphere_parents(
-                    group_name, group, output_cols
-                )
-            elif self.clustering_mode == "barcode":
-                new_terminal_points = self.clusters_from_barcodes(
-                    group_name,
-                    group,
-                    output_cols,
-                    soma_centers.loc[soma_centers["morph_file"] == group_name].to_dict("records")[0],
-                )
+            # Load the morphology
+            morph = load_morphology(group_name)
 
-            all_terminal_points.extend(new_terminal_points)
+            # Soma center
+            soma_center = soma_centers.loc[
+                soma_centers["morph_file"] == group_name
+            ].to_dict("records")[0]
+
+            # Cluster each axon
+            axons = [i for i in morph.neurites if i.type == NeuriteType.axon]
+            for axon_id, axon in enumerate(axons):
+
+                if self.clustering_mode == "sphere":
+                    clustering_func = self.clusters_from_spheres
+                elif self.clustering_mode == "sphere_parents":
+                    clustering_func = self.clusters_from_sphere_parents
+                elif self.clustering_mode == "barcode":
+                    clustering_func = self.clusters_from_barcodes
+
+                axon_group = group.loc[group["axon_id"] == axon_id]
+                new_terminal_points, cluster_ids = clustering_func(
+                    axon,
+                    axon_id,
+                    group_name,
+                    axon_group,
+                    output_cols,
+                    soma_center,
+                )
+                group.loc[axon_group.index, "cluster_id"] = cluster_ids
+
+                # Add the cluster to the final points
+                all_terminal_points.extend(new_terminal_points)
 
             logger.info(f"{group_name}: {len(new_terminal_points)} points after merge")
 
-            if self.plot_debug:
-                plot_df = pd.DataFrame(new_terminal_points, columns=output_cols)
+            cluster_df = pd.DataFrame(new_terminal_points, columns=output_cols)
 
-                neuron = load_morphology(group_name)
-                neuron = Morphology(
-                    resampling.resample_linear_density(neuron, 0.001),
+            # Replace terminals by the cluster centers and create sections from common ancestors
+            # to cluster centers
+            nodes, edges, directed_graph = self._neurite_to_graph(axon)
+            sections_to_delete = []
+            sections_to_add = defaultdict(list)
+            kept_path = None
+            shortest_paths = nx.single_source_shortest_path(directed_graph, -1)
+            node_to_terminals = self.nodes_to_terminals_mapping(directed_graph, nodes, shortest_paths=shortest_paths)
+            for cluster_id, cluster in group.groupby("cluster_id"):
+                # Skip the root cluster
+                if (cluster.cluster_id == 0).any():
+                    continue
+
+                # Compute the common ancestor of the nodes
+                common_path = self.common_path(
+                    directed_graph,
+                    cluster["section_id"].tolist(),
+                    shortest_paths=shortest_paths,
+                )
+                common_ancestor = common_path[-1]
+                common_section = morph.section(common_ancestor)
+                if kept_path is None:
+                    kept_path = set(common_path)
+                else:
+                    kept_path = kept_path.union(common_path)
+
+                # Continue if the cluster has only one node
+                if len(cluster) == 1:
+                    continue
+
+                # Create a new section from the common ancestor to the center of the cluster
+                sections_to_add[common_section.id].append(
+                    PointLevel(
+                        [
+                            common_section.points[-1],
+                            cluster_df.loc[
+                                (cluster_df["axon_id"] == cluster["axon_id"].iloc[0])
+                                & (cluster_df["terminal_id"] == cluster_id),
+                                ["x", "y", "z"]
+                            ].values[0],
+                        ],
+                        [0, 0]
+                    )
+                )
+
+            # Create a new morphology with the kept path and add new sections to cluster centers
+            clustered_morph = Morphology(
+                deepcopy(morph),
+                name=f"Clustered {Path(group_name).with_suffix('').name}",
+            )
+
+            for axon, new_axon in zip(morph.neurites, clustered_morph.neurites):
+                if axon.type != NeuriteType.axon:
+                    continue
+
+                root = axon.root_node
+                new_root = new_axon.root_node
+
+                assert np.array_equal(root.points, new_root.points), "The axons where messed up!"
+
+                for sec in new_root.children:
+                    clustered_morph.delete_section(sec.morphio_section)
+
+                current_sections = [(root, new_root)]
+
+                # Add kept sections
+                while current_sections:
+                    current_section, current_new_section = current_sections.pop()
+                    for child in current_section.children:
+                        if child.id in kept_path:
+                            new_section = PointLevel(
+                                child.points[:, COLS.XYZ].tolist(),
+                                (child.points[:, COLS.R] * 2).tolist()
+                            )
+                            current_sections.append((child, current_new_section.append_section(new_section)))
+                            # current_sections.append((child, current_new_section.append_section(child.morphio_section)))
+
+                    if current_section.id in sections_to_add:
+                        for new_sec in sections_to_add[current_section.id]:
+                            current_new_section.append_section(new_sec)
+
+            # Export the clustered morphology
+            morph_path = (
+                self.output()["morphologies"].pathlib_path / f"{Path(group_name).with_suffix('').name}.asc"
+            )
+            clustered_morph.write(str(morph_path))
+
+            # Plot the clusters
+            if self.plot_debug:
+
+                plotted_morph = Morphology(
+                    resampling.resample_linear_density(morph, 0.005),
                     name=Path(group_name).with_suffix("").name,
                 )
-                fig_builder = NeuronBuilder(neuron, "3d", line_width=4, title=f"{neuron.name}")
+                fig_builder = NeuronBuilder(plotted_morph, "3d", line_width=4, title=f"{plotted_morph.name}")
 
                 x, y, z = group[["x", "y", "z"]].values.T
                 node_trace = go.Scatter3d(
@@ -561,7 +736,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     marker={"size": 3, "color": "black"},
                     name="Morphology nodes",
                 )
-                x, y, z = plot_df[["x", "y", "z"]].values.T
+                x, y, z = cluster_df[["x", "y", "z"]].values.T
                 cluster_trace = go.Scatter3d(
                     x=x,
                     y=y,
@@ -572,9 +747,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 )
                 cluster_lines = [
                     [
-                        [i["x"], plot_df.loc[plot_df["terminal_id"] == i["cluster_id"], "x"].iloc[0], None],
-                        [i["y"], plot_df.loc[plot_df["terminal_id"] == i["cluster_id"], "y"].iloc[0], None],
-                        [i["z"], plot_df.loc[plot_df["terminal_id"] == i["cluster_id"], "z"].iloc[0], None],
+                        [i["x"], cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "x"].iloc[0], None],
+                        [i["y"], cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "y"].iloc[0], None],
+                        [i["z"], cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "z"].iloc[0], None],
                     ]
                     for i in group.to_dict("records")
                     if i["cluster_id"] >= 0
@@ -591,23 +766,40 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     },
                     name="Morphology nodes to cluster",
                 )
-                fig = go.Figure()
-                fig.add_traces(fig_builder.get_figure()["data"])
-                fig.add_trace(node_trace)
-                fig.add_trace(cluster_trace)
-                fig.add_trace(edge_trace)
+
+                # Build the clustered morph figure
+                clustered_builder = NeuronBuilder(clustered_morph, "3d", line_width=4, title=f"Clustered {clustered_morph.name}")
+
+                # Create the figure from the traces
+                fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
+
+                morph_data = fig_builder.get_figure()["data"]
+                fig.add_traces(morph_data, rows=[1] * len(morph_data), cols=[1] * len(morph_data))
+                fig.add_trace(node_trace, row=1, col=1)
+                fig.add_trace(edge_trace, row=1, col=1)
+                fig.add_trace(cluster_trace, row=1, col=1)
+
+                clustered_morph_data = clustered_builder.get_figure()["data"]
+                fig.add_traces(
+                    clustered_morph_data,
+                    rows=[1] * len(clustered_morph_data),
+                    cols=[2] * len(clustered_morph_data),
+                )
+                fig.add_trace(cluster_trace, row=1, col=2)
 
                 # Export figure
-                filepath = self.output().pathlib_path.parent / f"clustering/{Path(group_name).with_suffix('').name}.html"
-                filepath.parent.mkdir(parents=True, exist_ok=True)
-                fig.write_html(str(filepath))
+                filepath = str(self.output()["figures"].pathlib_path / f"{Path(group_name).with_suffix('').name}.html")
+                fig.write_html(filepath)
 
-        if self.plot_debug:
-            matplotlib.use(old_backend)
+                add_camera_sync(filepath)
 
         # Export the terminals
         new_terminals = pd.DataFrame(all_terminal_points, columns=output_cols)
-        new_terminals.to_csv(self.output().path, index=False)
+        new_terminals.to_csv(self.output()["terminals"].path, index=False)
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dataset, create_parent=True)
+        return {
+            "figures": ClusteringOutputLocalTarget("figures", create_parent=True),
+            "morphologies": ClusteringOutputLocalTarget("morphologies", create_parent=True),
+            "terminals": ClusteringOutputLocalTarget(self.output_dataset),
+        }
