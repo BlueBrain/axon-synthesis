@@ -8,6 +8,7 @@ from pathlib import Path
 import luigi
 import luigi_tools
 import pandas as pd
+from morphology_processing_workflow.tasks.workflows import Curate
 
 
 class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
@@ -32,3 +33,18 @@ class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
 
     def output(self):
         return luigi_tools.target.OutputLocalTarget(self.output_dataset)
+
+
+class RepairDataset(luigi_tools.task.WorkflowWrapperTask):
+
+    def requires(self):
+        dataset = CreateDatasetForRepair()
+        return [dataset, Curate(dataset_df=dataset.output().path)]
+
+    def run(self):
+        pass
+
+    def output(self):
+        return luigi_tools.target.OutputLocalTarget(
+            self.input()[1]["data"].pathlib_path.parent.parent / "Resample/data/"
+        )

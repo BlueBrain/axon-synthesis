@@ -3,7 +3,6 @@
 The solution is computed using the package pcst_fast: https://github.com/fraenkel-lab/pcst_fast
 """
 import logging
-import time
 from pathlib import Path
 
 import luigi

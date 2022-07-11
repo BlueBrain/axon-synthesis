@@ -1,7 +1,6 @@
 """Cluster the terminal points of a morphology so that a Steiner Tree can be computed on them."""
 import logging
 import time
-from collections import defaultdict
 from pathlib import Path
 
 import luigi

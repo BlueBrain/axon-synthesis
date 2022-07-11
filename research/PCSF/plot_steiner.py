@@ -1,12 +1,10 @@
 """Plot the Steiner Tree solutions."""
 import logging
 import re
-import time
 from pathlib import Path
 
 import luigi
 import luigi_tools
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from neurom import load_neuron

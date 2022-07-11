@@ -10,6 +10,8 @@ import luigi_tools
 from morphology_processing_workflow.tasks.workflows import Curate
 
 from create_dataset import CreateDatasetForRepair
+from statistics import PlotStatistics
+from statistics import StatisticsOutputLocalTarget
 from PCSF.create_graph import CreateGraph
 from PCSF.plot_steiner import PlotSolutions
 from PCSF.steiner_tree import SteinerTree
@@ -17,11 +19,17 @@ from PCSF.steiner_tree import SteinerTree
 
 class GeneralConfig(luigi.Config):
     output_dir = luigi.Parameter(
-        description="The directory in which all the results will be exported", default=None
+        description="The directory in which all the results will be exported",
+        default=None,
+    )
+    statistics_dir = luigi.Parameter(
+        description="The directory in which all the statistics will be exported",
+        default="raw_statistics",
     )
 
 
 luigi_tools.target.OutputLocalTarget.set_default_prefix(GeneralConfig().output_dir)
+StatisticsOutputLocalTarget.set_default_prefix(GeneralConfig().statistics_dir)
 
 
 class DiscoverRawData(luigi_tools.task.WorkflowWrapperTask):
@@ -32,6 +40,13 @@ class DiscoverRawData(luigi_tools.task.WorkflowWrapperTask):
         return [dataset, Curate(dataset_df=dataset.output().path)]
 
 
+class ExploreStatistics(luigi_tools.task.WorkflowWrapperTask):
+    """This workflow creates and plots statistics about data."""
+
+    def requires(self):
+        return PlotStatistics()
+
+
 class PrepareSteinerData(luigi_tools.task.WorkflowWrapperTask):
     """This workflow prepares the data used for Steiner Tree computation."""
 
@@ -40,14 +55,14 @@ class PrepareSteinerData(luigi_tools.task.WorkflowWrapperTask):
 
 
 class ComputeSteiner(luigi_tools.task.WorkflowWrapperTask):
-    """This workflow prepares the data used for Steiner Tree computation."""
+    """This workflow performs the Steiner Tree computation."""
 
     def requires(self):
         return SteinerTree()
 
 
 class PlotSteiner(luigi_tools.task.WorkflowWrapperTask):
-    """This workflow prepares the data used for Steiner Tree computation."""
+    """This workflow plots the results from the Steiner Tree computation."""
 
     def requires(self):
         return PlotSolutions()
