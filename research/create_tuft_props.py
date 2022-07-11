@@ -3,17 +3,21 @@ import json
 import logging
 import sys
 from ast import literal_eval
+from collections import defaultdict
 from pathlib import Path
 
 import luigi
-import luigi_tools
+import luigi_tools.parameter
+import luigi_tools.task
 import numpy as np
 import pandas as pd
 from atlas import load as load_atlas
 from config import Config
 from data_validation_framework.target import TaggedOutputLocalTarget
+from morph_tool import resampling
 from neurom import COLS
 from neurom import load_morphology
+from neurom.morphmath import interval_lengths
 from neurom.morphmath import section_length
 from PCSF.clustering import ClusterTerminals
 from PCSF.create_graph import CreateGraph
@@ -42,6 +46,48 @@ def _exp(values, sigma, default_ind):
         new_values = pd.Series(0, index=values.index)
         new_values.loc[default_ind] = 1
         return new_values
+
+
+def tree_region_lengths(tree, brain_regions):
+    """Compute the length of the tree in each region it passes through."""
+    lengths = defaultdict(int)
+    voxel_dim = brain_regions.voxel_dimensions.min()
+    for sec in tree.iter_sections():
+        pts = sec.morphio_section.points
+
+        # Resample the tree using the voxel size
+        ids, fractions = resampling._resample_from_linear_density(
+            pts,
+            voxel_dim,
+        )
+        points = resampling._parametric_values(pts, ids, fractions)
+        regions = brain_regions.lookup(points)
+
+        # If all points are in the same region, just add the section length
+        if (regions == regions[0]).all():
+            lengths[regions[0]] += sec.length
+            continue
+
+        # Else we estimate the points that cross region boundaries and compute partial lengths
+        change_region = regions[:-1] != regions[1:]
+        change_region_ind = np.argwhere(change_region).flatten()
+        change_region_ind = np.insert(change_region_ind, 0, 0)
+        change_region_ind = np.append(change_region_ind, -1)
+
+        for start, ind, end in zip(
+            change_region_ind[:-2], change_region_ind[1:-1], change_region_ind[2:]
+        ):
+            first_region = regions[ind]
+            second_region = regions[ind + 1]
+            first_pt = points[ind]
+            second_pt = points[ind + 1]
+            center = np.mean([first_pt, second_pt], axis=0)
+            intervals = np.append(points[start:ind], [center], axis=0)
+            lengths[first_region] += interval_lengths(intervals).sum()
+            intervals = np.append([center], points[ind + 1 : end], axis=0)
+            lengths[second_region] += interval_lengths(intervals).sum()
+
+    return dict(lengths)
 
 
 class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
@@ -205,7 +251,12 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
             )
 
             pop_numbers = pd.merge(
-                source_populations, pop_neuron_numbers, on="pop_raw_name", how="left"
+                source_populations,
+                pop_neuron_numbers[
+                    ["pop_raw_name", "atlas_region_volume", "pop_neuron_numbers"]
+                ],
+                on="pop_raw_name",
+                how="left",
             )
 
             # Get atlas data
@@ -284,6 +335,9 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                 # Get terminals of the current group
                 axon_tree = KDTree(group[["x", "y", "z"]].values)
 
+                # Compute the length of the tree in each brain region
+                lengths_in_regions = tree_region_lengths(axon, brain_regions)
+
                 for sec in axon.iter_sections():
                     if sec.parent is None:
                         continue
@@ -348,10 +402,15 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                         source = source_populations.loc[
                             source_populations["morph_file"] == morph_file, "source"
                         ].iloc[0]
-                        target_region_volume, N_pot = pop_numbers.loc[
+                        target_region_volume, atlas_region_id, N_pot = pop_numbers.loc[
                             pop_numbers["morph_file"] == morph_file,
-                            ["atlas_region_volume", "pop_neuron_numbers"],
+                            [
+                                "atlas_region_volume",
+                                "atlas_region_id",
+                                "pop_neuron_numbers",
+                            ],
                         ].iloc[0]
+                        atlas_region_id = int(atlas_region_id)
                         fraction = wm_fractions[source][
                             tuft_root["target_properties"]["projection_name"]
                         ]
@@ -360,7 +419,13 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                         N_tot = target_region_volume * strength
                         n_syn_per = N_tot / N_act
                         l_mean = n_syn_per / self.bouton_density
-                        terminal_data["path_length"] = l_mean
+
+                        # The path length of the future tuft should be equal to the desired length
+                        # minus the trunk length that lies in the target region
+                        # TODO: For now we set the minimal length of a tuft to 100 but this should be improved
+                        terminal_data["path_length"] = max(
+                            100, l_mean - lengths_in_regions.get(atlas_region_id, 0)
+                        )
 
                         # TODO: remove the length of the part of the trunk that is inside the target region
 

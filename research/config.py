@@ -1,6 +1,7 @@
 """Store the general configuration values."""
 import luigi
-import luigi_tools
+import luigi_tools.parameter
+import luigi_tools.task
 
 
 class Config(luigi.task.Config):
