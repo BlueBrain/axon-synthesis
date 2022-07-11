@@ -85,10 +85,10 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
     def run(self):
         config = Config()
-        input_dir = (
-            self.input_dir
-            or self.input()["steiner_solutions"]["morphologies"].pathlib_path
-        )
+        # input_dir = (
+        #     self.input_dir
+        #     or self.input()["steiner_solutions"]["morphologies"].pathlib_path
+        # )
 
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)

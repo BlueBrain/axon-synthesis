@@ -38,7 +38,55 @@ def get_axons(morph):
     return [i for i in morph.neurites if i.type == NeuriteType.axon]
 
 
-def neurite_to_graph(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
+def neurite_to_graph(neurite, graph_cls=nx.DiGraph, keep_section_segments=False, **graph_kwargs):
+    graph_nodes = []
+    graph_edges = []
+    node_id = -1
+    last_pts = {
+        None: -1
+    }
+    for section in neurite.iter_sections():
+        is_terminal = not bool(section.children)
+
+        if section.parent is None:
+            # Add first point of the root section
+            graph_nodes.append((node_id, *section.points[0, :3], True, -1, 0))
+            last_pt = last_pts[None]
+        else:
+            last_pt = last_pts[section.parent.id]
+
+        # Add segment points
+        if keep_section_segments:
+            pts = section.points[1:, :3]
+        else:
+            pts = section.points[-1:, :3]
+        len_pts = len(pts) - 1
+
+        for num, i in enumerate(pts.tolist()):
+            node_id = node_id + 1
+            graph_nodes.append((node_id, *i, num == len_pts and is_terminal, section.id, num))
+            graph_edges.append((last_pt, node_id))
+            last_pt = node_id
+
+        last_pts[section.id] = last_pt
+
+    nodes = pd.DataFrame(graph_nodes, columns=["id", "x", "y", "z", "is_terminal", "section_id", "sub_segment_num"])
+    nodes.set_index("id", inplace=True)
+
+    edges = pd.DataFrame(graph_edges, columns=["source", "target"])
+    edges = edges.sort_values(
+        ["source", "target"],
+    ).reset_index(drop=True)
+
+    graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
+    nx.set_node_attributes(
+        graph, nodes[["x", "y", "z", "is_terminal"]].to_dict("index")
+    )
+
+    return nodes, edges, graph
+
+
+def neurite_to_graph_old(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
     graph_nodes = []
     graph_edges = []
     for section in neurite.iter_sections():

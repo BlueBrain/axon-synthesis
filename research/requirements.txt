@@ -1,3 +1,5 @@
+BluePyParallel
+dask[dataframe, distributed]
 data-validation-framework
 gitpython
 Jinja2<3
