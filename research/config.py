@@ -30,5 +30,5 @@ class Config(luigi.task.Config):
         default="hierarchy.json",
     )
     white_matter_file = luigi_tools.parameter.OptionalPathParameter(
-        description="White matter file", exists=True, default=None
+        description="White matter file", default=None
     )

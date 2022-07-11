@@ -1,7 +1,10 @@
 """Helpers for white matter recipe."""
 import logging
+import shutil
 from functools import lru_cache
+from git import Repo
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 import pandas as pd
@@ -194,4 +197,21 @@ def process(
         wm_fractions,
         wm_interaction_strengths,
         projection_targets,
+    )
+
+
+def fetch(url, output_path, file_path="white_matter_FULL_RECIPE_v1p20.yaml", version=None):
+    """Fetch the White Natter Recipe file from our internal repository."""
+    with TemporaryDirectory() as tmpdir:
+        dest = Path(tmpdir) / "tmp_repo"
+        Repo.clone_from(url, dest)
+        if version is not None:
+            r = Repo(dest)
+            r.git.checkout(version)
+        shutil.copy(dest / file_path, output_path)
+    if version is None:
+        version = "latest"
+    logger.info(
+        f"Fetched the White Matter Recipe using the '{file_path}' file from the '{url}' repository "
+        f"at version '{version}' to the file '{output_path}'"
     )

@@ -12,6 +12,8 @@ from config import Config
 from data_validation_framework.target import TaggedOutputLocalTarget
 from morphology_workflows.tasks.workflows import Curate
 
+from white_matter_recipe import fetch as fetch_wmr
+
 
 class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
     morph_dir = luigi.Parameter(description="Folder containing the input morphologies.")
@@ -59,3 +61,34 @@ class RawDataset(luigi_tools.task.WorkflowWrapperTask):
         return TaggedOutputLocalTarget(
             self.input().pathlib_path.resolve().parent.parent / "Collect/data/"
         )
+
+
+class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
+    """Task to fetch the White Matter Recipe file from a repository."""
+    url = luigi.Parameter(
+        default=None,
+        description=":str: Url of the repository.",
+    )
+    file_path = luigi.OptionalParameter(
+        description=":str: Path of the file in the repository to fetch.",
+        default="white_matter_FULL_RECIPE_v1p20.yaml",
+    )
+    version = luigi.OptionalParameter(
+        description=":str: Version of the repository to checkout (use HEAD if not given).",
+        default=None,
+    )
+
+    def run(self):
+        target = self.output()
+        if not target.pathlib_path.exists():
+            # Note: this check should be useless because luigi calls the run() method only if the
+            # target does not exist, but we keep it for safety.
+            fetch_wmr(
+                url=self.url,
+                file_path=self.file_path,
+                version=self.version,
+                output_path=target.path,
+            )
+
+    def output(self):
+        return TaggedOutputLocalTarget(Config().white_matter_file)

@@ -6,13 +6,12 @@ import luigi
 import luigi_tools
 import numpy as np
 import pandas as pd
+from data_validation_framework.target import TaggedOutputLocalTarget
+
 from atlas import load as load_atlas
 from config import Config
-from data_validation_framework.target import TaggedOutputLocalTarget
 from source_points import CreateSourcePoints
 from target_points import FindTargetPoints
-from white_matter_recipe import load as load_wmr
-from white_matter_recipe import process as process_wmr
 
 logger = logging.getLogger(__name__)
 

@@ -1,10 +1,11 @@
 data-validation-framework
-morphology-workflows
-seaborn
-voxcell
-MarkupSafe<2.1
+gitpython
 Jinja2<3
+MarkupSafe<2.1
+morphology-workflows
 networkx
-TMD
-pcst_fast
 NeuroTS
+pcst_fast
+seaborn
+TMD
+voxcell

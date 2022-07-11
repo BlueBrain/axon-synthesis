@@ -6,9 +6,11 @@ import luigi
 import luigi_tools
 import numpy as np
 import pandas as pd
+from data_validation_framework.target import TaggedOutputLocalTarget
+
 from atlas import load as load_atlas
 from config import Config
-from data_validation_framework.target import TaggedOutputLocalTarget
+from create_dataset import FetchWhiteMatterRecipe
 from source_points import CreateSourcePoints
 from white_matter_recipe import load as load_wmr
 from white_matter_recipe import process as process_wmr
@@ -69,7 +71,10 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
     )
 
     def requires(self):
-        return CreateSourcePoints()
+        return {
+            "source_points": CreateSourcePoints(),
+            "WMR": FetchWhiteMatterRecipe(),
+        }
 
     def run(self):
         rng = np.random.default_rng(self.seed)
@@ -77,7 +82,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
 
         # Get source points
         source_points = pd.read_csv(
-            self.source_points or self.input()["terminals"].pathlib_path
+            self.source_points or self.input()["source_points"]["terminals"].pathlib_path
         )
 
         # Get atlas data
@@ -88,7 +93,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         )
 
         # Get the white matter recipe
-        wm_recipe = load_wmr(config.white_matter_file)
+        wm_recipe = load_wmr(self.input()["WMR"].pathlib_path)
 
         # Process the white matter recipe
         (
