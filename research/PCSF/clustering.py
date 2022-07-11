@@ -119,7 +119,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             for cluster_index, (
                 real_cluster_label,
                 real_cluster,
-                _,
+                cluster_center,
             ) in enumerate(real_clusters):
 
                 # Let at least 4 points in the graph
@@ -199,4 +199,4 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         new_terminals.to_csv(output_file, index=False)
 
     def output(self):
-        return luigi.LocalTarget(self.output_dataset)
+        return luigi_tools.target.OutputLocalTarget(self.output_dataset)

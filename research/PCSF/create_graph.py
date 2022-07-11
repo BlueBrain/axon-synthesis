@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 class CreateGraph(luigi_tools.task.WorkflowTask):
     terminals_path = luigi.Parameter(description="Path to the terminals CSV file.", default=None)
-    output_dataset = luigi.Parameter(description="Output dataset file.", default="graph_edges.csv")
+    output_nodes = luigi.Parameter(description="Output nodes file.", default="graph_nodes.csv")
+    output_edges = luigi.Parameter(description="Output edges file.", default="graph_edges.csv")
     plot_debug = luigi.BoolParameter(
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "
@@ -36,10 +37,12 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
     def run(self):
         terminals = pd.read_csv(self.terminals_path or self.input().path)
-        print(f"Get terminals from {self.terminals_path or self.input().path}")
-        output_file = Path(self.output().path)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_nodes = Path(self.output()["nodes"].path)
+        output_nodes.parent.mkdir(parents=True, exist_ok=True)
+        output_edges = Path(self.output()["edges"].path)
+        output_edges.parent.mkdir(parents=True, exist_ok=True)
 
+        all_nodes = []
         all_edges = []
         from_coord_cols = ["x_from", "y_from", "z_from"]
         to_coord_cols = ["x_to", "y_to", "z_to"]
@@ -58,7 +61,12 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             vor = Voronoi(pts)
 
             # Gather points
-            all_points = pd.DataFrame(np.concatenate([pts, vor.vertices]), columns=["x", "y", "z"])
+            all_points_df = pd.DataFrame(np.concatenate([pts, vor.vertices]), columns=["x", "y", "z"])
+            all_points_df["morph_file"] = group_name
+            all_points_df["is_terminal"] = [True] * len(pts) + [False] * len(vor.vertices)
+            all_points_df["id"] = all_points_df.reset_index()["index"]
+            all_nodes.append(all_points_df[["morph_file", "x", "y", "z", "is_terminal", "id"]])
+            all_points = all_points_df[["x", "y", "z"]]
 
             # Delaunay triangulation of the union of the terminals and the Voronoï points
             tri = Delaunay(all_points)
@@ -149,9 +157,16 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         if self.plot_debug:
             matplotlib.use(old_backend)
 
+        # Export the nodes
+        all_nodes_df = pd.concat(all_nodes)
+        all_nodes_df.to_csv(output_nodes, index=False)
+
         # Export the edges
         all_edges_df = pd.concat(all_edges)
-        all_edges_df.to_csv(output_file, index=False)
+        all_edges_df.to_csv(output_edges, index=False)
 
     def output(self):
-        return luigi.LocalTarget(self.output_dataset)
+        return {
+            "nodes": luigi_tools.target.OutputLocalTarget(self.output_nodes),
+            "edges": luigi_tools.target.OutputLocalTarget(self.output_edges),
+        }

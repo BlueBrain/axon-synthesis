@@ -31,4 +31,4 @@ class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
         return dataset
 
     def output(self):
-        return luigi.LocalTarget(self.output_dataset)
+        return luigi_tools.target.OutputLocalTarget(self.output_dataset)

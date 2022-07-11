@@ -6,11 +6,18 @@ import luigi_tools
 import neurom
 import pandas as pd
 from neurom import load_neuron
+from morphology_processing_workflow.tasks.workflows import Curate
+
+from create_dataset import CreateDatasetForRepair
 
 
 class ExtractTerminals(luigi_tools.task.WorkflowTask):
     morph_dir = luigi.Parameter(description="Folder containing the input morphologies.")
     output_dataset = luigi.Parameter(description="Output dataset file", default="terminals.csv")
+
+    def requires(self):
+        dataset = CreateDatasetForRepair()
+        return [dataset, Curate(dataset_df=dataset.output().path)]
 
     def run(self):
         morph_dir = Path(self.morph_dir)
@@ -42,4 +49,4 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
         dataset.to_csv(dataset_file, index=False)
 
     def output(self):
-        return luigi.LocalTarget(self.output_dataset)
+        return luigi_tools.target.OutputLocalTarget(self.output_dataset)
