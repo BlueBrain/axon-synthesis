@@ -4,10 +4,9 @@ import logging
 import luigi
 import luigi_tools
 import pandas as pd
+from create_dataset import RepairDataset
 from data_validation_framework.target import TaggedOutputLocalTarget
 from neurom import load_morphology
-
-from create_dataset import RepairDataset
 from utils import get_axons
 
 logger = logging.getLogger(__name__)
@@ -65,7 +64,16 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
                         terminal_id += 1
 
         dataset = pd.DataFrame(
-            pts, columns=["morph_file", "axon_id", "terminal_id", "section_id", "x", "y", "z"]
+            pts,
+            columns=[
+                "morph_file",
+                "axon_id",
+                "terminal_id",
+                "section_id",
+                "x",
+                "y",
+                "z",
+            ],
         )
 
         dataset.sort_values(["morph_file", "axon_id", "terminal_id"], inplace=True)

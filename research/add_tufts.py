@@ -9,21 +9,20 @@ import luigi
 import luigi_tools
 import numpy as np
 import pandas as pd
+from config import Config
+from create_tuft_props import CreateTuftTerminalProperties
 from data_validation_framework.target import TaggedOutputLocalTarget
 from morph_tool import resampling
+from morphio.mut import Morphology as MorphIoMorphology
 from neurom import load_morphology
 from neurom.core import Morphology
-from morphio.mut import Morphology as MorphIoMorphology
 from neurots.generate.tree import TreeGrower
 from neurots.validator import validate_neuron_distribs
 from neurots.validator import validate_neuron_params
-from plotly_helper.neuron_viewer import NeuronBuilder
-from plotly.subplots import make_subplots
-from scipy.spatial import KDTree
-
-from config import Config
-from create_tuft_props import CreateTuftTerminalProperties
 from PCSF.steiner_morphologies import SteinerMorphologies
+from plotly.subplots import make_subplots
+from plotly_helper.neuron_viewer import NeuronBuilder
+from scipy.spatial import KDTree
 from smoothing import SmoothSteinerMorphologies
 from utils import add_camera_sync
 from utils import append_section_recursive
@@ -86,7 +85,10 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
     def run(self):
         config = Config()
-        input_dir = self.input_dir or self.input()["steiner_solutions"]["morphologies"].pathlib_path
+        input_dir = (
+            self.input_dir
+            or self.input()["steiner_solutions"]["morphologies"].pathlib_path
+        )
 
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
@@ -126,33 +128,39 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             tree = KDTree(ref_terminal_props["common_ancestor_coords"].to_list())
             for section in morph.iter():
                 for i in tree.query_ball_point(section.points[-1], 1e-6):
-                    tuft_roots.append(
-                        (
-                            section,
-                            ref_terminal_props.iloc[i]
-                        )
-                    )
+                    tuft_roots.append((section, ref_terminal_props.iloc[i]))
 
             if len(tuft_roots) != len(ref_terminal_props):
                 all_props = ref_terminal_props.to_dict("records")
                 for props in all_props:
                     counter = 0
                     for tuft_root_props in tuft_roots:
-                        if props["common_ancestor_coords"] != tuft_root_props[1]["common_ancestor_coords"]:
+                        if (
+                            props["common_ancestor_coords"]
+                            != tuft_root_props[1]["common_ancestor_coords"]
+                        ):
                             counter += 1
                     if counter == len(tuft_roots):
-                        logger.warning(f"No section could be found for the following tuft: {props}")
+                        logger.warning(
+                            f"No section could be found for the following tuft: {props}"
+                        )
 
             # Create the tufts
             for tuft_section, tuft_props in tuft_roots:
                 # Create specific parameters
                 params = deepcopy(input_parameters)
-                params["apical"]["orientation"]["values"]["orientations"] = [tuft_props["cluster_orientation"]]
-                logger.debug("Cluster_orientation: %s", tuft_props["cluster_orientation"])
+                params["apical"]["orientation"]["values"]["orientations"] = [
+                    tuft_props["cluster_orientation"]
+                ]
+                logger.debug(
+                    "Cluster_orientation: %s", tuft_props["cluster_orientation"]
+                )
 
                 # Create specific distributions
                 distrib = deepcopy(input_distributions)
-                distrib["apical"]["persistence_diagram"] = [tuft_props["new_cluster_barcode"]]
+                distrib["apical"]["persistence_diagram"] = [
+                    tuft_props["new_cluster_barcode"]
+                ]
                 logger.debug("Cluster_barcode: %s", tuft_props["new_cluster_barcode"])
 
                 # Grow a tuft
@@ -176,7 +184,11 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             morph.remove_unifurcations()
 
             # Export the new morphology
-            morph_path = (self.output()["morphologies"].pathlib_path / morph_name).with_suffix(".asc").as_posix()
+            morph_path = (
+                (self.output()["morphologies"].pathlib_path / morph_name)
+                .with_suffix(".asc")
+                .as_posix()
+            )
             logger.info(f"Exported morphology to {morph_path}")
             morph.write(morph_path)
 
@@ -188,19 +200,25 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
                 if config.input_data_type == "biological_morphologies":
                     raw_morph = load_morphology(morph_file)
-                    raw_morph = Morphology(resampling.resample_linear_density(raw_morph, 0.005))
+                    raw_morph = Morphology(
+                        resampling.resample_linear_density(raw_morph, 0.005)
+                    )
 
                     raw_builder = NeuronBuilder(
                         raw_morph, "3d", line_width=4, title=f"{morph_name}"
                     )
 
-                    fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
+                    fig = make_subplots(
+                        cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]]
+                    )
                     fig_data.append(raw_builder.get_figure()["data"])
                 else:
                     fig = make_subplots(cols=1, specs=[[{"is_3d": True}]])
 
                 for col_num, data in enumerate(fig_data):
-                    fig.add_traces(data, rows=[1] * len(data), cols=[col_num + 1] * len(data))
+                    fig.add_traces(
+                        data, rows=[1] * len(data), cols=[col_num + 1] * len(data)
+                    )
 
                 # Export figure
                 filepath = str(

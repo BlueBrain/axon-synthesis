@@ -9,20 +9,19 @@ import luigi
 import luigi_tools
 import numpy as np
 import pandas as pd
+from create_tuft_props import CreateTuftTerminalProperties
 from data_validation_framework.target import TaggedOutputLocalTarget
 from morph_tool import resampling
+from morphio.mut import Morphology as MorphIoMorphology
 from neurom import load_morphology
 from neurom.core import Morphology
-from morphio.mut import Morphology as MorphIoMorphology
 from neurots.generate.tree import TreeGrower
 from neurots.validator import validate_neuron_distribs
 from neurots.validator import validate_neuron_params
-from plotly_helper.neuron_viewer import NeuronBuilder
-from plotly.subplots import make_subplots
-from scipy.spatial import KDTree
-
-from create_tuft_props import CreateTuftTerminalProperties
 from PCSF.steiner_morphologies import SteinerMorphologies
+from plotly.subplots import make_subplots
+from plotly_helper.neuron_viewer import NeuronBuilder
+from scipy.spatial import KDTree
 from utils import add_camera_sync
 from utils import append_section_recursive
 
@@ -62,7 +61,10 @@ class SmoothSteinerMorphologies(luigi_tools.task.WorkflowTask):
         }
 
     def run(self):
-        input_dir = self.input_dir or self.input()["steiner_solutions"]["morphologies"].pathlib_path
+        input_dir = (
+            self.input_dir
+            or self.input()["steiner_solutions"]["morphologies"].pathlib_path
+        )
 
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
@@ -88,34 +90,40 @@ class SmoothSteinerMorphologies(luigi_tools.task.WorkflowTask):
             tree = KDTree(ref_terminal_props["common_ancestor_coords"].to_list())
             for section in morph.iter():
                 for i in tree.query_ball_point(section.points[-1], 1e-6):
-                    tuft_roots.append(
-                        (
-                            section,
-                            ref_terminal_props.iloc[i]
-                        )
-                    )
+                    tuft_roots.append((section, ref_terminal_props.iloc[i]))
 
             if len(tuft_roots) != len(ref_terminal_props):
                 all_props = ref_terminal_props.to_dict("records")
                 for props in all_props:
                     counter = 0
                     for tuft_root_props in tuft_roots:
-                        if props["common_ancestor_coords"] != tuft_root_props[1]["common_ancestor_coords"]:
+                        if (
+                            props["common_ancestor_coords"]
+                            != tuft_root_props[1]["common_ancestor_coords"]
+                        ):
                             counter += 1
                     if counter == len(tuft_roots):
-                        logger.warning(f"No section could be found for the following tuft: {props}")
+                        logger.warning(
+                            f"No section could be found for the following tuft: {props}"
+                        )
 
             # Smooth the sections but do not move the tuft roots
             raise NotImplementedError("The smoothing method is not ready to be used")
 
             # Export the new morphology
-            morph_path = (self.output()["morphologies"].pathlib_path / morph_name).with_suffix(".asc").as_posix()
+            morph_path = (
+                (self.output()["morphologies"].pathlib_path / morph_name)
+                .with_suffix(".asc")
+                .as_posix()
+            )
             logger.info(f"Exported morphology to {morph_path}")
             morph.write(morph_path)
 
             if self.plot_debug:
                 raw_morph = load_morphology(raw_morph_file)
-                raw_morph = Morphology(resampling.resample_linear_density(raw_morph, 0.005))
+                raw_morph = Morphology(
+                    resampling.resample_linear_density(raw_morph, 0.005)
+                )
 
                 raw_builder = NeuronBuilder(
                     raw_morph, "3d", line_width=4, title=f"{morph_name}"
@@ -125,8 +133,12 @@ class SmoothSteinerMorphologies(luigi_tools.task.WorkflowTask):
                 )
 
                 fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
-                for col_num, data in enumerate([fig_builder.get_figure()["data"], raw_builder.get_figure()["data"]]):
-                    fig.add_traces(data, rows=[1] * len(data), cols=[col_num + 1] * len(data))
+                for col_num, data in enumerate(
+                    [fig_builder.get_figure()["data"], raw_builder.get_figure()["data"]]
+                ):
+                    fig.add_traces(
+                        data, rows=[1] * len(data), cols=[col_num + 1] * len(data)
+                    )
 
                 # Export figure
                 filepath = str(
@@ -141,5 +153,7 @@ class SmoothSteinerMorphologies(luigi_tools.task.WorkflowTask):
     def output(self):
         return {
             "figures": SmoothingOutputLocalTarget("figures", create_parent=True),
-            "morphologies": SmoothingOutputLocalTarget("morphologies", create_parent=True),
+            "morphologies": SmoothingOutputLocalTarget(
+                "morphologies", create_parent=True
+            ),
         }

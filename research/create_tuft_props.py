@@ -1,7 +1,7 @@
 """Update the properties of the tufts that will be generated later."""
-import sys
 import json
 import logging
+import sys
 from ast import literal_eval
 from pathlib import Path
 
@@ -9,21 +9,20 @@ import luigi
 import luigi_tools
 import numpy as np
 import pandas as pd
+from atlas import load as load_atlas
+from config import Config
 from data_validation_framework.target import TaggedOutputLocalTarget
 from neurom import COLS
 from neurom import load_morphology
 from neurom.morphmath import section_length
-from scipy.spatial import KDTree
-from voxcell import OrientationField
-
-from atlas import load as load_atlas
-from config import Config
 from PCSF.clustering import ClusterTerminals
 from PCSF.create_graph import CreateGraph
 from PCSF.steiner_morphologies import SteinerMorphologies
 from pop_neuron_numbers import PickPopulationNeuronNumbers
+from scipy.spatial import KDTree
 from target_points import FindTargetPoints
 from utils import get_axons
+from voxcell import OrientationField
 
 logger = logging.getLogger(__name__)
 
@@ -125,51 +124,96 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         config = Config()
 
         # Get terminal properties
-        terminals = pd.read_csv(self.input()["terminals"]["input_terminals"].path, dtype={"morph_file": str})
+        terminals = pd.read_csv(
+            self.input()["terminals"]["input_terminals"].path, dtype={"morph_file": str}
+        )
 
         # Get tuft data from the Steiner morphologies
-        all_tuft_roots = pd.read_csv(self.input()["steiner_morphologies"]["nodes"].path, dtype={"morph_file": str})
+        all_tuft_roots = pd.read_csv(
+            self.input()["steiner_morphologies"]["nodes"].path,
+            dtype={"morph_file": str},
+        )
         all_tuft_roots = all_tuft_roots.loc[all_tuft_roots["is_terminal"]]
         all_tuft_roots[["x", "y", "z"]] = all_tuft_roots[["x", "y", "z"]].round(6)
 
         if config.input_data_type == "white_matter":
             # Get neuron numbers
-            pop_neuron_numbers = pd.read_csv(self.input()["pop_neuron_numbers"]["population_numbers"].path)
+            pop_neuron_numbers = pd.read_csv(
+                self.input()["pop_neuron_numbers"]["population_numbers"].path
+            )
 
             # Get populations
-            target_properties = pd.read_csv(self.input()["target_points"]["terminals"].path, dtype={"morph_file": str})
-            target_properties[["x", "y", "z"]] = target_properties[["x", "y", "z"]].round(6)
-            target_properties.loc[~target_properties["target_properties"].isnull(), "target_properties"] = target_properties.loc[~target_properties["target_properties"].isnull(), "target_properties"].apply(literal_eval)
+            target_properties = pd.read_csv(
+                self.input()["target_points"]["terminals"].path,
+                dtype={"morph_file": str},
+            )
+            target_properties[["x", "y", "z"]] = target_properties[
+                ["x", "y", "z"]
+            ].round(6)
+            target_properties.loc[
+                ~target_properties["target_properties"].isnull(), "target_properties"
+            ] = target_properties.loc[
+                ~target_properties["target_properties"].isnull(), "target_properties"
+            ].apply(
+                literal_eval
+            )
 
             # Add target properties to the tuft roots
-            all_tuft_roots = all_tuft_roots.merge(target_properties.loc[target_properties["axon_id"] != -1], on=["morph_file", "x", "y", "z"], how="left")
+            all_tuft_roots = all_tuft_roots.merge(
+                target_properties.loc[target_properties["axon_id"] != -1],
+                on=["morph_file", "x", "y", "z"],
+                how="left",
+            )
 
             # Get populations
-            wm_populations = pd.read_csv(self.input()["target_points"]["wm_populations"].path)
+            wm_populations = pd.read_csv(
+                self.input()["target_points"]["wm_populations"].path
+            )
 
             # Get fractions
-            with self.input()["target_points"]["wm_fractions"].pathlib_path.open("r", encoding="utf-8") as f:
+            with self.input()["target_points"]["wm_fractions"].pathlib_path.open(
+                "r", encoding="utf-8"
+            ) as f:
                 wm_fractions = json.load(f)
 
             # Get targets
             wm_targets = pd.read_csv(self.input()["target_points"]["wm_targets"].path)
 
             # Get projections
-            wm_projections = pd.read_csv(self.input()["target_points"]["wm_projections"].path)
-            wm_projection_targets = pd.read_csv(self.input()["target_points"]["wm_projection_targets"].path)
-            wm_projection_targets["target"] = wm_projection_targets["target"].apply(literal_eval)
+            wm_projections = pd.read_csv(
+                self.input()["target_points"]["wm_projections"].path
+            )
+            wm_projection_targets = pd.read_csv(
+                self.input()["target_points"]["wm_projection_targets"].path
+            )
+            wm_projection_targets["target"] = wm_projection_targets["target"].apply(
+                literal_eval
+            )
 
             # Get interation strengths
-            with self.input()["target_points"]["wm_interaction_strengths"].pathlib_path.open("r", encoding="utf-8") as f:
-                wm_interation_strengths = {k: pd.DataFrame.from_records(v) for k, v in json.load(f).items()}
+            with self.input()["target_points"][
+                "wm_interaction_strengths"
+            ].pathlib_path.open("r", encoding="utf-8") as f:
+                wm_interation_strengths = {
+                    k: pd.DataFrame.from_records(v) for k, v in json.load(f).items()
+                }
 
             # Get target points data
-            source_populations = pd.read_csv(self.input()["target_points"]["source_populations"].path, dtype={"morph_file": str})
+            source_populations = pd.read_csv(
+                self.input()["target_points"]["source_populations"].path,
+                dtype={"morph_file": str},
+            )
 
-            pop_numbers = pd.merge(source_populations, pop_neuron_numbers, on="pop_raw_name", how="left")
+            pop_numbers = pd.merge(
+                source_populations, pop_neuron_numbers, on="pop_raw_name", how="left"
+            )
 
             # Get atlas data
-            atlas, brain_regions, region_map = load_atlas(str(config.atlas_path), config.atlas_region_filename, config.atlas_hierarchy_filename)
+            atlas, brain_regions, region_map = load_atlas(
+                str(config.atlas_path),
+                config.atlas_region_filename,
+                config.atlas_hierarchy_filename,
+            )
             atlas_orientations = atlas.load_data("orientation", cls=OrientationField)
 
         if self.size_sigma == 0 or self.distance_sigma == 0:
@@ -197,7 +241,8 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     terminal_index,
                 )
                 distance_prob = _exp(
-                    cluster_props_df[self.distance_variable] - terminal[self.distance_variable],
+                    cluster_props_df[self.distance_variable]
+                    - terminal[self.distance_variable],
                     self.distance_sigma,
                     terminal_index,
                 )
@@ -207,10 +252,20 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     prob.loc[terminal_index] = 1
                 else:
                     prob /= prob.sum()
-                print("OLD:", group_name, terminal_index, terminal["cluster_size"], terminal[self.distance_variable], prob.idxmax(), prob.max())
+                print(
+                    "OLD:",
+                    group_name,
+                    terminal_index,
+                    terminal["cluster_size"],
+                    terminal[self.distance_variable],
+                    prob.idxmax(),
+                    prob.max(),
+                )
 
                 chosen_index = rng.choice(cluster_props_df.index, p=prob)
-                cluster_props_df.at[terminal_index, "old_new_cluster_barcode"] = cluster_props_df.at[chosen_index, "cluster_barcode"]
+                cluster_props_df.at[
+                    terminal_index, "old_new_cluster_barcode"
+                ] = cluster_props_df.at[chosen_index, "cluster_barcode"]
         # ############################################################ #
 
         tuft_props = []
@@ -236,11 +291,22 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     last_pt = sec.points[-1, COLS.XYZ]
                     dist, index = axon_tree.query(last_pt)
                     if dist > 1e-3:
-                        logger.debug("Skip section %s with point %s since no tuft root was found near this location (the point %s is the closest with %s distance).", sec.id, last_pt, group.iloc[index][["x", "y", "z"]].tolist(), dist)
+                        logger.debug(
+                            "Skip section %s with point %s since no tuft root was found near this location (the point %s is the closest with %s distance).",
+                            sec.id,
+                            last_pt,
+                            group.iloc[index][["x", "y", "z"]].tolist(),
+                            dist,
+                        )
                         continue
                     else:
                         tuft_root = group.iloc[index]
-                        logger.debug("Found tuft root for the section %s with point %s at a distance %s", sec.id, last_pt, dist)
+                        logger.debug(
+                            "Found tuft root for the section %s with point %s at a distance %s",
+                            sec.id,
+                            last_pt,
+                            dist,
+                        )
 
                     if self.use_cluster_props:
                         # Use properties from clustered morphologies
@@ -272,20 +338,23 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                         # Compute raw terminal properties
                         terminal_data = {}
                         terminal_data["path_distance"] = sum(
-                            [
-                                section_length(i.points)
-                                for i in sec.iupstream()
-                            ]
+                            [section_length(i.points) for i in sec.iupstream()]
                         )
                         terminal_data["radial_distance"] = np.linalg.norm(
-                            axon.points[0, COLS.XYZ]
-                            - sec.points[-1, COLS.XYZ]
+                            axon.points[0, COLS.XYZ] - sec.points[-1, COLS.XYZ]
                         )
 
                         # Compute cluster size from white matter recipe
-                        source = source_populations.loc[source_populations["morph_file"] == morph_file, "source"].iloc[0]
-                        target_region_volume, N_pot = pop_numbers.loc[pop_numbers["morph_file"] == morph_file, ["atlas_region_volume", "pop_neuron_numbers"]].iloc[0]
-                        fraction = wm_fractions[source][tuft_root["target_properties"]["projection_name"]]
+                        source = source_populations.loc[
+                            source_populations["morph_file"] == morph_file, "source"
+                        ].iloc[0]
+                        target_region_volume, N_pot = pop_numbers.loc[
+                            pop_numbers["morph_file"] == morph_file,
+                            ["atlas_region_volume", "pop_neuron_numbers"],
+                        ].iloc[0]
+                        fraction = wm_fractions[source][
+                            tuft_root["target_properties"]["projection_name"]
+                        ]
                         N_act = N_pot * fraction
                         strength = tuft_root["target_properties"]["density"]
                         N_tot = target_region_volume * strength
@@ -298,7 +367,15 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                         # Compute the orientation of the tuft from the atlas (the default
                         # orientation is up so we take the 2nd row of the ortation matrix)
                         # TODO: check that this formula is correct
-                        terminal_data["cluster_orientation"] = atlas_orientations.lookup(sec.points[-1, COLS.XYZ]).tolist()[0][1]
+                        terminal_data[
+                            "cluster_orientation"
+                        ] = atlas_orientations.lookup(
+                            sec.points[-1, COLS.XYZ]
+                        ).tolist()[
+                            0
+                        ][
+                            1
+                        ]
 
                         # TODO: add a shift and a random deviation around this orientation?
 
@@ -312,8 +389,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     #     terminal_index,
                     # )
                     length_prob = _exp(
-                        cluster_props_df["path_length"]
-                        - axon_terminal["path_length"],
+                        cluster_props_df["path_length"] - axon_terminal["path_length"],
                         self.length_sigma,
                         terminal_index,
                     )
@@ -330,7 +406,15 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     else:
                         prob /= prob.sum()
 
-                    print("raw_NEW:", steiner_morph_file, tuft_root["id"], axon_terminal["path_length"], axon_terminal[self.distance_variable], prob.idxmax(), prob.max())
+                    print(
+                        "raw_NEW:",
+                        steiner_morph_file,
+                        tuft_root["id"],
+                        axon_terminal["path_length"],
+                        axon_terminal[self.distance_variable],
+                        prob.idxmax(),
+                        prob.max(),
+                    )
 
                     chosen_index = rng.choice(cluster_props_df.index, p=prob)
                     logger.info(
@@ -343,7 +427,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                         tuft_root[["x", "y", "z"]].tolist(),
                         *cluster_props_df.loc[
                             chosen_index,
-                            ["morph_file", "axon_id", "common_ancestor_coords"]
+                            ["morph_file", "axon_id", "common_ancestor_coords"],
                         ].tolist(),
                     )
 
@@ -380,10 +464,11 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                 # "cluster_size",
                 "cluster_orientation",
                 "new_cluster_barcode",
-
             ],
         )
-        tuft_props_df.sort_values(["morph_file", "axon_id", "common_ancestor_id"], inplace=True)
+        tuft_props_df.sort_values(
+            ["morph_file", "axon_id", "common_ancestor_id"], inplace=True
+        )
 
         with self.output().open(mode="w") as f:
             json.dump(tuft_props_df.to_dict("records"), f, indent=4)

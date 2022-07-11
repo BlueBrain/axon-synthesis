@@ -1,28 +1,28 @@
 """Compute and plot some statistics."""
-import attr
 import json
 import logging
 from itertools import chain
 from pathlib import Path
 
-import matplotlib.pyplot as plt
+import attr
 import luigi
 import luigi_tools
-import numpy as np
+import matplotlib.pyplot as plt
 import neurom as nm
+import numpy as np
 import pandas as pd
 import seaborn as sns
+from add_tufts import AddTufts
+from create_dataset import RepairDataset
 from data_validation_framework.target import TaggedOutputLocalTarget
+from luigi_tools.parameter import OptionalPathParameter
+from luigi_tools.parameter import PathParameter
 from matplotlib import cm
 from matplotlib.backends.backend_pdf import PdfPages
-from luigi_tools.parameter import PathParameter
-from luigi_tools.parameter import OptionalPathParameter
 from neurom import load_morphologies
 from neurom.apps.morph_stats import extract_dataframe
 from neurom.core.types import NeuriteType
 
-from create_dataset import RepairDataset
-from add_tufts import AddTufts
 # from PCSF.clustering import ClusterTerminals
 # from PCSF.steiner_morphologies import SteinerMorphologies
 
@@ -42,88 +42,29 @@ def _np_cast(array, do_sum=False):
 def default_config():
     return {
         "neurite": {
-            "number_of_bifurcations": [
-                "sum"
-            ],
-            "number_of_sections_per_neurite": [
-                "mean",
-                "sum"
-            ],
-            "number_of_leaves": [
-                "sum"
-            ],
-            "partition_asymmetry": [
-                "mean",
-                "sum"
-            ],
-            "partition_asymmetry_length": [
-                "mean",
-                "sum"
-            ],
-            "remote_bifurcation_angles": [
-                "mean"
-            ],
-            "section_bif_branch_orders": [
-                "max",
-                "mean"
-            ],
-            "section_bif_lengths": [
-                "min",
-                "max",
-                "mean"
-            ],
-            "section_bif_radial_distances": [
-                "max",
-                "mean"
-            ],
-            "section_branch_orders": [
-                "max",
-                "mean"
-            ],
-            "section_lengths": [
-                "min",
-                "max",
-                "mean",
-                "sum"
-            ],
-            "section_path_distances": [
-                "min",
-                "max",
-                "mean"
-            ],
-            "section_radial_distances": [
-                "min",
-                "max",
-                "mean"
-            ],
-            "section_strahler_orders": [
-                "mean"
-            ],
-            "section_term_branch_orders": [
-                "max",
-                "mean"
-            ],
-            "section_term_lengths": [
-                "min",
-                "max",
-                "mean"
-            ],
-            "section_term_radial_distances": [
-                "max",
-                "mean"
-            ],
-            "section_tortuosity": [
-                "min",
-                "max",
-                "mean"
-            ],
-            "total_length_per_neurite": [
-                "mean"
-            ]
+            "number_of_bifurcations": ["sum"],
+            "number_of_sections_per_neurite": ["mean", "sum"],
+            "number_of_leaves": ["sum"],
+            "partition_asymmetry": ["mean", "sum"],
+            "partition_asymmetry_length": ["mean", "sum"],
+            "remote_bifurcation_angles": ["mean"],
+            "section_bif_branch_orders": ["max", "mean"],
+            "section_bif_lengths": ["min", "max", "mean"],
+            "section_bif_radial_distances": ["max", "mean"],
+            "section_branch_orders": ["max", "mean"],
+            "section_lengths": ["min", "max", "mean", "sum"],
+            "section_path_distances": ["min", "max", "mean"],
+            "section_radial_distances": ["min", "max", "mean"],
+            "section_strahler_orders": ["mean"],
+            "section_term_branch_orders": ["max", "mean"],
+            "section_term_lengths": ["min", "max", "mean"],
+            "section_term_radial_distances": ["max", "mean"],
+            "section_tortuosity": ["min", "max", "mean"],
+            "total_length_per_neurite": ["mean"],
         },
         "neurite_type": [
             "AXON",
-        ]
+        ],
     }
 
 
@@ -172,7 +113,9 @@ def get_scores(df1, df2):
                         scores.append(0.0)
                 else:
                     scores.append(np.nan)
-                logger.debug(f"Score name: {score_name} ; Biological value: {data1} ; Generated value: {data2} ; Score: {scores[-1]}")
+                logger.debug(
+                    f"Score name: {score_name} ; Biological value: {data1} ; Generated value: {data2} ; Score: {scores[-1]}"
+                )
 
     return score_names, scores
 
@@ -233,7 +176,9 @@ def plot_score_matrix(
     for k, s in zip(keys[1:], scores):
         assert keys[0] == k, "Score names must all be the same for each feature."
         assert len(k) == n_scores, "The number of keys must be the same for each mtype."
-        assert len(s) == n_scores, "The number of scores must be the same for each mtype."
+        assert (
+            len(s) == n_scores
+        ), "The number of scores must be the same for each mtype."
 
     # Plot statistics
     with PdfPages(output_path) as pdf:
@@ -274,7 +219,9 @@ def plot_score_matrix(
         a0.set_xticks(np.arange(size))
         a0.set_xticklabels(names)
 
-        a0.set_xlim([a0.xaxis.get_ticklocs().min() - 0.5, a0.xaxis.get_ticklocs().max() + 0.5])
+        a0.set_xlim(
+            [a0.xaxis.get_ticklocs().min() - 0.5, a0.xaxis.get_ticklocs().max() + 0.5]
+        )
         a0.set_ylim([-0.1, 1.1])
 
         # Plot score heatmap
@@ -380,19 +327,31 @@ def population_statistics(pop, neurite_type=NeuriteType.axon):
         #     / np.array(section_term_radial_distances[-1])
         # ).tolist())
         local_bifurcation_angles.append(
-            to_stats(nm.get("local_bifurcation_angles", neuron, neurite_type=neurite_type))
+            to_stats(
+                nm.get("local_bifurcation_angles", neuron, neurite_type=neurite_type)
+            )
         )
         remote_bifurcation_angles.append(
-            to_stats(nm.get("remote_bifurcation_angles", neuron, neurite_type=neurite_type))
+            to_stats(
+                nm.get("remote_bifurcation_angles", neuron, neurite_type=neurite_type)
+            )
         )
         total_axon_length.append(
             sum(nm.get("total_length_per_neurite", neuron, neurite_type=neurite_type))
         )
         radial_moments = {
-            i: nm.get("radial_moment", neuron, neurite_type=neurite_type, order=i, use_radius=False)
+            i: nm.get(
+                "radial_moment",
+                neuron,
+                neurite_type=neurite_type,
+                order=i,
+                use_radius=False,
+            )
             for i in [0, 2]
         }
-        normalized_moments = {order: m / radial_moments[0] for order, m in radial_moments.items()}
+        normalized_moments = {
+            order: m / radial_moments[0] for order, m in radial_moments.items()
+        }
         radial_moment_0.append(radial_moments[0])
         # radial_moment_1.append(radial_moments[1])
         radial_moment_2.append(radial_moments[2])
@@ -430,7 +389,9 @@ class ComputeStatistics(luigi_tools.task.WorkflowTask):
         description="Folder containing the input morphologies.",
         default=None,
     )
-    output_dataset = luigi.Parameter(description="Output dataset file", default="statistics.json")
+    output_dataset = luigi.Parameter(
+        description="Output dataset file", default="statistics.json"
+    )
 
     def requires(self):
         if self.morph_dir is None:
@@ -455,7 +416,9 @@ class ComputeStatistics(luigi_tools.task.WorkflowTask):
 
 class PlotStatistics(luigi_tools.task.WorkflowTask):
     output_dir = PathParameter(description="Output directory", default="figures")
-    nb_bins = luigi.IntParameter(description="The number of bins used for histograms", default=20)
+    nb_bins = luigi.IntParameter(
+        description="The number of bins used for histograms", default=20
+    )
 
     def requires(self):
         return ComputeStatistics()
@@ -484,8 +447,12 @@ class PlotStatistics(luigi_tools.task.WorkflowTask):
 
 
 class CompareStatistics(luigi_tools.task.WorkflowTask):
-    output_dir = PathParameter(description="Output directory", default="compare_statistics")
-    nb_bins = luigi.IntParameter(description="The number of bins used for histograms", default=20)
+    output_dir = PathParameter(
+        description="Output directory", default="compare_statistics"
+    )
+    nb_bins = luigi.IntParameter(
+        description="The number of bins used for histograms", default=20
+    )
     morph_dir_biological = OptionalPathParameter(
         description="Folder containing the biological morphologies.",
         default=None,

@@ -11,17 +11,24 @@ import pandas as pd
 import pcst_fast as pf
 from data_validation_framework.target import TaggedOutputLocalTarget
 from luigi_tools.parameter import OptionalStrParameter
-
 from PCSF.create_graph import CreateGraph
 
 logger = logging.getLogger(__name__)
 
 
 class SteinerTree(luigi_tools.task.WorkflowTask):
-    nodes_path = OptionalStrParameter(description="Path to the nodes CSV file.", default=None)
-    edges_path = OptionalStrParameter(description="Path to the edges CSV file.", default=None)
-    output_nodes = luigi.Parameter(description="Output nodes file.", default="solution_nodes.csv")
-    output_edges = luigi.Parameter(description="Output edges file.", default="solution_edges.csv")
+    nodes_path = OptionalStrParameter(
+        description="Path to the nodes CSV file.", default=None
+    )
+    edges_path = OptionalStrParameter(
+        description="Path to the edges CSV file.", default=None
+    )
+    output_nodes = luigi.Parameter(
+        description="Output nodes file.", default="solution_nodes.csv"
+    )
+    output_edges = luigi.Parameter(
+        description="Output edges file.", default="solution_edges.csv"
+    )
 
     def requires(self):
         return CreateGraph()
@@ -45,7 +52,9 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
             group_nodes = node_groups.get_group(group_name)
             group_edges = edge_groups.get_group(group_name)
 
-            logger.debug(f"{group_name}: {len(group_nodes)} nodes and {len(group_edges)} edges")
+            logger.debug(
+                f"{group_name}: {len(group_nodes)} nodes and {len(group_edges)} edges"
+            )
 
             # Prepare prizes: we want to connect all terminals so we give them an 'infinite' prize
             prizes = 100.0 * group_nodes["is_terminal"] * group_edges["length"].sum()
@@ -64,13 +73,18 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
             logger.info(f"{group_name}: The solution has {len(solution_edges)} edges")
 
             nodes.loc[
-                ((nodes["morph_file"] == group_name) & (nodes["id"].isin(solution_nodes))),
+                (
+                    (nodes["morph_file"] == group_name)
+                    & (nodes["id"].isin(solution_nodes))
+                ),
                 "is_solution",
             ] = True
 
             group_edge_ids = group_edges.reset_index()["index"]
             edge_ids = pd.Series(-1, index=edges.index)
-            reverted_group_edge_ids = pd.Series(group_edge_ids.index, index=group_edge_ids.values)
+            reverted_group_edge_ids = pd.Series(
+                group_edge_ids.index, index=group_edge_ids.values
+            )
             edge_ids.loc[reverted_group_edge_ids.index] = reverted_group_edge_ids
             edges.loc[
                 ((edges["morph_file"] == group_name) & (edge_ids.isin(solution_edges))),

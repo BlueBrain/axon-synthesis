@@ -5,10 +5,9 @@ import luigi
 import luigi_tools
 import numpy as np
 import pandas as pd
+from config import Config
 from data_validation_framework.target import TaggedOutputLocalTarget
 from voxcell.nexus.voxelbrain import Atlas
-
-from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,9 @@ class CreateSourcePoints(luigi_tools.task.WorkflowTask):
                     region_ids.extend(new_ids)
 
             if missing_ids:
-                logger.warning("Could not find the following regions in the atlas: %s", missing_ids)
+                logger.warning(
+                    "Could not find the following regions in the atlas: %s", missing_ids
+                )
 
             potential_voxels = np.argwhere(np.isin(brain_regions.raw, region_ids))
         else:

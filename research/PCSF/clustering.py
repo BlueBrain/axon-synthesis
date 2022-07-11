@@ -15,17 +15,18 @@ import plotly.graph_objects as go
 from data_validation_framework.target import TaggedOutputLocalTarget
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from morph_tool import resampling
 from morphio import IterType
 from morphio import PointLevel
 from morphio.mut import Morphology as MorphIoMorphology
-from morph_tool import resampling
 from neurom import COLS
 from neurom import NeuriteType
 from neurom import load_morphology
 from neurom.core import Morphology
 from neurom.morphmath import section_length
-from plotly_helper.neuron_viewer import NeuronBuilder
+from PCSF.extract_terminals import ExtractTerminals
 from plotly.subplots import make_subplots
+from plotly_helper.neuron_viewer import NeuronBuilder
 from scipy import stats
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
@@ -39,8 +40,6 @@ from tmd.Topology.analysis import histogram_stepped
 from tmd.Topology.methods import tree_to_property_barcode
 from tmd.Topology.persistent_properties import PersistentAngles
 from tmd.view.plot import barcode as plot_barcode
-
-from PCSF.extract_terminals import ExtractTerminals
 from utils import add_camera_sync
 from utils import get_axons
 from utils import neurite_to_graph
@@ -112,7 +111,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             adjacency_matrix[tuple(np.array(list(pairs)).T.tolist())] = 1
         np.fill_diagonal(adjacency_matrix, 1)
         graph = csr_matrix(adjacency_matrix)
-        _, labels = connected_components(csgraph=graph, directed=False, return_labels=True)
+        _, labels = connected_components(
+            csgraph=graph, directed=False, return_labels=True
+        )
 
         # Define clusters from these components
         cluster_labels, cluster_sizes = np.unique(labels, return_counts=True)
@@ -181,7 +182,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
                 # Mark the points that will not be merged to keep at least 4 points in the graph
                 group_with_label.loc[removed_indices, "cluster_label"] = (
-                    group_with_label["cluster_label"].max() + np.arange(len(removed_indices)) + 1
+                    group_with_label["cluster_label"].max()
+                    + np.arange(len(removed_indices))
+                    + 1
                 )
             else:
                 actual_cluster = real_cluster
@@ -219,7 +222,11 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         .. warning:: The graph must have only one component.
         """
-        if not isinstance(graph, nx.DiGraph) and source is None and shortest_paths is None:
+        if (
+            not isinstance(graph, nx.DiGraph)
+            and source is None
+            and shortest_paths is None
+        ):
             raise ValueError(
                 "Either the source or the pre-computed shortest paths must be provided when using "
                 "an undirected graph."
@@ -248,7 +255,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
     @staticmethod
     def nodes_to_terminals_mapping(graph, source=None, shortest_paths=None):
         if (source is None) == (shortest_paths is None):
-            raise ValueError("At least 'source' or 'shortest_paths' must be given but not both.")
+            raise ValueError(
+                "At least 'source' or 'shortest_paths' must be given but not both."
+            )
         elif shortest_paths is None:
             shortest_paths = nx.single_source_shortest_path(graph, source)
         node_to_terminals = defaultdict(set)
@@ -259,7 +268,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 node_to_terminals[j].add(node_id)
         return node_to_terminals
 
-    def clusters_from_sphere_parents(self, axon, axon_id, group_name, group, output_cols, _):
+    def clusters_from_sphere_parents(
+        self, axon, axon_id, group_name, group, output_cols, _
+    ):
         """All parents up to the common ancestor must be inside the sphere to be merged."""
         if self.max_path_clustering_distance is None:
             self.max_path_clustering_distance = self.clustering_distance
@@ -270,7 +281,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         graph = nx.Graph(directed_graph)
         terminal_ids = nodes.loc[nodes["is_terminal"]].index
 
-        pair_paths = dict(i for i in nx.all_pairs_shortest_path(graph) if i[0] in terminal_ids)
+        pair_paths = dict(
+            i for i in nx.all_pairs_shortest_path(graph) if i[0] in terminal_ids
+        )
 
         # Get the pairs of terminals closer to the given distance
         terminal_nodes = nodes.loc[terminal_ids, ["x", "y", "z"]]
@@ -296,7 +309,10 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 path = pair_paths[term_b][term_a]
             path_points = nodes.loc[path]
 
-            if pdist(path_points[["x", "y", "z"]].values).max() > self.max_path_clustering_distance:
+            if (
+                pdist(path_points[["x", "y", "z"]].values).max()
+                > self.max_path_clustering_distance
+            ):
                 # Skip if a point on the path exceeds the clustering distance
                 continue
 
@@ -325,7 +341,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     nodes.loc[term_a, "cluster_id"] = term_b_cluster_id
                 else:
                     # Create new cluster
-                    nodes.loc[[term_a, term_b], "cluster_id"] = nodes["cluster_id"].max() + 1
+                    nodes.loc[[term_a, term_b], "cluster_id"] = (
+                        nodes["cluster_id"].max() + 1
+                    )
 
         # Create cluster IDs for not clustered terminals
         not_clustered_mask = (nodes["is_terminal"]) & (nodes["cluster_id"] == -1)
@@ -342,7 +360,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         new_terminal_id = 1
         paths_from_root = nx.single_source_shortest_path(graph, -1)
-        node_to_terminals = self.nodes_to_terminals_mapping(graph, shortest_paths=paths_from_root)
+        node_to_terminals = self.nodes_to_terminals_mapping(
+            graph, shortest_paths=paths_from_root
+        )
 
         # Ensure there are at least 4 clusters
         for num_cluster, (cluster_id, cluster) in enumerate(sorted_clusters):
@@ -356,7 +376,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Compute the number of missing clusters
             missing_points = max(
-                0, 3 - (len(sorted_clusters[num_cluster + 1 :]) + len(new_terminal_points))
+                0,
+                3
+                - (len(sorted_clusters[num_cluster + 1 :]) + len(new_terminal_points)),
             )
             is_root = -1 in cluster.index
             if is_root:
@@ -438,7 +460,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             ).groupby("interval_idx")
 
             # Get the median value
-            return _tmp.quantile(interpolation="higher")["min_indices"].astype(int).values
+            return (
+                _tmp.quantile(interpolation="higher")["min_indices"].astype(int).values
+            )
 
         # Keep one minimum per der1 and der2 interval
         min_indices = _get_min_indices(minimas, der1)
@@ -508,7 +532,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 ax_hist.vlines(
                     min_positions,
                     0,
-                    np.max(np.concatenate([hist_data_horizontal[1], hist_data_stepped[1]])),
+                    np.max(
+                        np.concatenate([hist_data_horizontal[1], hist_data_stepped[1]])
+                    ),
                     color="red",
                     linestyle="--",
                     label="In-between tufts",
@@ -516,8 +542,12 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 ax_hist.legend()
 
                 # Plot derivatives
-                ax_der.plot(bin_centers, der1, color="orange", alpha=0.7, label="1st derivative")
-                ax_der.plot(bin_centers, der2, color="blue", alpha=0.7, label="2nd derivative")
+                ax_der.plot(
+                    bin_centers, der1, color="orange", alpha=0.7, label="1st derivative"
+                )
+                ax_der.plot(
+                    bin_centers, der2, color="blue", alpha=0.7, label="2nd derivative"
+                )
                 ax_der.vlines(
                     min_positions,
                     np.min(np.concatenate([der1, der2])),
@@ -530,14 +560,18 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
                 plt.show()
 
-            group["radial_dist"] = np.linalg.norm(group[["x", "y", "z"]] - soma_center, axis=1)
+            group["radial_dist"] = np.linalg.norm(
+                group[["x", "y", "z"]] - soma_center, axis=1
+            )
             min_positions = np.append(
                 np.insert(min_positions, 0, 0), group["radial_dist"].max() + 1
             )
             terminal_intervals = np.digitize(group["radial_dist"], min_positions)
             clusters = []
 
-            for num_interval, interval in enumerate(zip(min_positions[:-1], min_positions[1:])):
+            for num_interval, interval in enumerate(
+                zip(min_positions[:-1], min_positions[1:])
+            ):
                 cluster_terminals = group.loc[terminal_intervals == num_interval + 1]
                 terminal_parents = defaultdict(list)
                 crossing_sections = set()
@@ -570,7 +604,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         # Drop soma terminals and add them to the final points
         soma_centers_mask = terminals["axon_id"] == -1
         soma_centers = terminals.loc[soma_centers_mask].copy()
-        all_terminal_points.extend(soma_centers[output_cols].to_records(index=False).tolist())
+        all_terminal_points.extend(
+            soma_centers[output_cols].to_records(index=False).tolist()
+        )
         terminals.drop(soma_centers.index, inplace=True)
         terminals["cluster_id"] = -1
 
@@ -585,9 +621,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     axon_morph.delete_section(i)
 
             # Soma center
-            soma_center = (
-                soma_centers.loc[soma_centers["morph_file"] == group_name, ["x", "y", "z"]].values[0]
-            )
+            soma_center = soma_centers.loc[
+                soma_centers["morph_file"] == group_name, ["x", "y", "z"]
+            ].values[0]
 
             # Cluster each axon
             axons = get_axons(morph)
@@ -628,7 +664,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             sections_to_add = defaultdict(list)
             kept_path = None
             shortest_paths = nx.single_source_shortest_path(directed_graph, -1)
-            for (axon_id, cluster_id), cluster in group.groupby(["axon_id", "cluster_id"]):
+            for (axon_id, cluster_id), cluster in group.groupby(
+                ["axon_id", "cluster_id"]
+            ):
                 # Skip the root cluster
                 if (cluster.cluster_id == 0).any():
                     continue
@@ -668,6 +706,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     if i.id not in tuft_sections:
                         if i is tuft_ancestor:
                             import pdb
+
                             pdb.set_trace()
                         tuft_morph.delete_section(i.morphio_section, recursive=False)
 
@@ -680,18 +719,25 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 cluster_center = cluster_df.loc[
                     (cluster_df["axon_id"] == axon_id)
                     & (cluster_df["terminal_id"] == cluster_id),
-                    ["x", "y", "z"]
+                    ["x", "y", "z"],
                 ].values[0]
                 tuft_orientation = cluster_center - tuft_ancestor.points[-1]
                 tuft_orientation /= np.linalg.norm(tuft_orientation)
 
                 # Resize the common section used as root (the root section is 1um)
                 new_root_section = tuft_morph.root_sections[0]
-                new_root_section.points = np.vstack([new_root_section.points[-1] - tuft_orientation, new_root_section.points[-1]])
+                new_root_section.points = np.vstack(
+                    [
+                        new_root_section.points[-1] - tuft_orientation,
+                        new_root_section.points[-1],
+                    ]
+                )
                 new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
 
                 # Compute the barcode
-                tmd_axon = list(convert_morphio_trees(MorphIoMorphology(tuft_morph).as_immutable()))[axon_id]
+                tmd_axon = list(
+                    convert_morphio_trees(MorphIoMorphology(tuft_morph).as_immutable())
+                )[axon_id]
                 tuft_barcode, _ = tree_to_property_barcode(
                     tmd_axon,
                     lambda tree: tree.get_point_path_distances(),
@@ -700,9 +746,18 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 )
 
                 # Add tuft category data
-                path_distance = sum([section_length(i.points) for i in common_section.iter(IterType.upstream)])
-                radial_distance = np.linalg.norm(axons[axon_id].points[0, COLS.XYZ] - common_section.points[-1])
-                path_length = sum([section_length(i.points) for i in common_section.iter()])
+                path_distance = sum(
+                    [
+                        section_length(i.points)
+                        for i in common_section.iter(IterType.upstream)
+                    ]
+                )
+                radial_distance = np.linalg.norm(
+                    axons[axon_id].points[0, COLS.XYZ] - common_section.points[-1]
+                )
+                path_length = sum(
+                    [section_length(i.points) for i in common_section.iter()]
+                )
 
                 cluster_props.append(
                     (
@@ -753,7 +808,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 root = axon.root_node
                 new_root = new_axon.root_node
 
-                assert np.array_equal(root.points, new_root.points), "The axons where messed up!"
+                assert np.array_equal(
+                    root.points, new_root.points
+                ), "The axons where messed up!"
 
                 for sec in new_root.children:
                     clustered_morph.delete_section(sec.morphio_section)
@@ -817,23 +874,23 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     [
                         [
                             i["x"],
-                            cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "x"].iloc[
-                                0
-                            ],
+                            cluster_df.loc[
+                                cluster_df["terminal_id"] == i["cluster_id"], "x"
+                            ].iloc[0],
                             None,
                         ],
                         [
                             i["y"],
-                            cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "y"].iloc[
-                                0
-                            ],
+                            cluster_df.loc[
+                                cluster_df["terminal_id"] == i["cluster_id"], "y"
+                            ].iloc[0],
                             None,
                         ],
                         [
                             i["z"],
-                            cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "z"].iloc[
-                                0
-                            ],
+                            cluster_df.loc[
+                                cluster_df["terminal_id"] == i["cluster_id"], "z"
+                            ].iloc[0],
                             None,
                         ],
                     ]
@@ -855,18 +912,23 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
                 # Build the clustered morph figure
                 clustered_builder = NeuronBuilder(
-                    clustered_morph, "3d", line_width=4, title=f"Clustered {clustered_morph.name}"
+                    clustered_morph,
+                    "3d",
+                    line_width=4,
+                    title=f"Clustered {clustered_morph.name}",
                 )
 
                 # Create the figure from the traces
                 fig = make_subplots(
                     cols=2,
                     specs=[[{"is_3d": True}, {"is_3d": True}]],
-                    subplot_titles=("Node clusters", "Clustered morphology")
+                    subplot_titles=("Node clusters", "Clustered morphology"),
                 )
 
                 morph_data = fig_builder.get_figure()["data"]
-                fig.add_traces(morph_data, rows=[1] * len(morph_data), cols=[1] * len(morph_data))
+                fig.add_traces(
+                    morph_data, rows=[1] * len(morph_data), cols=[1] * len(morph_data)
+                )
                 fig.add_trace(node_trace, row=1, col=1)
                 fig.add_trace(edge_trace, row=1, col=1)
                 fig.add_trace(cluster_trace, row=1, col=1)
@@ -904,7 +966,6 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 "cluster_size",
                 "cluster_orientation",
                 "cluster_barcode",
-
             ],
         )
         with self.output()["tuft_properties"].open(mode="w") as f:
@@ -912,7 +973,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         # Plot cluster properties
         if self.plot_debug:
-            with PdfPages(self.output()["figures"].pathlib_path / "tuft_properties.pdf") as pdf:
+            with PdfPages(
+                self.output()["figures"].pathlib_path / "tuft_properties.pdf"
+            ) as pdf:
                 ax = cluster_props_df.plot.scatter(
                     x="path_distance",
                     y="cluster_size",
@@ -933,13 +996,17 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 pdf.savefig()
                 plt.close()
 
-                ax = plt.scatter(
-                    x=cluster_props_df["radial_distance"],
-                    y=(
-                        cluster_props_df["cluster_center_coords"].apply(np.array)
-                        - cluster_props_df["common_ancestor_coords"]
-                    ).apply(np.linalg.norm)
-                ).get_figure().gca()
+                ax = (
+                    plt.scatter(
+                        x=cluster_props_df["radial_distance"],
+                        y=(
+                            cluster_props_df["cluster_center_coords"].apply(np.array)
+                            - cluster_props_df["common_ancestor_coords"]
+                        ).apply(np.linalg.norm),
+                    )
+                    .get_figure()
+                    .gca()
+                )
                 ax.set_title("Cluster radial length vs radial distance")
                 pdf.savefig()
                 plt.close()
@@ -971,24 +1038,35 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 pdf.savefig()
                 plt.close()
 
-
         # Export the terminals
         new_terminals = pd.DataFrame(all_terminal_points, columns=output_cols)
         new_terminals = pd.merge(
             new_terminals,
-            terminals.groupby(["morph_file", "axon_id", "cluster_id"]).size().rename("cluster_size"),
+            terminals.groupby(["morph_file", "axon_id", "cluster_id"])
+            .size()
+            .rename("cluster_size"),
             left_on=["morph_file", "axon_id", "terminal_id"],
             right_on=["morph_file", "axon_id", "cluster_id"],
             how="left",
         )
-        new_terminals["cluster_size"] = new_terminals["cluster_size"].fillna(1).astype(int)
-        new_terminals.sort_values(["morph_file", "axon_id", "terminal_id"], inplace=True)
+        new_terminals["cluster_size"] = (
+            new_terminals["cluster_size"].fillna(1).astype(int)
+        )
+        new_terminals.sort_values(
+            ["morph_file", "axon_id", "terminal_id"], inplace=True
+        )
         new_terminals.to_csv(self.output()["terminals"].path, index=False)
 
     def output(self):
         return {
             "figures": ClusteringOutputLocalTarget("figures", create_parent=True),
-            "morphologies": ClusteringOutputLocalTarget("morphologies", create_parent=True),
-            "terminals": ClusteringOutputLocalTarget("clustered_terminals.csv", create_parent=True),
-            "tuft_properties": ClusteringOutputLocalTarget("tuft_properties.json", create_parent=True),
+            "morphologies": ClusteringOutputLocalTarget(
+                "morphologies", create_parent=True
+            ),
+            "terminals": ClusteringOutputLocalTarget(
+                "clustered_terminals.csv", create_parent=True
+            ),
+            "tuft_properties": ClusteringOutputLocalTarget(
+                "tuft_properties.json", create_parent=True
+            ),
         }

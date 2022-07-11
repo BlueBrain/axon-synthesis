@@ -8,15 +8,16 @@ from pathlib import Path
 import luigi
 import luigi_tools
 import pandas as pd
+from config import Config
 from data_validation_framework.target import TaggedOutputLocalTarget
 from morphology_workflows.tasks.workflows import Curate
-
-from config import Config
 
 
 class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
     morph_dir = luigi.Parameter(description="Folder containing the input morphologies.")
-    output_dataset = luigi.Parameter(description="Output dataset file", default="dataset.csv")
+    output_dataset = luigi.Parameter(
+        description="Output dataset file", default="dataset.csv"
+    )
 
     def run(self):
         morph_dir = Path(self.morph_dir)
@@ -42,7 +43,9 @@ class RepairDataset(luigi_tools.task.WorkflowTask):
         return dataset
 
     def run(self):
-        repair = yield Curate(dataset_df=self.input().path, result_path=Config().output_dir.absolute())
+        repair = yield Curate(
+            dataset_df=self.input().path, result_path=Config().output_dir.absolute()
+        )
 
     def output(self):
         return TaggedOutputLocalTarget("Resample/data/")

@@ -9,18 +9,17 @@ Requirements:
 - "data-validation-framework>=0.3.1"
 - "morphology-workflows>=0.2.0"
 """
-import luigi_tools
+from statistics import CompareStatistics
+from statistics import PlotStatistics
 
+import luigi_tools
 from add_tufts import AddTufts
 from config import Config
 from create_dataset import RepairDataset
 from data_validation_framework.target import TaggedOutputLocalTarget
-from statistics import CompareStatistics
-from statistics import PlotStatistics
 from PCSF.create_graph import CreateGraph
 from PCSF.plot_steiner import PlotSolutions
 from PCSF.steiner_morphologies import SteinerMorphologies
-
 
 TaggedOutputLocalTarget.set_default_prefix(Config().output_dir)
 

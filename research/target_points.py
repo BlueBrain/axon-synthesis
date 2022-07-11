@@ -6,10 +6,9 @@ import luigi
 import luigi_tools
 import numpy as np
 import pandas as pd
-from data_validation_framework.target import TaggedOutputLocalTarget
-
 from atlas import load as load_atlas
 from config import Config
+from data_validation_framework.target import TaggedOutputLocalTarget
 from source_points import CreateSourcePoints
 from white_matter_recipe import load as load_wmr
 from white_matter_recipe import process as process_wmr
@@ -36,7 +35,8 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         description="Output dataset file", default="target_terminals.csv"
     )
     output_source_populations = luigi.Parameter(
-        description="Output source population dataset file", default="source_populations.csv"
+        description="Output source population dataset file",
+        default="source_populations.csv",
     )
     sub_region_separator = luigi.Parameter(
         description="Separator use between region and subregion names to build the acronym.",
@@ -81,14 +81,23 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         )
 
         # Get atlas data
-        atlas, brain_regions, region_map = load_atlas(str(config.atlas_path), config.atlas_region_filename, config.atlas_hierarchy_filename)
+        atlas, brain_regions, region_map = load_atlas(
+            str(config.atlas_path),
+            config.atlas_region_filename,
+            config.atlas_hierarchy_filename,
+        )
 
         # Get the white matter recipe
         wm_recipe = load_wmr(config.white_matter_file)
 
         # Process the white matter recipe
         (
-            wm_populations, wm_projections, wm_targets, wm_fractions, wm_interaction_strengths, projection_targets
+            wm_populations,
+            wm_projections,
+            wm_targets,
+            wm_fractions,
+            wm_interaction_strengths,
+            projection_targets,
         ) = process_wmr(
             wm_recipe,
             region_map,
@@ -104,18 +113,26 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         wm_projections.to_csv(self.output()["wm_projections"].path, index=False)
 
         # Export the projection DataFrame
-        projection_targets.to_csv(self.output()["wm_projection_targets"].path, index=False)
+        projection_targets.to_csv(
+            self.output()["wm_projection_targets"].path, index=False
+        )
 
         # Export the fractions
-        with self.output()["wm_fractions"].pathlib_path.open("w", encoding="utf-8") as f:
+        with self.output()["wm_fractions"].pathlib_path.open(
+            "w", encoding="utf-8"
+        ) as f:
             json.dump(wm_fractions, f)
 
         # Export the targets DataFrame
         wm_targets.to_csv(self.output()["wm_targets"].path, index=False)
 
         # Export the interaction strengths
-        with self.output()["wm_interaction_strengths"].pathlib_path.open("w", encoding="utf-8") as f:
-            json.dump({k: v.to_dict("index") for k, v in wm_interaction_strengths.items()}, f)
+        with self.output()["wm_interaction_strengths"].pathlib_path.open(
+            "w", encoding="utf-8"
+        ) as f:
+            json.dump(
+                {k: v.to_dict("index") for k, v in wm_interaction_strengths.items()}, f
+            )
 
         # Get brain regions from source positions
         source_points["brain_region"] = brain_regions.lookup(
@@ -258,7 +275,9 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                 # Convert to float32 to avoid rounding error later in MorphIO
                 coords = coords.astype(np.float32)
 
-                targets.append([row["morph_file"], 0, term_id] + coords.tolist() + [target])
+                targets.append(
+                    [row["morph_file"], 0, term_id] + coords.tolist() + [target]
+                )
                 term_id += 1
 
         # Format the results
@@ -271,7 +290,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                 "x",
                 "y",
                 "z",
-                "target_properties"
+                "target_properties",
             ],
         )
 

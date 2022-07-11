@@ -57,7 +57,9 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
 
     edges = pd.DataFrame(graph_edges, columns=["source", "target"])
     graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
-    nx.set_node_attributes(graph, nodes[["x", "y", "z", "is_terminal"]].to_dict("index"))
+    nx.set_node_attributes(
+        graph, nodes[["x", "y", "z", "is_terminal"]].to_dict("index")
+    )
 
     return nodes, edges, graph
 

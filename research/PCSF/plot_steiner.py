@@ -3,22 +3,21 @@ import logging
 
 import luigi
 import luigi_tools
+from config import Config
 from data_validation_framework.target import TaggedOutputLocalTarget
 from luigi_tools.parameter import OptionalPathParameter
 from luigi_tools.parameter import PathParameter
 from morph_tool import resampling
 from neurom import load_morphology
 from neurom.core import Morphology
+from PCSF.clustering import ClusterTerminals
+from PCSF.steiner_morphologies import SteinerMorphologies
 from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 from scipy.spatial import KDTree
-from voxcell.nexus.voxelbrain import Atlas
-
-from config import Config
-from PCSF.clustering import ClusterTerminals
-from PCSF.steiner_morphologies import SteinerMorphologies
 from target_points import FindTargetPoints
 from utils import add_camera_sync
+from voxcell.nexus.voxelbrain import Atlas
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +30,7 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
         description="Output folder for figures.", default="steiner_solutions"
     )
     plot_fiber_tracts = luigi.BoolParameter(
-        description=(
-            "If set to True, the fiber tracts will also be plotted."
-        ),
+        description=("If set to True, the fiber tracts will also be plotted."),
         default=False,
         parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
     )
@@ -49,29 +46,40 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
         elif input_data_type == "white_matter":
             reqs["biological"] = FindTargetPoints()
         else:
-            raise ValueError(f"The value of 'input_data_type' is unknown ({input_data_type}).")
+            raise ValueError(
+                f"The value of 'input_data_type' is unknown ({input_data_type})."
+            )
 
         return reqs
 
     def run(self):
-        input_dir = self.input_dir or self.input()["generated"]["morphologies"].pathlib_path
+        input_dir = (
+            self.input_dir or self.input()["generated"]["morphologies"].pathlib_path
+        )
 
         self.output().mkdir(is_dir=True)
 
         # ################################################################################### #
         if self.plot_fiber_tracts:
-            import plotly.graph_objects as go
             import numpy as np
-            atlas_path = "/gpfs/bbp.cscs.ch/project/proj82/entities/atlas/ThalNCX/20201019/"
+            import plotly.graph_objects as go
+
+            atlas_path = (
+                "/gpfs/bbp.cscs.ch/project/proj82/entities/atlas/ThalNCX/20201019/"
+            )
             atlas_hierarchy_filename = "hierarchy.json"
             atlas_region_filename = "brain_regions"
             atlas = Atlas.open(atlas_path)
             region_map = atlas.load_region_map(atlas_hierarchy_filename)
             brain_regions = atlas.load_data(atlas_region_filename)
-            fiber_tracts_ids = region_map.find("fiber tracts", attr="name", with_descendants=True)
+            fiber_tracts_ids = region_map.find(
+                "fiber tracts", attr="name", with_descendants=True
+            )
             fiber_tracts_mask = np.isin(brain_regions.raw, list(fiber_tracts_ids))
             brain_regions.raw[~fiber_tracts_mask] = 0  # Zeroes the complement region
-            fiber_tract_points = brain_regions.indices_to_positions(np.argwhere(brain_regions.raw))
+            fiber_tract_points = brain_regions.indices_to_positions(
+                np.argwhere(brain_regions.raw)
+            )
             fiber_tract_tree = KDTree(fiber_tract_points)
             fiber_tract_trace = go.Scatter3d(
                 x=fiber_tract_points[::10, 0],
@@ -96,7 +104,9 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
             logger.debug(f"{morph_name}: {len(gen_morph.sections)} sections")
 
             # Build the generated figure
-            gen_builder = NeuronBuilder(gen_morph, "3d", line_width=4, title=f"{morph_name}")
+            gen_builder = NeuronBuilder(
+                gen_morph, "3d", line_width=4, title=f"{morph_name}"
+            )
             gen_fig = gen_builder.get_figure()["data"]
 
             # Export the solution
@@ -119,7 +129,9 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
 
             # Add biological figure for comparison
             if input_data_type == "biological_morphologies":
-                bio_file = self.input()["biological"]["morphologies"].pathlib_path / morph_name
+                bio_file = (
+                    self.input()["biological"]["morphologies"].pathlib_path / morph_name
+                )
 
                 logger.debug(f"Adding biological morphology fom {bio_file}")
 
@@ -129,7 +141,9 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
                 bio_morph = load_morphology(bio_file)
 
                 # Build the biological figure
-                bio_builder = NeuronBuilder(bio_morph, "3d", line_width=4, title=f"{morph_name}")
+                bio_builder = NeuronBuilder(
+                    bio_morph, "3d", line_width=4, title=f"{morph_name}"
+                )
                 bio_fig = bio_builder.get_figure()["data"]
 
                 fig.add_traces(
@@ -138,7 +152,9 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
                     cols=[2] * len(bio_fig),
                 )
 
-            fig_path = str((self.output().pathlib_path / morph_name).with_suffix(".html"))
+            fig_path = str(
+                (self.output().pathlib_path / morph_name).with_suffix(".html")
+            )
             fig.write_html(fig_path)
 
             # Update the HTML file to synchronize the cameras between the two plots

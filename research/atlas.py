@@ -11,20 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache
-def load(atlas_path: str, atlas_region_filename: str, atlas_hierarchy_filename:str):
+def load(atlas_path: str, atlas_region_filename: str, atlas_hierarchy_filename: str):
     """Read Atlas data from directory."""
     # Get atlas data
     logger.info(f"Loading atlas from: {atlas_path}")
     atlas = Atlas.open(atlas_path)
 
-    logger.debug(
-        f"Loading brain regions from the atlas using: {atlas_region_filename}"
-    )
+    logger.debug(f"Loading brain regions from the atlas using: {atlas_region_filename}")
     brain_regions = atlas.load_data(atlas_region_filename)
 
-    logger.debug(
-        f"Loading region map from the atlas using: {atlas_hierarchy_filename}"
-    )
+    logger.debug(f"Loading region map from the atlas using: {atlas_hierarchy_filename}")
     region_map = atlas.load_region_map(atlas_hierarchy_filename)
 
     # if config.atlas_flatmap_filename is None:

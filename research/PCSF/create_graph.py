@@ -11,18 +11,17 @@ import luigi_tools
 import matplotlib
 import numpy as np
 import pandas as pd
+from config import Config
 from data_validation_framework.target import TaggedOutputLocalTarget
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from neurom.morphmath import angle_between_vectors
+from PCSF.clustering import ClusterTerminals
 from scipy.spatial import Delaunay
 from scipy.spatial import KDTree
 from scipy.spatial import Voronoi
-from voxcell.nexus.voxelbrain import Atlas
-
-from config import Config
-from PCSF.clustering import ClusterTerminals
 from target_points import FindTargetPoints
+from voxcell.nexus.voxelbrain import Atlas
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +32,12 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         default=None,
         exists=True,
     )
-    output_nodes = luigi.Parameter(description="Output nodes file.", default="graph_nodes.csv")
-    output_edges = luigi.Parameter(description="Output edges file.", default="graph_edges.csv")
+    output_nodes = luigi.Parameter(
+        description="Output nodes file.", default="graph_nodes.csv"
+    )
+    output_edges = luigi.Parameter(
+        description="Output edges file.", default="graph_edges.csv"
+    )
     intermediate_number = luigi.NumericalParameter(
         description="The number of intermediate points added before Voronoï process.",
         var_type=int,
@@ -128,7 +131,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         elif input_data_type == "white_matter":
             return FindTargetPoints()
         else:
-            raise ValueError(f"The value of 'input_data_type' is unknown ({input_data_type}).")
+            raise ValueError(
+                f"The value of 'input_data_type' is unknown ({input_data_type})."
+            )
 
     def run(self):
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
@@ -138,10 +143,14 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             atlas = Atlas.open(atlas_path)
             region_map = atlas.load_region_map(self.atlas_hierarchy_filename)
             brain_regions = atlas.load_data(self.atlas_region_filename)
-            fiber_tracts_ids = region_map.find("fiber tracts", attr="name", with_descendants=True)
+            fiber_tracts_ids = region_map.find(
+                "fiber tracts", attr="name", with_descendants=True
+            )
             fiber_tracts_mask = np.isin(brain_regions.raw, list(fiber_tracts_ids))
             brain_regions.raw[~fiber_tracts_mask] = 0  # Zeroes the complement region
-            fiber_tract_points = brain_regions.indices_to_positions(np.argwhere(brain_regions.raw))
+            fiber_tract_points = brain_regions.indices_to_positions(
+                np.argwhere(brain_regions.raw)
+            )
             fiber_tract_tree = KDTree(fiber_tract_points)
         else:
             fiber_tract_points = None
@@ -149,7 +158,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
         if self.use_ancestors:
             if self.terminals_path:
-                raise ValueError("Can not use ancestors when 'terminals_path' is not None")
+                raise ValueError(
+                    "Can not use ancestors when 'terminals_path' is not None"
+                )
             cluster_props_df = pd.read_json(self.input()["tuft_properties"].path)
             tmp = pd.merge(
                 terminals,
@@ -159,7 +170,10 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 how="left",
             )
             mask = ~tmp["cluster_id"].isnull()
-            new_terminal_coords = pd.DataFrame(tmp.loc[mask, "common_ancestor_coords"].to_list(), columns=["x", "y", "z"])
+            new_terminal_coords = pd.DataFrame(
+                tmp.loc[mask, "common_ancestor_coords"].to_list(),
+                columns=["x", "y", "z"],
+            )
             tmp.loc[mask, ["x", "y", "z"]] = new_terminal_coords.values
             terminals[["x", "y", "z"]] = tmp[["x", "y", "z"]]
 
@@ -189,7 +203,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             terms = pts - soma_center[["x", "y", "z"]].values[0]
             term_dists = np.linalg.norm(terms, axis=1)
             nb_inter = np.clip(
-                term_dists // self.min_intermediate_distance, 0, self.intermediate_number
+                term_dists // self.min_intermediate_distance,
+                0,
+                self.intermediate_number,
             )
 
             inter_pts = []
@@ -225,9 +241,11 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                         ]
                     )
                     if np.isinf(
-                        tree.query(xyz, distance_upper_bound=self.min_random_point_distance, k=2,)[
-                            0
-                        ][1]
+                        tree.query(
+                            xyz,
+                            distance_upper_bound=self.min_random_point_distance,
+                            k=2,
+                        )[0][1]
                     ) and (
                         len(new_pts) == 0
                         or np.linalg.norm(
@@ -260,7 +278,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             # Gather points
             all_points_df = pd.DataFrame(all_pts, columns=["x", "y", "z"])
             all_points_df["morph_file"] = group_name
-            all_points_df["is_terminal"] = [True] * len(pts) + [False] * (len(all_pts) - len(pts))
+            all_points_df["is_terminal"] = [True] * len(pts) + [False] * (
+                len(all_pts) - len(pts)
+            )
 
             # Remove close points
             tree = KDTree(all_points_df[["x", "y", "z"]])
@@ -283,7 +303,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             all_points_df["id"] = all_points_df.index
 
             # Save nodes
-            all_nodes.append(all_points_df[["morph_file", "x", "y", "z", "is_terminal", "id"]])
+            all_nodes.append(
+                all_points_df[["morph_file", "x", "y", "z", "is_terminal", "id"]]
+            )
             all_points = all_points_df[["x", "y", "z"]]
 
             # Delaunay triangulation of the union of the terminals and the Voronoï points
@@ -295,7 +317,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                     np.sort,
                     1,
                     np.vstack(
-                        np.stack((tri.simplices, np.roll(tri.simplices, -1, axis=1)), axis=2)
+                        np.stack(
+                            (tri.simplices, np.roll(tri.simplices, -1, axis=1)), axis=2
+                        )
                     ),
                 ),
                 axis=0,
@@ -313,7 +337,8 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             edges_df[from_coord_cols] = all_points.loc[edges_df["from"]].values
             edges_df[to_coord_cols] = all_points.loc[edges_df["to"]].values
             edges_df["length"] = np.linalg.norm(
-                edges_df[from_coord_cols].values - edges_df[to_coord_cols].values, axis=1
+                edges_df[from_coord_cols].values - edges_df[to_coord_cols].values,
+                axis=1,
             )
 
             # Compute penalty
@@ -333,33 +358,55 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             # Add penalty to edges between two terminals (except if a terminal is only
             # connected to other terminals)
             if self.terminal_penalty:
-                edges_df_terminals = edges_df.join(terminal_edges, rsuffix="_is_terminal")
+                edges_df_terminals = edges_df.join(
+                    terminal_edges, rsuffix="_is_terminal"
+                )
                 from_to_all_terminals = edges_df_terminals.groupby("from")[
                     ["from_is_terminal", "to_is_terminal"]
                 ].all()
 
                 edges_df_terminals = edges_df_terminals.join(
-                    from_to_all_terminals["from_is_terminal"].rename("from_all_terminals"), on="from"
+                    from_to_all_terminals["from_is_terminal"].rename(
+                        "from_all_terminals"
+                    ),
+                    on="from",
                 )
                 edges_df_terminals = edges_df_terminals.join(
-                    from_to_all_terminals["to_is_terminal"].rename("to_all_terminals"), on="to"
+                    from_to_all_terminals["to_is_terminal"].rename("to_all_terminals"),
+                    on="to",
                 )
                 edges_df.loc[
-                    (edges_df_terminals[["from_is_terminal", "to_is_terminal"]].all(axis=1))
-                    & (~edges_df_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1)),
+                    (
+                        edges_df_terminals[["from_is_terminal", "to_is_terminal"]].all(
+                            axis=1
+                        )
+                    )
+                    & (
+                        ~edges_df_terminals[
+                            ["from_all_terminals", "to_all_terminals"]
+                        ].all(axis=1)
+                    ),
                     "length",
                 ] += penalty
 
             # Increase edge lengths of edges whose angle with radial direction is close to pi/2
             if self.orientation_penalty:
-                vectors = edges_df[to_coord_cols].values - edges_df[from_coord_cols].values
+                vectors = (
+                    edges_df[to_coord_cols].values - edges_df[from_coord_cols].values
+                )
                 origin_to_mid_vectors = (
-                    0.5 * (edges_df[to_coord_cols].values + edges_df[from_coord_cols].values)
+                    0.5
+                    * (
+                        edges_df[to_coord_cols].values
+                        + edges_df[from_coord_cols].values
+                    )
                     - soma_center_coords
                 )
                 data = np.stack([origin_to_mid_vectors, vectors], axis=1)
 
-                edge_angles = np.array([angle_between_vectors(i[0], i[1]) for i in data.tolist()])
+                edge_angles = np.array(
+                    [angle_between_vectors(i[0], i[1]) for i in data.tolist()]
+                )
                 orientation_penalty = np.power(
                     np.clip(np.sin(edge_angles), 1e-3, 1 - 1e-3),
                     self.orientation_penalty_exponent,
@@ -375,24 +422,31 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             if self.plot_debug:
                 try:
                     disabled_loggers = [
-                        logging.getLogger('matplotlib.font_manager'),
-                        logging.getLogger('PIL.PngImagePlugin'),
+                        logging.getLogger("matplotlib.font_manager"),
+                        logging.getLogger("PIL.PngImagePlugin"),
                     ]
                     for dl in disabled_loggers:
                         dl.disabled = True
 
                     # Prepare data for plot
-                    mask_from = (edges_df[from_coord_cols] < pts.min(axis=0)).any(axis=1) | (
-                        edges_df[from_coord_cols] > pts.max(axis=0)
-                    ).any(axis=1)
-                    mask_to = (edges_df[to_coord_cols] < pts.min(axis=0)).any(axis=1) | (
-                        edges_df[to_coord_cols] > pts.max(axis=0)
-                    ).any(axis=1)
+                    mask_from = (edges_df[from_coord_cols] < pts.min(axis=0)).any(
+                        axis=1
+                    ) | (edges_df[from_coord_cols] > pts.max(axis=0)).any(axis=1)
+                    mask_to = (edges_df[to_coord_cols] < pts.min(axis=0)).any(
+                        axis=1
+                    ) | (edges_df[to_coord_cols] > pts.max(axis=0)).any(axis=1)
                     out_pts = np.unique(
-                        np.concatenate([edges_df.loc[mask_from, "from"], edges_df.loc[mask_to, "to"]])
+                        np.concatenate(
+                            [
+                                edges_df.loc[mask_from, "from"],
+                                edges_df.loc[mask_to, "to"],
+                            ]
+                        )
                     )
 
-                    masked_tri = tri.simplices[~np.isin(tri.simplices, out_pts).any(axis=1)]
+                    masked_tri = tri.simplices[
+                        ~np.isin(tri.simplices, out_pts).any(axis=1)
+                    ]
                     triangles = np.unique(
                         np.apply_along_axis(
                             np.sort,
@@ -429,9 +483,15 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                     # Set rotation center
                     pts_center = pts.mean(axis=0)
                     half_delta = 0.5 * (pts.max(axis=0) - pts.min(axis=0))
-                    ax.set_xbound(pts_center[0] - half_delta[0], pts_center[0] + half_delta[0])
-                    ax.set_ybound(pts_center[1] - half_delta[1], pts_center[1] + half_delta[1])
-                    ax.set_zbound(pts_center[2] - half_delta[2], pts_center[2] + half_delta[2])
+                    ax.set_xbound(
+                        pts_center[0] - half_delta[0], pts_center[0] + half_delta[0]
+                    )
+                    ax.set_ybound(
+                        pts_center[1] - half_delta[1], pts_center[1] + half_delta[1]
+                    )
+                    ax.set_zbound(
+                        pts_center[2] - half_delta[2], pts_center[2] + half_delta[2]
+                    )
 
                     plt.show()
                     time.sleep(1)
@@ -439,7 +499,6 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 finally:
                     for dl in disabled_loggers:
                         dl.disabled = False
-
 
         if self.plot_debug:
             matplotlib.use(old_backend)
@@ -456,5 +515,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         return {
             "nodes": TaggedOutputLocalTarget(self.output_nodes, create_parent=True),
             "edges": TaggedOutputLocalTarget(self.output_edges, create_parent=True),
-            "input_terminals": TaggedOutputLocalTarget("graph_input_terminals", create_parent=True),
+            "input_terminals": TaggedOutputLocalTarget(
+                "graph_input_terminals", create_parent=True
+            ),
         }

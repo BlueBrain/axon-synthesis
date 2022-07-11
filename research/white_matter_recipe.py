@@ -1,13 +1,12 @@
 """Helpers for white matter recipe."""
 import logging
-import yaml
 from functools import lru_cache
 from pathlib import Path
-
 
 import numpy as np
 import pandas as pd
 import voxcell
+import yaml
 from scipy.spatial.distance import squareform
 
 logger = logging.getLogger(__name__)
@@ -20,14 +19,12 @@ def _fill_diag(mat, val=1):
 
 @lru_cache
 def load(white_matter_file: Path):
-        # Get the white matter recipe
-        logger.debug(
-            f"Loading white matter recipe file from: {white_matter_file}"
-        )
-        with white_matter_file.open("r", encoding="utf-8") as f:
-            wm_recipe = yaml.load(f, Loader=yaml.SafeLoader)
+    # Get the white matter recipe
+    logger.debug(f"Loading white matter recipe file from: {white_matter_file}")
+    with white_matter_file.open("r", encoding="utf-8") as f:
+        wm_recipe = yaml.load(f, Loader=yaml.SafeLoader)
 
-        return wm_recipe
+    return wm_recipe
 
 
 def process(
@@ -165,9 +162,9 @@ def process(
     projection_targets["strength"] = projection_targets["target"].apply(
         lambda row: row["density"]
     )
-    projection_targets["topographical_mapping"] = projection_targets[
-        "target"
-    ].apply(lambda row: row["presynaptic_mapping"])
+    projection_targets["topographical_mapping"] = projection_targets["target"].apply(
+        lambda row: row["presynaptic_mapping"]
+    )
 
     # Get fractions
     logger.debug("Extracting fractions from white matter recipe")
@@ -190,4 +187,11 @@ def process(
         for k, v in wm_interaction_mat.items()
     }
 
-    return wm_populations, wm_projections, wm_targets, wm_fractions, wm_interaction_strengths, projection_targets
+    return (
+        wm_populations,
+        wm_projections,
+        wm_targets,
+        wm_fractions,
+        wm_interaction_strengths,
+        projection_targets,
+    )

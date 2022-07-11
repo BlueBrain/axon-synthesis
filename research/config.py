@@ -9,9 +9,7 @@ class Config(luigi.task.Config):
         default=None,
     )
     input_data_type = luigi.ChoiceParameter(
-        description=(
-            "The type of input data to use."
-        ),
+        description=("The type of input data to use."),
         choices=["biological_morphologies", "white_matter"],
         default="biological_morphologies",
     )
