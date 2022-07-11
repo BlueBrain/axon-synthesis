@@ -9,6 +9,7 @@ import luigi
 import luigi_tools
 import pandas as pd
 import pcst_fast as pf
+from luigi_tools.parameter import OptionalStrParameter
 
 from PCSF.create_graph import CreateGraph
 
@@ -16,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class SteinerTree(luigi_tools.task.WorkflowTask):
-    nodes_path = luigi.Parameter(description="Path to the nodes CSV file.", default=None)
-    edges_path = luigi.Parameter(description="Path to the edges CSV file.", default=None)
+    nodes_path = OptionalStrParameter(description="Path to the nodes CSV file.", default=None)
+    edges_path = OptionalStrParameter(description="Path to the edges CSV file.", default=None)
     output_nodes = luigi.Parameter(description="Output nodes file.", default="solution_nodes.csv")
     output_edges = luigi.Parameter(description="Output edges file.", default="solution_edges.csv")
 
@@ -27,10 +28,6 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
     def run(self):
         nodes = pd.read_csv(self.nodes_path or self.input()["nodes"].path)
         edges = pd.read_csv(self.edges_path or self.input()["edges"].path)
-        output_nodes = Path(self.output()["nodes"].path)
-        output_nodes.parent.mkdir(parents=True, exist_ok=True)
-        output_edges = Path(self.output()["edges"].path)
-        output_edges.parent.mkdir(parents=True, exist_ok=True)
 
         nodes["is_solution"] = False
         edges["is_solution"] = False
@@ -80,11 +77,11 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
             ] = True
 
         # Export the solutions
-        nodes.to_csv(output_nodes, index=False)
-        edges.to_csv(output_edges, index=False)
+        nodes.to_csv(self.output()["nodes"].path, index=False)
+        edges.to_csv(self.output()["edges"].path, index=False)
 
     def output(self):
         return {
-            "nodes": luigi_tools.target.OutputLocalTarget(self.output_nodes),
-            "edges": luigi_tools.target.OutputLocalTarget(self.output_edges),
+            "nodes": luigi_tools.target.OutputLocalTarget(self.output_nodes, create_parent=True),
+            "edges": luigi_tools.target.OutputLocalTarget(self.output_edges, create_parent=True),
         }

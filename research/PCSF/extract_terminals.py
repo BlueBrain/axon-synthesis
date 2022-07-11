@@ -1,6 +1,5 @@
 """Extract the terminal points of a morphology so that a Steiner Tree can be computed on them."""
 import logging
-from pathlib import Path
 
 import luigi
 import luigi_tools
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ExtractTerminals(luigi_tools.task.WorkflowTask):
-    morph_dir = luigi.Parameter(
+    morph_dir = luigi_tools.parameter.OptionalPathParameter(
         description="Folder containing the input morphologies.",
         default=None,
     )
@@ -24,11 +23,7 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
         return RepairDataset()
 
     def run(self):
-        morph_dir = Path(
-            self.morph_dir or self.input().pathlib_path
-        )
-        dataset_file = Path(self.output().path)
-        dataset_file.parent.mkdir(parents=True, exist_ok=True)
+        morph_dir = self.morph_dir or self.input().pathlib_path
 
         pts = []
         for morph_path in morph_dir.iterdir():
@@ -65,7 +60,8 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
 
         dataset = pd.DataFrame(pts, columns=["morph_file", "axon_id", "terminal_id", "x", "y", "z"])
 
-        dataset.to_csv(dataset_file, index=False)
+        dataset.sort_values(["morph_file", "axon_id", "terminal_id"], inplace=True)
+        dataset.to_csv(self.output().path, index=False)
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dataset)
+        return luigi_tools.target.OutputLocalTarget(self.output_dataset, create_parent=True)

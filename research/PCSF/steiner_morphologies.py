@@ -29,6 +29,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
     def run(self):
         nodes = pd.read_csv(self.nodes_path or self.input()["nodes"].path)
         edges = pd.read_csv(self.edges_path or self.input()["edges"].path)
+
         self.output().mkdir(is_dir=True)
 
         node_groups = nodes.groupby("morph_file")
@@ -75,6 +76,9 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
 
             while active_sections:
                 current_section, target = active_sections.pop()
+                in_solution_edges = group_edges.loc[
+                    (group_edges["is_solution"]) & (~group_edges.index.isin(already_added))
+                ]
                 for row in in_solution_edges.loc[in_solution_edges["from"] == target].iterrows():
                     already_added.append(row[0])
                     active_sections.append(
@@ -105,9 +109,6 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                             row[1]["from"]
                         )
                     )
-                in_solution_edges = group_edges.loc[
-                    (group_edges["is_solution"]) & (~group_edges.index.isin(already_added))
-                ]
 
             # Merge consecutive sections that are not separated by a bifurcation
             morph.remove_unifurcations()
@@ -120,4 +121,4 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
             logger.info(f"{morph_name}: exported to {morph_path}")
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dir)
+        return luigi_tools.target.OutputLocalTarget(self.output_dir, create_parent=True)

@@ -33,8 +33,7 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
     def run(self):
         input_dir = self.input_dir or self.input()["generated"].pathlib_path
 
-        output_dir = self.output().pathlib_path
-        output_dir.mkdir(parents=True, exist_ok=True)
+        self.output().mkdir(is_dir=True)
 
         for morph_file in input_dir.iterdir():
             if morph_file.suffix.lower() not in [".asc", ".h5", ".swc"]:
@@ -71,7 +70,7 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
                 rows=[1] * len(bio_fig["data"]),
                 cols=[2] * len(bio_fig["data"]),
             )
-            fig_path = str((output_dir / morph_name).with_suffix(".html"))
+            fig_path = str((self.output().pathlib_path / morph_name).with_suffix(".html"))
             fig.write_html(fig_path)
 
             # Update the HTML file to synchronize the cameras between the two plots
@@ -104,4 +103,4 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
             logger.info(f"{morph_name}: exported to {fig_path}")
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dir)
+        return luigi_tools.target.OutputLocalTarget(self.output_dir, create_parent=True)

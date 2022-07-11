@@ -17,8 +17,6 @@ class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
 
     def run(self):
         morph_dir = Path(self.morph_dir)
-        dataset_file = Path(self.output().path)
-        dataset_file.parent.mkdir(parents=True, exist_ok=True)
 
         dataset = pd.DataFrame(columns=["morph_path", "mtype"])
         dataset.index.name = "morph_name"
@@ -28,11 +26,11 @@ class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
                 dataset.loc[morph.stem, "morph_path"] = morph
                 dataset.loc[morph.stem, "mtype"] = "UNKOWN"
         dataset.sort_index(inplace=True)
-        dataset.reset_index().to_csv(dataset_file, index=False)
+        dataset.reset_index().to_csv(self.output().path, index=False)
         return dataset
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dataset)
+        return luigi_tools.target.OutputLocalTarget(self.output_dataset, create_parent=True)
 
 
 class RepairDataset(luigi_tools.task.WorkflowWrapperTask):
@@ -41,10 +39,7 @@ class RepairDataset(luigi_tools.task.WorkflowWrapperTask):
         dataset = CreateDatasetForRepair()
         return [dataset, Curate(dataset_df=dataset.output().path)]
 
-    def run(self):
-        pass
-
     def output(self):
         return luigi_tools.target.OutputLocalTarget(
-            self.input()[1]["data"].pathlib_path.absolute().parent.parent / "Resample/data/"
+            self.input()[1]["data"].pathlib_path.resolve().parent.parent / "Resample/data/"
         )

@@ -1,6 +1,7 @@
 """Compute and plot some statistics."""
-from pathlib import Path
 import json
+import logging
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import luigi
@@ -9,58 +10,69 @@ import numpy as np
 import neurom as nm
 from matplotlib.backends.backend_pdf import PdfPages
 from luigi_tools.parameter import PathParameter
+from luigi_tools.parameter import OptionalPathParameter
+# from neurom.apps.morph_stats import extract_stats
+from neurom.core.types import NeuriteType
 
 from create_dataset import RepairDataset
+from PCSF.steiner_morphologies import SteinerMorphologies
+
+logger = logging.getLogger(__name__)
 
 
 class StatisticsOutputLocalTarget(luigi_tools.target.OutputLocalTarget):
     __prefix = Path("statistics")
 
 
-def _np_cast(array):
+def _np_cast(array, do_sum=False):
+    if do_sum:
+        return np.array(array).sum()
     return np.array(array).tolist()
 
 
-def population_statistics(pop):
+def population_statistics(pop, neurite_type=NeuriteType.axon):
     # Statistics we want to check
-    section_tortuosity = _np_cast(nm.get("section_tortuosity", pop))
-    section_radial_distances = _np_cast(nm.get("section_radial_distances", pop))
-    terminal_path_lengths = _np_cast(nm.get("terminal_path_lengths", pop))
-    section_term_radial_distances = _np_cast(nm.get("section_term_radial_distances", pop))
-    neurite_tortuosity = (
-        np.array(terminal_path_lengths)
-        / np.array(section_term_radial_distances)
-    ).tolist()
-    local_bifurcation_angles = _np_cast(nm.get("local_bifurcation_angles", pop))
-    remote_bifurcation_angles = _np_cast(nm.get("remote_bifurcation_angles", pop))
+    section_tortuosity = []
+    section_radial_distances = []
+    terminal_path_lengths = []
+    section_term_radial_distances = []
+    neurite_tortuosity = []
+    local_bifurcation_angles = []
+    remote_bifurcation_angles = []
+    total_axon_length = []
+    for neuron in pop:
+        # section_tortuosity.append(_np_cast(nm.get("section_tortuosity", neuron, neurite_type=neurite_type)))
+        # section_radial_distances.append(_np_cast(nm.get("section_radial_distances", neuron, neurite_type=neurite_type)))
+        # terminal_path_lengths.append(_np_cast(nm.get("terminal_path_lengths", neuron, neurite_type=neurite_type)))
+        # section_term_radial_distances.append(_np_cast(nm.get("section_term_radial_distances", neuron, neurite_type=neurite_type)))
+        # neurite_tortuosity.append((
+        #     np.array(terminal_path_lengths)
+        #     / np.array(section_term_radial_distances)
+        # ).tolist())
+        # local_bifurcation_angles.append(_np_cast(nm.get("local_bifurcation_angles", neuron, neurite_type=neurite_type)))
+        # remote_bifurcation_angles.append(_np_cast(nm.get("remote_bifurcation_angles", neuron, neurite_type=neurite_type)))
+        total_axon_length.append(sum(nm.get("total_length_per_neurite", neuron, neurite_type=neurite_type)))
+        if total_axon_length[-1] == 0:
+            import pdb
+            pdb.set_trace()
+            print(neuron)
 
     result = {
-        "section_tortuosity": section_tortuosity,
-        "neurite_tortuosity": neurite_tortuosity,
-        "local_bifurcation_angles": local_bifurcation_angles,
-        "remote_bifurcation_angles": remote_bifurcation_angles,
-        "section_radial_distances": section_radial_distances,
-        "section_term_radial_distances": section_term_radial_distances,
-        "terminal_path_lengths": terminal_path_lengths,
+        # "section_tortuosity": section_tortuosity,
+        # "neurite_tortuosity": neurite_tortuosity,
+        # "local_bifurcation_angles": local_bifurcation_angles,
+        # "remote_bifurcation_angles": remote_bifurcation_angles,
+        # "section_radial_distances": section_radial_distances,
+        # "section_term_radial_distances": section_term_radial_distances,
+        # "terminal_path_lengths": terminal_path_lengths,
+        "total_axon_length": total_axon_length,
     }
-
-    nm.morph_stats.extract_stats(
-        pop,
-        {
-            "neurite": {
-                "total_length_per_neurite": {
-                    "modes": ["sum"],
-                }
-            },
-            "neurite_type": ["axon"],
-        }
-    )
 
     return result
 
 
 class ComputeStatistics(luigi_tools.task.WorkflowTask):
-    morph_dir = PathParameter(
+    morph_dir = OptionalPathParameter(
         description="Folder containing the input morphologies.",
         default=None,
     )
@@ -73,8 +85,6 @@ class ComputeStatistics(luigi_tools.task.WorkflowTask):
 
     def run(self):
         morph_dir = self.morph_dir or self.input().pathlib_path
-        output_file = self.output().pathlib_path
-        output_file.parent.mkdir(parents=True, exist_ok=True)
 
         pop = nm.core.Population([f for f in morph_dir.iterdir()])
 
@@ -86,7 +96,7 @@ class ComputeStatistics(luigi_tools.task.WorkflowTask):
         return result
 
     def output(self):
-        return StatisticsOutputLocalTarget(self.output_dataset)
+        return StatisticsOutputLocalTarget(self.output_dataset, create_parent=True)
 
 
 class PlotStatistics(luigi_tools.task.WorkflowTask):
@@ -97,8 +107,6 @@ class PlotStatistics(luigi_tools.task.WorkflowTask):
         return ComputeStatistics()
 
     def run(self):
-        self.output().pathlib_path.mkdir(parents=True, exist_ok=True)
-
         with open(self.input().path, encoding="utf-8") as f:
             statistics = json.load(f)
 
@@ -118,29 +126,44 @@ class PlotStatistics(luigi_tools.task.WorkflowTask):
                 plt.close(fig)
 
     def output(self):
-        return StatisticsOutputLocalTarget(self.output_dir)
+        return StatisticsOutputLocalTarget(self.output_dir, create=True)
 
 
 class CompareStatistics(luigi_tools.task.WorkflowTask):
-    output_dir = PathParameter(description="Output directory", default="figures")
+    output_dir = PathParameter(description="Output directory", default="statistics")
     nb_bins = luigi.IntParameter(description="The number of bins used for histograms", default=20)
-    morph_dir_biological = PathParameter(
+    morph_dir_biological = OptionalPathParameter(
         description="Folder containing the biological morphologies.",
         default=None,
     )
-    morph_dir_generated = PathParameter(
+    morph_dir_generated = OptionalPathParameter(
         description="Folder containing the generated morphologies.",
+        default=None,
     )
 
     def requires(self):
+        bio_kwargs = {
+            "output_dataset": self.output_dir / "bio_stats.json"
+        }
+        if self.morph_dir_biological is not None:
+            bio_kwargs["morph_dir"] = self.morph_dir_biological
+        else:
+            bio_kwargs["morph_dir"] = RepairDataset().output().path
+
+        gen_kwargs = {
+            "output_dataset": self.output_dir / "gen_stats.json"
+        }
+        if self.morph_dir_generated is not None:
+            gen_kwargs["morph_dir"] = self.morph_dir_generated
+        else:
+            gen_kwargs["morph_dir"] = SteinerMorphologies().output().path
+
         return {
             "bio": ComputeStatistics(
-                morph_dir=self.morph_dir_biological,
-                output_dataset=self.output_dir / "bio_stats",
+                **bio_kwargs
             ),
             "gen": ComputeStatistics(
-                morph_dir=self.morph_dir_generated,
-                output_dataset=self.output_dir / "gen_stats",
+                **gen_kwargs
             ),
         }
 
@@ -152,18 +175,28 @@ class CompareStatistics(luigi_tools.task.WorkflowTask):
         with open(self.input()["gen"].path, encoding="utf-8") as f:
             gen_statistics = json.load(f)
 
-        with PdfPages(self.output().pathlib_path / "input_statistics.pdf") as pdf:
+        with PdfPages(self.output().pathlib_path / "compare_statistics.pdf") as pdf:
 
-            for key, values in statistics.items():
+            for key, bio_values in bio_statistics.items():
+
+                gen_values = gen_statistics.get(key)
+
+                if gen_values is None:
+                    logger.error(f"'{key}' was not found in {self.input()['gen'].path}")
 
                 fig = plt.figure()
                 ax = fig.gca()
+
+                gen_values = np.array(gen_values)
+                bio_values = np.array(bio_values)
+
+                values = gen_values / bio_values
 
                 ax.hist(values, bins=self.nb_bins, density=True)
 
                 ax.set_xlabel(key)
                 ax.set_ylabel("Density")
-                fig.suptitle(f"Input {key}")
+                fig.suptitle(f"Relative deviation for {key}")
                 pdf.savefig()
                 plt.close(fig)
 

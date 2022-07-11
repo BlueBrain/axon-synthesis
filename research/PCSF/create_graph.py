@@ -24,7 +24,11 @@ logger = logging.getLogger(__name__)
 
 
 class CreateGraph(luigi_tools.task.WorkflowTask):
-    terminals_path = luigi.Parameter(description="Path to the terminals CSV file.", default=None)
+    terminals_path = luigi_tools.parameter.OptionalPathParameter(
+        description="Path to the terminals CSV file.",
+        default=None,
+        exists=True,
+    )
     output_nodes = luigi.Parameter(description="Output nodes file.", default="graph_nodes.csv")
     output_edges = luigi.Parameter(description="Output edges file.", default="graph_edges.csv")
     voronoi_steps = luigi.NumericalParameter(
@@ -45,7 +49,8 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "
             "check the graph edges."
-        )
+        ),
+        default=False,
     )
 
     def requires(self):
@@ -53,10 +58,6 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
     def run(self):
         terminals = pd.read_csv(self.terminals_path or self.input().path)
-        output_nodes = Path(self.output()["nodes"].path)
-        output_nodes.parent.mkdir(parents=True, exist_ok=True)
-        output_edges = Path(self.output()["edges"].path)
-        output_edges.parent.mkdir(parents=True, exist_ok=True)
 
         soma_centers = terminals.loc[terminals["axon_id"] == -1].copy()
         terminals = terminals.loc[terminals["axon_id"] != -1].copy()
@@ -79,7 +80,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             # Add Voronoï points
             all_pts = pts
             for i in range(self.voronoi_steps):
-                vor = Voronoi(all_pts)
+                vor = Voronoi(all_pts, qhull_options='QJ')
                 all_pts = np.concatenate([all_pts, vor.vertices])
 
             # Gather points
@@ -243,14 +244,14 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
         # Export the nodes
         all_nodes_df = pd.concat(all_nodes)
-        all_nodes_df.to_csv(output_nodes, index=False)
+        all_nodes_df.to_csv(self.output()["nodes"].path, index=False)
 
         # Export the edges
         all_edges_df = pd.concat(all_edges)
-        all_edges_df.to_csv(output_edges, index=False)
+        all_edges_df.to_csv(self.output()["edges"].path, index=False)
 
     def output(self):
         return {
-            "nodes": luigi_tools.target.OutputLocalTarget(self.output_nodes),
-            "edges": luigi_tools.target.OutputLocalTarget(self.output_edges),
+            "nodes": luigi_tools.target.OutputLocalTarget(self.output_nodes, create_parent=True),
+            "edges": luigi_tools.target.OutputLocalTarget(self.output_edges, create_parent=True),
         }

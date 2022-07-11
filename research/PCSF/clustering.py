@@ -1,7 +1,6 @@
 """Cluster the terminal points of a morphology so that a Steiner Tree can be computed on them."""
 import logging
 import time
-from pathlib import Path
 
 import luigi
 import luigi_tools
@@ -23,7 +22,11 @@ logger = logging.getLogger(__name__)
 
 
 class ClusterTerminals(luigi_tools.task.WorkflowTask):
-    terminals_path = luigi.Parameter(description="Path to the terminals CSV file.", default=None)
+    terminals_path = luigi_tools.parameter.OptionalPathParameter(
+        description="Path to the terminals CSV file.",
+        default=None,
+        exists=True,
+    )
     output_dataset = luigi.Parameter(
         description="Output dataset file.", default="clustered_terminals.csv"
     )
@@ -44,13 +47,14 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
     clustering_mode = luigi.ChoiceParameter(
         description="The method used to define a cluster.",
         choices=["sphere", "sphere_parents"],
-        default="",
+        default="sphere",
     )
     plot_debug = luigi.BoolParameter(
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "
             "check the clustering parameters."
-        )
+        ),
+        default=False,
     )
 
     def requires(self):
@@ -304,8 +308,6 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
     def run(self):
         terminals = pd.read_csv(self.terminals_path or self.input().path)
-        output_file = Path(self.output().path)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
 
         all_terminal_points = []
         output_cols = ["morph_file", "axon_id", "terminal_id", "x", "y", "z"]
@@ -351,7 +353,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         # Export the terminals
         new_terminals = pd.DataFrame(all_terminal_points, columns=output_cols)
-        new_terminals.to_csv(output_file, index=False)
+        new_terminals.to_csv(self.output().path, index=False)
 
     def output(self):
-        return luigi_tools.target.OutputLocalTarget(self.output_dataset)
+        return luigi_tools.target.OutputLocalTarget(self.output_dataset, create_parent=True)

@@ -10,6 +10,7 @@ import luigi_tools
 from morphology_processing_workflow.tasks.workflows import Curate
 
 from create_dataset import CreateDatasetForRepair
+from statistics import CompareStatistics
 from statistics import PlotStatistics
 from statistics import StatisticsOutputLocalTarget
 from PCSF.create_graph import CreateGraph
@@ -36,8 +37,7 @@ class DiscoverRawData(luigi_tools.task.WorkflowWrapperTask):
     """This is the first workflow: curate and plot the raw data."""
 
     def requires(self):
-        dataset = CreateDatasetForRepair()
-        return [dataset, Curate(dataset_df=dataset.output().path)]
+        return RepairDataset()
 
 
 class ExploreStatistics(luigi_tools.task.WorkflowWrapperTask):
@@ -66,3 +66,10 @@ class PlotSteiner(luigi_tools.task.WorkflowWrapperTask):
 
     def requires(self):
         return PlotSolutions()
+
+
+class ValidateSolutions(luigi_tools.task.WorkflowWrapperTask):
+    """This workflow plots the results from the Steiner Tree computation."""
+
+    def requires(self):
+        return CompareStatistics()
