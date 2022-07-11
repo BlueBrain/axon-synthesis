@@ -14,7 +14,7 @@ from statistics import PlotStatistics
 from statistics import StatisticsOutputLocalTarget
 from PCSF.create_graph import CreateGraph
 from PCSF.plot_steiner import PlotSolutions
-from PCSF.steiner_tree import SteinerTree
+from PCSF.steiner_morphologies import SteinerMorphologies
 
 
 class GeneralConfig(luigi.Config):
@@ -58,7 +58,7 @@ class ComputeSteiner(luigi_tools.task.WorkflowWrapperTask):
     """This workflow performs the Steiner Tree computation."""
 
     def requires(self):
-        return SteinerTree()
+        return SteinerMorphologies()
 
 
 class PlotSteiner(luigi_tools.task.WorkflowWrapperTask):

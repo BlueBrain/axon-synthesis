@@ -32,8 +32,6 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
         output_edges = Path(self.output()["edges"].path)
         output_edges.parent.mkdir(parents=True, exist_ok=True)
 
-        all_solutions = []
-
         nodes["is_solution"] = False
         edges["is_solution"] = False
 

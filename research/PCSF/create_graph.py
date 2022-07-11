@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from neurom.morphmath import angle_between_vectors
 from scipy.spatial import Delaunay
 from scipy.spatial import KDTree
 from scipy.spatial import Voronoi
@@ -56,6 +57,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         output_nodes.parent.mkdir(parents=True, exist_ok=True)
         output_edges = Path(self.output()["edges"].path)
         output_edges.parent.mkdir(parents=True, exist_ok=True)
+
+        soma_centers = terminals.loc[terminals["axon_id"] == -1].copy()
+        terminals = terminals.loc[terminals["axon_id"] != -1].copy()
 
         all_nodes = []
         all_edges = []
@@ -137,8 +141,8 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 edges_df[from_coord_cols].values - edges_df[to_coord_cols].values, axis=1
             )
 
-            # Increase edge lengths edges between two terminals (except if a terminal is only connected to other
-            # terminals)
+            # Increase edge lengths of edges between two terminals (except if a terminal is only
+            # connected to other terminals)
             terminal_edges = edges_df[["from", "to"]].isin(
                 all_points_df.loc[all_points_df["is_terminal"], "id"].values
             )
@@ -158,6 +162,20 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 & (~edges_df_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1)),
                 "length",
             ] += edges_df["length"].sum()
+
+            # Increase edge lengths of edges whose angle with radial direction is close to pi/2
+            soma_center = soma_centers.loc[soma_centers["morph_file"] == group_name]
+            vectors = edges_df[to_coord_cols].values - edges_df[from_coord_cols].values
+            origin_to_mid_vectors = (
+                0.5 * (edges_df[to_coord_cols].values + edges_df[from_coord_cols].values)
+                - soma_center[["x", "y", "z"]].values[0]
+            )
+            data = np.stack([origin_to_mid_vectors, vectors], axis=1)
+
+            edge_angles = np.array([angle_between_vectors(i[0], i[1]) for i in data.tolist()])
+            orientation_penalty = np.clip(np.sin(edge_angles), 1e-3, 1 - 1e-3)
+            edges_df["length"] *= orientation_penalty
+
             # TODO: increase lengths of more impossible edges
 
             # Save edges

@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from neurom import NeuriteType
-from neurom import load_neuron
+from neurom import load_morphology
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import KDTree
@@ -172,7 +172,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         """All parents up to the common ancestor must be inside the sphere to be merged."""
 
         # Get the complete morphology
-        neuron = load_neuron(group_name)
+        neuron = load_morphology(group_name)
         axons = [i for i in neuron.neurites if i.type == NeuriteType.axon]
         new_terminal_points = []
         # if group_name == "out_curated/CheckNeurites/data/AA0411.asc":
@@ -309,6 +309,13 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         all_terminal_points = []
         output_cols = ["morph_file", "axon_id", "terminal_id", "x", "y", "z"]
+
+        # Drop soma terminals
+        soma_centers = (terminals["axon_id"] == -1)
+        all_terminal_points.extend(
+            terminals.loc[soma_centers, output_cols].to_records(index=False).tolist()
+        )
+        terminals.drop(terminals.loc[soma_centers].index, inplace=True)
 
         if self.plot_debug:
             old_backend = matplotlib.get_backend()

@@ -46,5 +46,5 @@ class RepairDataset(luigi_tools.task.WorkflowWrapperTask):
 
     def output(self):
         return luigi_tools.target.OutputLocalTarget(
-            self.input()[1]["data"].pathlib_path.parent.parent / "Resample/data/"
+            self.input()[1]["data"].pathlib_path.absolute().parent.parent / "Resample/data/"
         )

@@ -6,7 +6,7 @@ import luigi
 import luigi_tools
 import neurom
 import pandas as pd
-from neurom import load_neuron
+from neurom import load_morphology
 
 from create_dataset import RepairDataset
 
@@ -33,7 +33,12 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
         pts = []
         for morph_path in morph_dir.iterdir():
 
-            neuron = load_neuron(morph_path)
+            neuron = load_morphology(morph_path)
+
+            # Add soma center as terminal
+            pts.append(
+                [morph_path, -1, -1] + neuron.soma.center.tolist()
+            )
 
             axons = [i for i in neuron.neurites if i.type == neurom.NeuriteType.axon]
 
