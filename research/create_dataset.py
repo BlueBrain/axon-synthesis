@@ -3,33 +3,32 @@
 The workflow should be called using the luigi.cfg file from this directory and
 "morphology-processing-workflow==0.0.5".
 """
-import sys
 from pathlib import Path
 
+import luigi
+import luigi_tools
 import pandas as pd
 
 
-def create_dataset_for_repair(morph_dir, dataset_file="dataset.csv"):
-    dataset = pd.DataFrame(columns=["morph_path", "mtype"])
-    dataset.index.name = "morph_name"
-    for morph in morph_dir.iterdir():
-        if morph.suffix.lower() in [".asc", ".h5", ".swc"]:
-            dataset.loc[morph.stem, "morph_path"] = morph
-            dataset.loc[morph.stem, "mtype"] = "UNKOWN"
-    dataset.sort_index(inplace=True)
-    dataset.reset_index().to_csv(dataset_file, index=False)
-    return dataset
+class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
+    morph_dir = luigi.Parameter(description="Folder containing the input morphologies.")
+    output_dataset = luigi.Parameter(description="Output dataset file", default="dataset.csv")
 
+    def run(self):
+        morph_dir = Path(self.morph_dir)
+        dataset_file = Path(self.output().path)
+        dataset_file.parent.mkdir(parents=True, exist_ok=True)
 
-def main(morph_dir, output_dataset):
-    morph_dir = Path(morph_dir)
-    output_dataset = Path(output_dataset)
-    output_dataset.parent.mkdir(parents=True, exist_ok=True)
-    create_dataset_for_repair(morph_dir, output_dataset)
+        dataset = pd.DataFrame(columns=["morph_path", "mtype"])
+        dataset.index.name = "morph_name"
 
+        for morph in morph_dir.iterdir():
+            if morph.suffix.lower() in [".asc", ".h5", ".swc"]:
+                dataset.loc[morph.stem, "morph_path"] = morph
+                dataset.loc[morph.stem, "mtype"] = "UNKOWN"
+        dataset.sort_index(inplace=True)
+        dataset.reset_index().to_csv(dataset_file, index=False)
+        return dataset
 
-if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print(f"Usage: python {sys.argv[0]} <morph_dir> <output_dataset>")
-        exit(1)
-    main(*sys.argv[1:])
+    def output(self):
+        return luigi.LocalTarget(self.output_dataset)
