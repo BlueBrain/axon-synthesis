@@ -12,6 +12,9 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from neurom import COLS
+from neurom import NeuriteType
+from neurom import load_morphology
 from neurom.morphmath import angle_between_vectors
 from scipy.spatial import Delaunay
 from scipy.spatial import KDTree
@@ -30,8 +33,29 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
     )
     output_nodes = luigi.Parameter(description="Output nodes file.", default="graph_nodes.csv")
     output_edges = luigi.Parameter(description="Output edges file.", default="graph_edges.csv")
+    intermediate_number = luigi.NumericalParameter(
+        description="The number of intermediate points added before Voronoï process.",
+        var_type=int,
+        default=5,
+        min_value=0,
+        max_value=float("inf"),
+    )
+    min_intermediate_distance = luigi.NumericalParameter(
+        description="The min distance between two successive intermediate points.",
+        var_type=int,
+        default=1000,
+        min_value=0,
+        max_value=float("inf"),
+    )
+    orientation_penalty_exponent = luigi.NumericalParameter(
+        description="The exponent used for the orientation penalty.",
+        var_type=int,
+        default=0.1,
+        min_value=0,
+        max_value=float("inf"),
+    )
     voronoi_steps = luigi.NumericalParameter(
-        description="The number Voronoi steps.",
+        description="The number of Voronoi steps.",
         var_type=int,
         default=1,
         min_value=1,
@@ -40,7 +64,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
     duplicate_precision = luigi.NumericalParameter(
         description="The precision used to detect duplicated points.",
         var_type=float,
-        default=1e-5,
+        default=1e-3,
         min_value=0,
         max_value=float("inf"),
     )
@@ -75,9 +99,31 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
             # Terminal points
             pts = group[["x", "y", "z"]].values
+            soma_center = soma_centers.loc[soma_centers["morph_file"] == group_name]
+            soma_center_coords = soma_center[["x", "y", "z"]].values[0]
+
+            all_pts = pts
+
+            # Add intermediate points
+            terms = pts - soma_center[["x", "y", "z"]].values[0]
+            term_dists = np.linalg.norm(terms, axis=1)
+            nb_inter = np.clip(term_dists // self.min_intermediate_distance, 0, self.intermediate_number)
+
+            inter_pts = []
+            for x, y, z, num in np.hstack([terms, np.atleast_2d(nb_inter).T]):
+                inter_pts.append(
+                    (
+                        num,
+                        np.array([
+                            np.linspace(0, x, int(num) + 2)[1:-1],
+                            np.linspace(0, y, int(num) + 2)[1:-1],
+                            np.linspace(0, z, int(num) + 2)[1:-1],
+                        ]).T + soma_center_coords
+                    )
+                )
+            all_pts = np.concatenate([all_pts] + [i[1] for i in inter_pts if i[0] > 0])
 
             # Add Voronoï points
-            all_pts = pts
             for i in range(self.voronoi_steps):
                 vor = Voronoi(all_pts, qhull_options='QJ')
                 all_pts = np.concatenate([all_pts, vor.vertices])
@@ -141,11 +187,22 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 edges_df[from_coord_cols].values - edges_df[to_coord_cols].values, axis=1
             )
 
-            # Increase edge lengths of edges between two terminals (except if a terminal is only
-            # connected to other terminals)
+            # Compute penalty
+            penalty = edges_df["length"].max() + edges_df["length"].mean()
+
+            # Get terminal edges
             terminal_edges = edges_df[["from", "to"]].isin(
                 all_points_df.loc[all_points_df["is_terminal"], "id"].values
             )
+
+            # Add penalty to all terminal edges in order to ensure the terminals are also terminals
+            # in the solution
+            # NOTE: Disabled because we don't generate the actual terminals of the tufts for now,
+            # we just generate long range trunk that passes near the target points.
+            # edges_df.loc[terminal_edges.any(axis=1), "length"] += penalty
+
+            # Add penalty to edges between two terminals (except if a terminal is only
+            # connected to other terminals)
             edges_df_terminals = edges_df.join(terminal_edges, rsuffix="_is_terminal")
             from_to_all_terminals = edges_df_terminals.groupby("from")[
                 ["from_is_terminal", "to_is_terminal"]
@@ -161,19 +218,21 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 (edges_df_terminals[["from_is_terminal", "to_is_terminal"]].all(axis=1))
                 & (~edges_df_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1)),
                 "length",
-            ] += edges_df["length"].sum()
+            ] += penalty
 
             # Increase edge lengths of edges whose angle with radial direction is close to pi/2
-            soma_center = soma_centers.loc[soma_centers["morph_file"] == group_name]
             vectors = edges_df[to_coord_cols].values - edges_df[from_coord_cols].values
             origin_to_mid_vectors = (
                 0.5 * (edges_df[to_coord_cols].values + edges_df[from_coord_cols].values)
-                - soma_center[["x", "y", "z"]].values[0]
+                - soma_center_coords
             )
             data = np.stack([origin_to_mid_vectors, vectors], axis=1)
 
             edge_angles = np.array([angle_between_vectors(i[0], i[1]) for i in data.tolist()])
-            orientation_penalty = np.clip(np.sin(edge_angles), 1e-3, 1 - 1e-3)
+            orientation_penalty = np.power(
+                np.clip(np.sin(edge_angles), 1e-3, 1 - 1e-3),
+                self.orientation_penalty_exponent,
+            )
             edges_df["length"] *= orientation_penalty
 
             # TODO: increase lengths of more impossible edges
