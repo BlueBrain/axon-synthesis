@@ -76,6 +76,25 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         description="The seed used to generate random points.",
         default=0,
     )
+    use_ancestors = luigi.BoolParameter(
+        description=(
+            "If set to True, the common ancestors are used to build the graph points instead of "
+            "the cluster centers."
+        ),
+        default=False,
+    )
+    terminal_penalty = luigi.BoolParameter(
+        description=(
+            "If set to True, a penalty is added to edges that are connected to a terminal."
+        ),
+        default=False,
+    )
+    orientation_penalty = luigi.BoolParameter(
+        description=(
+            "If set to True, a penalty is added to edges whose direction is not radial."
+        ),
+        default=True,
+    )
     plot_debug = luigi.BoolParameter(
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "
@@ -89,6 +108,22 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
     def run(self):
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
+
+        if self.use_ancestors:
+            if self.terminals_path:
+                raise ValueError("Can not use ancestors when 'terminals_path' is not None")
+            cluster_props_df = pd.read_json(self.input()["tuft_properties"].path)
+            tmp = pd.merge(
+                terminals,
+                cluster_props_df,
+                left_on=["morph_file", "axon_id", "terminal_id"],
+                right_on=["morph_file", "axon_id", "cluster_id"],
+                how="left",
+            )
+            mask = ~tmp["cluster_id"].isnull()
+            new_terminal_coords = pd.DataFrame(tmp.loc[mask, "common_ancestor_coords"].to_list(), columns=["x", "y", "z"])
+            tmp.loc[mask, ["x", "y", "z"]] = new_terminal_coords.values
+            terminals[["x", "y", "z"]] = tmp[["x", "y", "z"]]
 
         soma_centers = terminals.loc[terminals["axon_id"] == -1].copy()
         terminals = terminals.loc[terminals["axon_id"] != -1].copy()
@@ -251,37 +286,39 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
             # Add penalty to edges between two terminals (except if a terminal is only
             # connected to other terminals)
-            edges_df_terminals = edges_df.join(terminal_edges, rsuffix="_is_terminal")
-            from_to_all_terminals = edges_df_terminals.groupby("from")[
-                ["from_is_terminal", "to_is_terminal"]
-            ].all()
+            if self.terminal_penalty:
+                edges_df_terminals = edges_df.join(terminal_edges, rsuffix="_is_terminal")
+                from_to_all_terminals = edges_df_terminals.groupby("from")[
+                    ["from_is_terminal", "to_is_terminal"]
+                ].all()
 
-            edges_df_terminals = edges_df_terminals.join(
-                from_to_all_terminals["from_is_terminal"].rename("from_all_terminals"), on="from"
-            )
-            edges_df_terminals = edges_df_terminals.join(
-                from_to_all_terminals["to_is_terminal"].rename("to_all_terminals"), on="to"
-            )
-            edges_df.loc[
-                (edges_df_terminals[["from_is_terminal", "to_is_terminal"]].all(axis=1))
-                & (~edges_df_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1)),
-                "length",
-            ] += penalty
+                edges_df_terminals = edges_df_terminals.join(
+                    from_to_all_terminals["from_is_terminal"].rename("from_all_terminals"), on="from"
+                )
+                edges_df_terminals = edges_df_terminals.join(
+                    from_to_all_terminals["to_is_terminal"].rename("to_all_terminals"), on="to"
+                )
+                edges_df.loc[
+                    (edges_df_terminals[["from_is_terminal", "to_is_terminal"]].all(axis=1))
+                    & (~edges_df_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1)),
+                    "length",
+                ] += penalty
 
             # Increase edge lengths of edges whose angle with radial direction is close to pi/2
-            vectors = edges_df[to_coord_cols].values - edges_df[from_coord_cols].values
-            origin_to_mid_vectors = (
-                0.5 * (edges_df[to_coord_cols].values + edges_df[from_coord_cols].values)
-                - soma_center_coords
-            )
-            data = np.stack([origin_to_mid_vectors, vectors], axis=1)
+            if self.orientation_penalty:
+                vectors = edges_df[to_coord_cols].values - edges_df[from_coord_cols].values
+                origin_to_mid_vectors = (
+                    0.5 * (edges_df[to_coord_cols].values + edges_df[from_coord_cols].values)
+                    - soma_center_coords
+                )
+                data = np.stack([origin_to_mid_vectors, vectors], axis=1)
 
-            edge_angles = np.array([angle_between_vectors(i[0], i[1]) for i in data.tolist()])
-            orientation_penalty = np.power(
-                np.clip(np.sin(edge_angles), 1e-3, 1 - 1e-3),
-                self.orientation_penalty_exponent,
-            )
-            edges_df["length"] *= orientation_penalty
+                edge_angles = np.array([angle_between_vectors(i[0], i[1]) for i in data.tolist()])
+                orientation_penalty = np.power(
+                    np.clip(np.sin(edge_angles), 1e-3, 1 - 1e-3),
+                    self.orientation_penalty_exponent,
+                )
+                edges_df["length"] *= orientation_penalty
 
             # TODO: increase lengths of more impossible edges
 

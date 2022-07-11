@@ -1,26 +1,43 @@
-{"apical": {"metric":"path_distances",
-           "randomness": 0.0,
-           "targeting": 0.2,
-           "radius": 0.3,
-           "orientation": null,
-           "growth_method": "tmd",
-           "branching_method": "bio_oriented",
-           "modify": null,
-           "tree_type": 3,
-           "step_size": {"norm":{"mean":1.0, "std":0.2}}},
-"basal": {"metric":"path_distances",
-           "randomness": 0.0,
-           "targeting": 0.2,
-           "radius": 0.3,
-           "orientation": null,
-           "growth_method": "tmd",
-           "branching_method": "bio_oriented",
-           "modify": null,
-           "tree_type": 3,
-           "step_size": {"norm":{"mean":1.0, "std":0.2}}},
-"axon": {},
-"origin": [0.0,
-           0.0,
-           0.0],
-"grow_types": ["apical"],
-"diameter_params": {"method": "M1"}}
+{
+    "apical": {
+        "branching_method": "bio_oriented",
+        "growth_method": "tmd",
+        "metric": "path_distances",
+        "modify": null,
+        "orientation": {
+            "mode": "use_predefined",
+            "values": {
+                "orientations": [
+                    [
+                        0.0,
+                        1.0,
+                        0.0
+                    ]
+                ]
+            }
+        },
+        "radius": 0.3,
+        "randomness": 0.0,
+        "step_size": {
+            "norm": {
+                "mean": 1.0,
+                "std": 0.2
+            }
+        },
+        "targeting": 0.2,
+        "tree_type": 2
+    },
+    "axon": {},
+    "basal": {},
+    "diameter_params": {
+        "method": "M1"
+    },
+    "grow_types": [
+        "apical"
+    ],
+    "origin": [
+        0.0,
+        0.0,
+        0.0
+    ]
+}

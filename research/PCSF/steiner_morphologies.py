@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 import luigi_tools
+import numpy as np
 import pandas as pd
 from luigi_tools.parameter import OptionalStrParameter
 from luigi_tools.parameter import PathParameter
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 class SteinerMorphologies(luigi_tools.task.WorkflowTask):
     nodes_path = OptionalStrParameter(description="Path to the nodes CSV file.", default=None)
     edges_path = OptionalStrParameter(description="Path to the edges CSV file.", default=None)
+    # smoothing = OptionalStrParameter(description="Path to the edges CSV file.", default=None)
     output_dir = PathParameter(
         description="Output folder for figures.",
         default="steiner_morphologies",
@@ -58,11 +60,32 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
             # Create the synthesized axon
             active_sections = []
             already_added = []
+            roots = in_solution_edges.loc[in_solution_edges["from"] == 0]
+            root_point = np.array(roots[["x_from", "y_from", "z_from"]].values[0])
+            root_section_vec = root_point - morph.soma.center
+            root_section_point = (
+                morph.soma.center
+                + root_section_vec / np.linalg.norm(root_section_vec) * max(
+                    1,
+                    min(morph.soma.radius, np.linalg.norm(root_section_vec) - 1)
+                )
+            )
+            root_section = morph.append_root_section(
+                PointLevel(
+                    [
+                        root_section_point,
+                        root_point,
+                    ],
+                    [0, 0],
+                ),
+                SectionType.axon,
+            )
+
             for row in in_solution_edges.loc[in_solution_edges["from"] == 0].iterrows():
                 already_added.append(row[0])
                 active_sections.append(
                     (
-                        morph.append_root_section(
+                        root_section.append_section(
                             PointLevel(
                                 [
                                     row[1][["x_from", "y_from", "z_from"]].values,
@@ -117,7 +140,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                     )
 
             # Merge consecutive sections that are not separated by a bifurcation
-            morph.remove_unifurcations()
+            # morph.remove_unifurcations()
 
             # Export the morphology
             morph_name = Path(group_name).name
