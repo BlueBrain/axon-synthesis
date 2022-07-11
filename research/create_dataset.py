@@ -34,7 +34,6 @@ class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
 
 
 class RepairDataset(luigi_tools.task.WorkflowWrapperTask):
-
     def requires(self):
         dataset = CreateDatasetForRepair()
         return [dataset, Curate(dataset_df=dataset.output().path)]

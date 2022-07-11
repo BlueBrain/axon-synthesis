@@ -35,6 +35,7 @@ def _np_cast(array, do_sum=False):
 @attr.s(auto_attribs=True)
 class Statistics:
     """The object to store basic statistics."""
+
     min: np.number
     max: np.number
     mean: np.number
@@ -97,22 +98,27 @@ def population_statistics(pop, neurite_type=NeuriteType.axon):
         # section_tortuosity.append(_np_cast(nm.get("section_tortuosity", neuron, neurite_type=neurite_type)))
         # section_radial_distances.append(_np_cast(nm.get("section_radial_distances", neuron, neurite_type=neurite_type)))
         # section_term_radial_distances.append(_np_cast(nm.get("section_term_radial_distances", neuron, neurite_type=neurite_type)))
-        terminal_path_lengths.append(to_stats(nm.get("terminal_path_lengths", neuron, neurite_type=neurite_type)))
+        terminal_path_lengths.append(
+            to_stats(nm.get("terminal_path_lengths", neuron, neurite_type=neurite_type))
+        )
         # neurite_tortuosity.append((
         #     np.array(terminal_path_lengths[-1])
         #     / np.array(section_term_radial_distances[-1])
         # ).tolist())
-        local_bifurcation_angles.append(to_stats(nm.get("local_bifurcation_angles", neuron, neurite_type=neurite_type)))
-        remote_bifurcation_angles.append(to_stats(nm.get("remote_bifurcation_angles", neuron, neurite_type=neurite_type)))
-        total_axon_length.append(sum(nm.get("total_length_per_neurite", neuron, neurite_type=neurite_type)))
+        local_bifurcation_angles.append(
+            to_stats(nm.get("local_bifurcation_angles", neuron, neurite_type=neurite_type))
+        )
+        remote_bifurcation_angles.append(
+            to_stats(nm.get("remote_bifurcation_angles", neuron, neurite_type=neurite_type))
+        )
+        total_axon_length.append(
+            sum(nm.get("total_length_per_neurite", neuron, neurite_type=neurite_type))
+        )
         radial_moments = {
             i: nm.get("radial_moment", neuron, neurite_type=neurite_type, order=i, use_radius=False)
             for i in [0, 2]
         }
-        normalized_moments = {
-            order: m / radial_moments[0]
-            for order, m in radial_moments.items()
-        }
+        normalized_moments = {order: m / radial_moments[0] for order, m in radial_moments.items()}
         radial_moment_0.append(radial_moments[0])
         # radial_moment_1.append(radial_moments[1])
         radial_moment_2.append(radial_moments[2])
@@ -216,30 +222,22 @@ class CompareStatistics(luigi_tools.task.WorkflowTask):
     )
 
     def requires(self):
-        bio_kwargs = {
-            "output_dataset": self.output_dir / "bio_stats.json"
-        }
+        bio_kwargs = {"output_dataset": self.output_dir / "bio_stats.json"}
         if self.morph_dir_biological is not None:
             bio_kwargs["morph_dir"] = self.morph_dir_biological
         else:
             bio_kwargs["morph_dir"] = ClusterTerminals().output()["morphologies"].path
             # bio_kwargs["morph_dir"] = RepairDataset().output().path
 
-        gen_kwargs = {
-            "output_dataset": self.output_dir / "gen_stats.json"
-        }
+        gen_kwargs = {"output_dataset": self.output_dir / "gen_stats.json"}
         if self.morph_dir_generated is not None:
             gen_kwargs["morph_dir"] = self.morph_dir_generated
         else:
             gen_kwargs["morph_dir"] = SteinerMorphologies().output().path
 
         return {
-            "bio": ComputeStatistics(
-                **bio_kwargs
-            ),
-            "gen": ComputeStatistics(
-                **gen_kwargs
-            ),
+            "bio": ComputeStatistics(**bio_kwargs),
+            "gen": ComputeStatistics(**gen_kwargs),
         }
 
     def run(self):

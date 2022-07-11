@@ -12,9 +12,6 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from neurom import COLS
-from neurom import NeuriteType
-from neurom import load_morphology
 from neurom.morphmath import angle_between_vectors
 from scipy.spatial import Delaunay
 from scipy.spatial import KDTree
@@ -118,18 +115,23 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             # Add intermediate points
             terms = pts - soma_center[["x", "y", "z"]].values[0]
             term_dists = np.linalg.norm(terms, axis=1)
-            nb_inter = np.clip(term_dists // self.min_intermediate_distance, 0, self.intermediate_number)
+            nb_inter = np.clip(
+                term_dists // self.min_intermediate_distance, 0, self.intermediate_number
+            )
 
             inter_pts = []
             for x, y, z, num in np.hstack([terms, np.atleast_2d(nb_inter).T]):
                 inter_pts.append(
                     (
                         num,
-                        np.array([
-                            np.linspace(0, x, int(num) + 2)[1:-1],
-                            np.linspace(0, y, int(num) + 2)[1:-1],
-                            np.linspace(0, z, int(num) + 2)[1:-1],
-                        ]).T + soma_center_coords
+                        np.array(
+                            [
+                                np.linspace(0, x, int(num) + 2)[1:-1],
+                                np.linspace(0, y, int(num) + 2)[1:-1],
+                                np.linspace(0, z, int(num) + 2)[1:-1],
+                            ]
+                        ).T
+                        + soma_center_coords,
                     )
                 )
             all_pts = np.concatenate([all_pts] + [i[1] for i in inter_pts if i[0] > 0])
@@ -144,23 +146,22 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 while n_fails < 10:
                     xyz = np.array(
                         [
-                            rng.uniform(bbox[0,0], bbox[1,0]),
-                            rng.uniform(bbox[0,1], bbox[1,1]),
-                            rng.uniform(bbox[0,2], bbox[1,2]),
+                            rng.uniform(bbox[0, 0], bbox[1, 0]),
+                            rng.uniform(bbox[0, 1], bbox[1, 1]),
+                            rng.uniform(bbox[0, 2], bbox[1, 2]),
                         ]
                     )
                     if np.isinf(
-                        tree.query(
-                            xyz,
-                            distance_upper_bound=self.min_random_point_distance,
-                            k=2,
-                        )[0][1]
+                        tree.query(xyz, distance_upper_bound=self.min_random_point_distance, k=2,)[
+                            0
+                        ][1]
                     ) and (
-                        len(new_pts) == 0 or
-                        np.linalg.norm(
+                        len(new_pts) == 0
+                        or np.linalg.norm(
                             xyz - [i for i in new_pts],
                             axis=1,
-                        ).min() > self.min_random_point_distance
+                        ).min()
+                        > self.min_random_point_distance
                     ):
                         new_pts.append(xyz)
                         n_fails = 0
@@ -172,7 +173,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
             # Add Voronoï points
             for i in range(self.voronoi_steps):
-                vor = Voronoi(all_pts, qhull_options='QJ')
+                vor = Voronoi(all_pts, qhull_options="QJ")
                 all_pts = np.concatenate([all_pts, vor.vertices])
 
             # Gather points

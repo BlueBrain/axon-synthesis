@@ -85,7 +85,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             "check the clustering parameters."
         ),
         default=False,
-        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING
+        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
     )
 
     def requires(self):
@@ -223,6 +223,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         edges = pd.DataFrame(graph_edges, columns=["source", "target"])
         graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
+        nx.set_node_attributes(graph, nodes[["x", "y", "z", "is_terminal"]].to_dict("index"))
 
         return nodes, edges, graph
 
@@ -262,15 +263,14 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         return common_path
 
     @staticmethod
-    def nodes_to_terminals_mapping(graph, node_df, source=None, shortest_paths=None):
-        if shortest_paths is None:
+    def nodes_to_terminals_mapping(graph, source=None, shortest_paths=None):
+        if (source is None) == (shortest_paths is None):
+            raise ValueError("At least 'source' or 'shortest_paths' must be given but not both.")
+        elif shortest_paths is None:
             shortest_paths = nx.single_source_shortest_path(graph, source)
-        elif source is not None:
-            raise ValueError("Either 'source' or 'shortest_paths' must be given but not both.")
         node_to_terminals = defaultdict(set)
         for node_id, parent_ids in shortest_paths.items():
-            # TODO: use graph property instead of DF
-            if not node_df.loc[node_id, "is_terminal"]:
+            if not graph.nodes[node_id]["is_terminal"]:
                 continue
             for j in parent_ids:
                 node_to_terminals[j].add(node_id)
@@ -361,7 +361,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         new_terminal_id = 1
         paths_from_root = nx.single_source_shortest_path(graph, -1)
-        node_to_terminals = self.nodes_to_terminals_mapping(graph, nodes, shortest_paths=paths_from_root)
+        node_to_terminals = self.nodes_to_terminals_mapping(graph, shortest_paths=paths_from_root)
 
         # Ensure there are at least 4 clusters
         for num_cluster, (cluster_id, cluster) in enumerate(sorted_clusters):
@@ -377,7 +377,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             missing_points = max(
                 0, 3 - (len(sorted_clusters[num_cluster + 1 :]) + len(new_terminal_points))
             )
-            is_root = (-1 in cluster.index)
+            is_root = -1 in cluster.index
             if is_root:
                 # The root node can not be splitted
                 missing_points = 0
@@ -398,7 +398,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Add the points of the cluster
             for common_ancestor in common_ancestors:
-                terminals_with_current_ancestor = cluster.loc[set(node_to_terminals[common_ancestor]).intersection(cluster.index)]
+                terminals_with_current_ancestor = cluster.loc[
+                    set(node_to_terminals[common_ancestor]).intersection(cluster.index)
+                ]
                 new_terminal_points.append(
                     [
                         group_name,
@@ -408,7 +410,10 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     + terminals_with_current_ancestor[["x", "y", "z"]].mean().tolist()
                 )
                 if not is_root:
-                    group.loc[group["section_id"].isin(terminals_with_current_ancestor.index), "cluster_id"] = new_terminal_id
+                    group.loc[
+                        group["section_id"].isin(terminals_with_current_ancestor.index),
+                        "cluster_id",
+                    ] = new_terminal_id
                     new_terminal_id += 1
 
         return new_terminal_points, group["cluster_id"]
@@ -429,7 +434,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         while len(minimas) == 0:
             minimas = np.where(abs(der1) < threshold * np.max(abs(der1)))[0]
             minimas = minimas[der2[minimas] > 0]
-            threshold *= 2.  # if threshold was too small, increase and retry
+            threshold *= 2.0  # if threshold was too small, increase and retry
 
         def _get_min_indices(mins, der):
             # Compute where the derivative crosses the X axis
@@ -545,11 +550,10 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 plt.show()
 
             soma_pos = np.array([soma_center["x"], soma_center["y"], soma_center["z"]])
-            group["radial_dist"] = np.linalg.norm(
-                group[["x", "y", "z"]] - soma_pos,
-                axis=1
+            group["radial_dist"] = np.linalg.norm(group[["x", "y", "z"]] - soma_pos, axis=1)
+            min_positions = np.append(
+                np.insert(min_positions, 0, 0), group["radial_dist"].max() + 1
             )
-            min_positions = np.append(np.insert(min_positions, 0, 0), group["radial_dist"].max() + 1)
             terminal_intervals = np.digitize(group["radial_dist"], min_positions)
             clusters = []
 
@@ -583,11 +587,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         output_cols = ["morph_file", "axon_id", "terminal_id", "x", "y", "z"]
 
         # Drop soma terminals and add them to the final points
-        soma_centers_mask = (terminals["axon_id"] == -1)
+        soma_centers_mask = terminals["axon_id"] == -1
         soma_centers = terminals.loc[soma_centers_mask].copy()
-        all_terminal_points.extend(
-            soma_centers[output_cols].to_records(index=False).tolist()
-        )
+        all_terminal_points.extend(soma_centers[output_cols].to_records(index=False).tolist())
         terminals.drop(soma_centers.index, inplace=True)
         terminals["cluster_id"] = -1
 
@@ -598,9 +600,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             morph = load_morphology(group_name)
 
             # Soma center
-            soma_center = soma_centers.loc[
-                soma_centers["morph_file"] == group_name
-            ].to_dict("records")[0]
+            soma_center = soma_centers.loc[soma_centers["morph_file"] == group_name].to_dict(
+                "records"
+            )[0]
 
             # Cluster each axon
             axons = [i for i in morph.neurites if i.type == NeuriteType.axon]
@@ -634,11 +636,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             # Replace terminals by the cluster centers and create sections from common ancestors
             # to cluster centers
             nodes, edges, directed_graph = self._neurite_to_graph(axon)
-            sections_to_delete = []
             sections_to_add = defaultdict(list)
             kept_path = None
             shortest_paths = nx.single_source_shortest_path(directed_graph, -1)
-            node_to_terminals = self.nodes_to_terminals_mapping(directed_graph, nodes, shortest_paths=shortest_paths)
             for cluster_id, cluster in group.groupby("cluster_id"):
                 # Skip the root cluster
                 if (cluster.cluster_id == 0).any():
@@ -669,10 +669,10 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                             cluster_df.loc[
                                 (cluster_df["axon_id"] == cluster["axon_id"].iloc[0])
                                 & (cluster_df["terminal_id"] == cluster_id),
-                                ["x", "y", "z"]
+                                ["x", "y", "z"],
                             ].values[0],
                         ],
-                        [0, 0]
+                        [0, 0],
                     )
                 )
 
@@ -703,10 +703,11 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                         if child.id in kept_path:
                             new_section = PointLevel(
                                 child.points[:, COLS.XYZ].tolist(),
-                                (child.points[:, COLS.R] * 2).tolist()
+                                (child.points[:, COLS.R] * 2).tolist(),
                             )
-                            current_sections.append((child, current_new_section.append_section(new_section)))
-                            # current_sections.append((child, current_new_section.append_section(child.morphio_section)))
+                            current_sections.append(
+                                (child, current_new_section.append_section(new_section))
+                            )
 
                     if current_section.id in sections_to_add:
                         for new_sec in sections_to_add[current_section.id]:
@@ -714,7 +715,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Export the clustered morphology
             morph_path = (
-                self.output()["morphologies"].pathlib_path / f"{Path(group_name).with_suffix('').name}.asc"
+                self.output()["morphologies"].pathlib_path
+                / f"{Path(group_name).with_suffix('').name}.asc"
             )
             clustered_morph.write(str(morph_path))
 
@@ -725,7 +727,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     resampling.resample_linear_density(morph, 0.005),
                     name=Path(group_name).with_suffix("").name,
                 )
-                fig_builder = NeuronBuilder(plotted_morph, "3d", line_width=4, title=f"{plotted_morph.name}")
+                fig_builder = NeuronBuilder(
+                    plotted_morph, "3d", line_width=4, title=f"{plotted_morph.name}"
+                )
 
                 x, y, z = group[["x", "y", "z"]].values.T
                 node_trace = go.Scatter3d(
@@ -747,9 +751,27 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 )
                 cluster_lines = [
                     [
-                        [i["x"], cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "x"].iloc[0], None],
-                        [i["y"], cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "y"].iloc[0], None],
-                        [i["z"], cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "z"].iloc[0], None],
+                        [
+                            i["x"],
+                            cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "x"].iloc[
+                                0
+                            ],
+                            None,
+                        ],
+                        [
+                            i["y"],
+                            cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "y"].iloc[
+                                0
+                            ],
+                            None,
+                        ],
+                        [
+                            i["z"],
+                            cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "z"].iloc[
+                                0
+                            ],
+                            None,
+                        ],
                     ]
                     for i in group.to_dict("records")
                     if i["cluster_id"] >= 0
@@ -768,7 +790,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 )
 
                 # Build the clustered morph figure
-                clustered_builder = NeuronBuilder(clustered_morph, "3d", line_width=4, title=f"Clustered {clustered_morph.name}")
+                clustered_builder = NeuronBuilder(
+                    clustered_morph, "3d", line_width=4, title=f"Clustered {clustered_morph.name}"
+                )
 
                 # Create the figure from the traces
                 fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
@@ -788,7 +812,10 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 fig.add_trace(cluster_trace, row=1, col=2)
 
                 # Export figure
-                filepath = str(self.output()["figures"].pathlib_path / f"{Path(group_name).with_suffix('').name}.html")
+                filepath = str(
+                    self.output()["figures"].pathlib_path
+                    / f"{Path(group_name).with_suffix('').name}.html"
+                )
                 fig.write_html(filepath)
 
                 add_camera_sync(filepath)

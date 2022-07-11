@@ -67,10 +67,12 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                                 [
                                     row[1][["x_from", "y_from", "z_from"]].values,
                                     row[1][["x_to", "y_to", "z_to"]].values,
-                                ], [0, 0]),
+                                ],
+                                [0, 0],
+                            ),
                             SectionType.axon,
                         ),
-                        row[1]["to"]
+                        row[1]["to"],
                     )
                 )
 
@@ -88,10 +90,12 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                                     [
                                         row[1][["x_from", "y_from", "z_from"]].values,
                                         row[1][["x_to", "y_to", "z_to"]].values,
-                                    ], [0, 0]),
+                                    ],
+                                    [0, 0],
+                                ),
                                 SectionType.axon,
                             ),
-                            row[1]["to"]
+                            row[1]["to"],
                         )
                     )
                 for row in in_solution_edges.loc[in_solution_edges["to"] == target].iterrows():
@@ -103,10 +107,12 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                                     [
                                         row[1][["x_to", "y_to", "z_to"]].values,
                                         row[1][["x_from", "y_from", "z_from"]].values,
-                                    ], [0, 0]),
+                                    ],
+                                    [0, 0],
+                                ),
                                 SectionType.axon,
                             ),
-                            row[1]["from"]
+                            row[1]["from"],
                         )
                     )
 
