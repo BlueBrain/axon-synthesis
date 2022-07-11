@@ -8,6 +8,7 @@ import pandas as pd
 from neurom import load_morphology
 
 from create_dataset import RepairDataset
+from utils import get_axons
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +29,12 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
         pts = []
         for morph_path in morph_dir.iterdir():
 
-            neuron = load_morphology(morph_path)
+            morph = load_morphology(morph_path)
 
             # Add soma center as terminal
-            pts.append([morph_path, -1, -1, -1] + neuron.soma.center.tolist())
+            pts.append([morph_path, -1, -1, -1] + morph.soma.center.tolist())
 
-            axons = [i for i in neuron.neurites if i.type == neurom.NeuriteType.axon]
+            axons = get_axons(morph)
 
             nb_axons = len(axons)
             if nb_axons != 1:

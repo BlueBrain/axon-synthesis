@@ -8,9 +8,9 @@ TODO: Make a real package and update imports
 import luigi
 import luigi_tools
 
+from add_tufts import AddTufts
 from statistics import CompareStatistics
 from statistics import PlotStatistics
-from statistics import StatisticsOutputLocalTarget
 from PCSF.create_graph import CreateGraph
 from PCSF.plot_steiner import PlotSolutions
 from PCSF.steiner_morphologies import SteinerMorphologies
@@ -61,8 +61,15 @@ class PlotSteiner(luigi_tools.task.WorkflowWrapperTask):
         return PlotSolutions()
 
 
+class BuildTufts(luigi_tools.task.WorkflowWrapperTask):
+    """This workflow add tufts to the long range trunk built from the Stein Tree."""
+
+    def requires(self):
+        return AddTufts()
+
+
 class ValidateSolutions(luigi_tools.task.WorkflowWrapperTask):
-    """This workflow plots the results from the Steiner Tree computation."""
+    """This workflow validates the results from the Steiner Tree computation."""
 
     def requires(self):
         return CompareStatistics()

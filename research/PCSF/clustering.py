@@ -34,6 +34,7 @@ from tmd.view.plot import barcode as plot_barcode
 
 from PCSF.extract_terminals import ExtractTerminals
 from utils import add_camera_sync
+from utils import get_axons
 
 logger = logging.getLogger(__name__)
 
@@ -605,7 +606,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             )[0]
 
             # Cluster each axon
-            axons = [i for i in morph.neurites if i.type == NeuriteType.axon]
+            axons = get_axons(morph)
+
             for axon_id, axon in enumerate(axons):
 
                 if self.clustering_mode == "sphere":
@@ -822,6 +824,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         # Export the terminals
         new_terminals = pd.DataFrame(all_terminal_points, columns=output_cols)
+        new_terminals.sort_values(["morph_file", "axon_id", "terminal_id"], inplace=True)
         new_terminals.to_csv(self.output()["terminals"].path, index=False)
 
     def output(self):
