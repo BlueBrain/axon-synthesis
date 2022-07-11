@@ -19,7 +19,7 @@ from plotly_helper.neuron_viewer import NeuronBuilder
 from plotly.subplots import make_subplots
 from scipy.spatial import KDTree
 
-from PCSF.clustering import ClusterTerminals
+from create_tuft_props import CreateTuftTerminalProperties
 from PCSF.steiner_morphologies import SteinerMorphologies
 from utils import add_camera_sync
 from utils import append_section_recursive
@@ -66,7 +66,7 @@ class AddTufts(luigi_tools.task.WorkflowTask):
     def requires(self):
         return {
             "steiner_solutions": SteinerMorphologies(),
-            "clustered_terminals": ClusterTerminals(),
+            "terminal_properties": CreateTuftTerminalProperties(),
         }
 
     def run(self):
@@ -89,12 +89,8 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         validate_neuron_distribs(input_distributions)
         validate_neuron_params(input_parameters)
 
-        cluster_props_df = pd.read_json(self.input()["clustered_terminals"]["tuft_properties"].path)
-
-        def _replace_none(data):
-            return [[j if j is not None else float("nan") for j in i] for i in data]
-
-        cluster_props_df["cluster_barcode"] = cluster_props_df["cluster_barcode"].apply(_replace_none)
+        with self.input()["terminal_properties"].open() as f:
+            cluster_props_df = pd.DataFrame.from_records(json.load(f))
 
         for group_name, group in cluster_props_df.groupby("morph_file"):
             raw_morph_file = Path(group_name)
@@ -138,8 +134,8 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
                 # Create specific distributions
                 distrib = deepcopy(input_distributions)
-                distrib["apical"]["persistence_diagram"] = [tuft_props["cluster_barcode"]]
-                logger.debug("Cluster_barcode: %s", tuft_props["cluster_barcode"])
+                distrib["apical"]["persistence_diagram"] = [tuft_props["new_cluster_barcode"]]
+                logger.debug("Cluster_barcode: %s", tuft_props["new_cluster_barcode"])
 
                 # Grow a tuft
                 new_morph = MorphIoMorphology()
