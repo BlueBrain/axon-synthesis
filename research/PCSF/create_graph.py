@@ -14,6 +14,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.spatial import Delaunay
+from scipy.spatial import KDTree
 from scipy.spatial import Voronoi
 
 from PCSF.clustering import ClusterTerminals
@@ -25,6 +26,20 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
     terminals_path = luigi.Parameter(description="Path to the terminals CSV file.", default=None)
     output_nodes = luigi.Parameter(description="Output nodes file.", default="graph_nodes.csv")
     output_edges = luigi.Parameter(description="Output edges file.", default="graph_edges.csv")
+    voronoi_steps = luigi.NumericalParameter(
+        description="The number Voronoi steps.",
+        var_type=int,
+        default=1,
+        min_value=1,
+        max_value=float("inf"),
+    )
+    duplicate_precision = luigi.NumericalParameter(
+        description="The precision used to detect duplicated points.",
+        var_type=float,
+        default=1e-5,
+        min_value=0,
+        max_value=float("inf"),
+    )
     plot_debug = luigi.BoolParameter(
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "
@@ -57,14 +72,38 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             # Terminal points
             pts = group[["x", "y", "z"]].values
 
-            # Voronoï points
-            vor = Voronoi(pts)
+            # Add Voronoï points
+            all_pts = pts
+            for i in range(self.voronoi_steps):
+                vor = Voronoi(all_pts)
+                all_pts = np.concatenate([all_pts, vor.vertices])
 
             # Gather points
-            all_points_df = pd.DataFrame(np.concatenate([pts, vor.vertices]), columns=["x", "y", "z"])
+            all_points_df = pd.DataFrame(all_pts, columns=["x", "y", "z"])
             all_points_df["morph_file"] = group_name
-            all_points_df["is_terminal"] = [True] * len(pts) + [False] * len(vor.vertices)
-            all_points_df["id"] = all_points_df.reset_index()["index"]
+            all_points_df["is_terminal"] = [True] * len(pts) + [False] * (len(all_pts) - len(pts))
+
+            # Remove close points
+            tree = KDTree(all_points_df[["x", "y", "z"]])
+            close_pts = tree.query_pairs(self.duplicate_precision)
+            for a, b in close_pts:
+                if a in all_points_df.index and b in all_points_df.index:
+                    all_points_df.drop(a, inplace=True)
+
+            # Remove outside points
+            min_pts = pts.min(axis=0)
+            max_pts = pts.max(axis=0)
+            outside_pts = all_points_df.loc[
+                ((all_points_df[["x", "y", "z"]] < min_pts).any(axis=1))
+                | ((all_points_df[["x", "y", "z"]] > max_pts).any(axis=1))
+            ]
+            all_points_df.drop(outside_pts.index, inplace=True)
+
+            # Reset index and set IDs
+            all_points_df.reset_index(drop=True, inplace=True)
+            all_points_df["id"] = all_points_df.index
+
+            # Save nodes
             all_nodes.append(all_points_df[["morph_file", "x", "y", "z", "is_terminal", "id"]])
             all_points = all_points_df[["x", "y", "z"]]
 
@@ -90,11 +129,34 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                     "to": unique_edges[:, 1],
                 }
             )
+
+            # Remove edges between two terminals (except if a terminal is only connected to other
+            # terminals)
+            from_to_index, from_to_data = np.unique(edges_df[["from", "to"]].values, return_counts=True)
+            terminal_edges = edges_df[["from", "to"]].isin(
+                all_points_df.loc[all_points_df["is_terminal"], "id"].values
+            )
+            from_all_terminals = edges_df[["from"]].join(terminal_edges["from"].rename("from_all_terminals")).groupby("from").all()
+            to_all_terminals = edges_df[["to"]].join(terminal_edges["to"].rename("to_all_terminals")).groupby("to").all()
+            edges_df_terminals = edges_df.join(from_all_terminals, on="from")
+            edges_df_terminals = edges_df_terminals.join(to_all_terminals, on="to")
+            edges_df.drop(
+                edges_df[
+                    (terminal_edges.all(axis=1))
+                    & (~edges_df_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1))
+                ].index,
+                inplace=True
+            )
+            # TODO: remove more impossible edges
+
+            # Add coordinates
             edges_df[from_coord_cols] = all_points.loc[edges_df["from"]].values
             edges_df[to_coord_cols] = all_points.loc[edges_df["to"]].values
             edges_df["length"] = np.linalg.norm(
                 edges_df[from_coord_cols].values - edges_df[to_coord_cols].values, axis=1
             )
+
+            # Save edges
             all_edges.append(edges_df)
             logger.info(f"{group_name}: {len(edges_df)} edges")
 

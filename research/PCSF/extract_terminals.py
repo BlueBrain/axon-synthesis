@@ -20,7 +20,7 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
         return [dataset, Curate(dataset_df=dataset.output().path)]
 
     def run(self):
-        morph_dir = Path(self.morph_dir)
+        morph_dir = Path(self.morph_dir or self.input()[1]["data"].get_default_prefix() / "CheckNeurites/data/")
         dataset_file = Path(self.output().path)
         dataset_file.parent.mkdir(parents=True, exist_ok=True)
 
