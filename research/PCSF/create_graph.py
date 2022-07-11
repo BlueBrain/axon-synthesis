@@ -4,7 +4,6 @@ This is needed to easily compute a Steiner Tree (Euclidean Steiner Tree is compl
 """
 import logging
 import time
-from pathlib import Path
 
 import luigi
 import luigi_tools

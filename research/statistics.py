@@ -40,32 +40,54 @@ def population_statistics(pop, neurite_type=NeuriteType.axon):
     local_bifurcation_angles = []
     remote_bifurcation_angles = []
     total_axon_length = []
+    radial_moment_0 = []
+    radial_moment_1 = []
+    radial_moment_2 = []
+    normalized_radial_moment_0 = []
+    normalized_radial_moment_1 = []
+    normalized_radial_moment_2 = []
     for neuron in pop:
+        # neurite_tortuosity.append(_np_cast(nm.get("tortuosity_per_neurite", neuron, neurite_type=neurite_type)))
+        # neurite_tortuosity.append(_np_cast(nm.get("tortuosity", neuron, neurite_type=neurite_type)))
         # section_tortuosity.append(_np_cast(nm.get("section_tortuosity", neuron, neurite_type=neurite_type)))
         # section_radial_distances.append(_np_cast(nm.get("section_radial_distances", neuron, neurite_type=neurite_type)))
         # terminal_path_lengths.append(_np_cast(nm.get("terminal_path_lengths", neuron, neurite_type=neurite_type)))
         # section_term_radial_distances.append(_np_cast(nm.get("section_term_radial_distances", neuron, neurite_type=neurite_type)))
         # neurite_tortuosity.append((
-        #     np.array(terminal_path_lengths)
-        #     / np.array(section_term_radial_distances)
+        #     np.array(terminal_path_lengths[-1])
+        #     / np.array(section_term_radial_distances[-1])
         # ).tolist())
-        # local_bifurcation_angles.append(_np_cast(nm.get("local_bifurcation_angles", neuron, neurite_type=neurite_type)))
-        # remote_bifurcation_angles.append(_np_cast(nm.get("remote_bifurcation_angles", neuron, neurite_type=neurite_type)))
-        total_axon_length.append(sum(nm.get("total_length_per_neurite", neuron, neurite_type=neurite_type)))
-        if total_axon_length[-1] == 0:
-            import pdb
-            pdb.set_trace()
-            print(neuron)
+        local_bifurcation_angles.append(_np_cast(nm.get("local_bifurcation_angles", neuron, neurite_type=neurite_type)))
+        remote_bifurcation_angles.append(_np_cast(nm.get("remote_bifurcation_angles", neuron, neurite_type=neurite_type)))
+        # total_axon_length.append(sum(nm.get("total_length_per_neurite", neuron, neurite_type=neurite_type)))
+        radial_moments = [
+            nm.get("radial_moment", neuron, neurite_type=neurite_type, order=i, use_radius=False)
+            for i in [0, 1, 2]
+        ]
+        normalized_moments = [
+            m / radial_moments[0]
+            for num, m in enumerate(radial_moments)
+        ]
+        radial_moment_0.append(radial_moments[0])
+        radial_moment_1.append(radial_moments[1])
+        radial_moment_2.append(radial_moments[2])
+        normalized_radial_moment_1.append(normalized_moments[1])
+        normalized_radial_moment_2.append(normalized_moments[2])
 
     result = {
         # "section_tortuosity": section_tortuosity,
         # "neurite_tortuosity": neurite_tortuosity,
-        # "local_bifurcation_angles": local_bifurcation_angles,
-        # "remote_bifurcation_angles": remote_bifurcation_angles,
+        "local_bifurcation_angles": local_bifurcation_angles,
+        "remote_bifurcation_angles": remote_bifurcation_angles,
         # "section_radial_distances": section_radial_distances,
         # "section_term_radial_distances": section_term_radial_distances,
         # "terminal_path_lengths": terminal_path_lengths,
-        "total_axon_length": total_axon_length,
+        # "total_axon_length": total_axon_length,
+        "radial_moment_0": radial_moment_0,
+        "radial_moment_1": radial_moment_1,
+        "radial_moment_2": radial_moment_2,
+        "normalized_radial_moment_1": normalized_radial_moment_1,
+        "normalized_radial_moment_2": normalized_radial_moment_2,
     }
 
     return result
@@ -130,7 +152,7 @@ class PlotStatistics(luigi_tools.task.WorkflowTask):
 
 
 class CompareStatistics(luigi_tools.task.WorkflowTask):
-    output_dir = PathParameter(description="Output directory", default="statistics")
+    output_dir = PathParameter(description="Output directory", default="compare_statistics")
     nb_bins = luigi.IntParameter(description="The number of bins used for histograms", default=20)
     morph_dir_biological = OptionalPathParameter(
         description="Folder containing the biological morphologies.",
@@ -194,7 +216,7 @@ class CompareStatistics(luigi_tools.task.WorkflowTask):
 
                 ax.hist(values, bins=self.nb_bins, density=True)
 
-                ax.set_xlabel(key)
+                ax.set_xlabel(f"Relative deviation for {key}")
                 ax.set_ylabel("Density")
                 fig.suptitle(f"Relative deviation for {key}")
                 pdf.savefig()

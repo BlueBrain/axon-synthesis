@@ -7,9 +7,7 @@ TODO: Make a real package and update imports
 """
 import luigi
 import luigi_tools
-from morphology_processing_workflow.tasks.workflows import Curate
 
-from create_dataset import CreateDatasetForRepair
 from statistics import CompareStatistics
 from statistics import PlotStatistics
 from statistics import StatisticsOutputLocalTarget
@@ -23,14 +21,9 @@ class GeneralConfig(luigi.Config):
         description="The directory in which all the results will be exported",
         default=None,
     )
-    statistics_dir = luigi.Parameter(
-        description="The directory in which all the statistics will be exported",
-        default="raw_statistics",
-    )
 
 
 luigi_tools.target.OutputLocalTarget.set_default_prefix(GeneralConfig().output_dir)
-StatisticsOutputLocalTarget.set_default_prefix(GeneralConfig().statistics_dir)
 
 
 class DiscoverRawData(luigi_tools.task.WorkflowWrapperTask):

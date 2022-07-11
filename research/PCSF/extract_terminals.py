@@ -32,7 +32,7 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
 
             # Add soma center as terminal
             pts.append(
-                [morph_path, -1, -1] + neuron.soma.center.tolist()
+                [morph_path, -1, -1, -1] + neuron.soma.center.tolist()
             )
 
             axons = [i for i in neuron.neurites if i.type == neurom.NeuriteType.axon]
@@ -47,18 +47,18 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
 
             for axon_id, axon in enumerate(axons):
                 # Add root point
-                pts.append([morph_path, axon_id, 0] + axon.root_node.points[0][:3].tolist())
+                pts.append([morph_path, axon_id, 0, axon.root_node.id] + axon.root_node.points[0][:3].tolist())
 
                 # Add terminal points
                 terminal_id = 1
                 for section in axon.iter_sections():
                     if not section.children:
                         pts.append(
-                            [morph_path, axon_id, terminal_id] + section.points[-1][:3].tolist()
+                            [morph_path, axon_id, terminal_id, section.id] + section.points[-1][:3].tolist()
                         )
                         terminal_id += 1
 
-        dataset = pd.DataFrame(pts, columns=["morph_file", "axon_id", "terminal_id", "x", "y", "z"])
+        dataset = pd.DataFrame(pts, columns=["morph_file", "axon_id", "terminal_id", "section_id", "x", "y", "z"])
 
         dataset.sort_values(["morph_file", "axon_id", "terminal_id"], inplace=True)
         dataset.to_csv(self.output().path, index=False)
