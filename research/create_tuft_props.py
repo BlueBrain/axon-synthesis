@@ -68,6 +68,14 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         default=False,
         parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
     )
+    pop_numbers_file = luigi_tools.parameter.OptionalPathParameter(
+        description=(
+            "Path to a CSV file containing the number of neuron for each population. These numbers "
+            "are used to compute the axon lengths."
+        ),
+        exists=True,
+        default=None,
+    )
     seed = luigi.NumericalParameter(
         description="The seed used by the random number generator.",
         var_type=int,
@@ -182,8 +190,6 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     else:
                         terminal_index = rng.choice(cluster_props_df.index)
                         terminal_data = {}
-                        import pdb
-                        pdb.set_trace()
 
                         # Compute raw terminal properties
                         terminal_data["path_distance"] = sum(
@@ -198,6 +204,8 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                         )
 
                         # Compute terminal properties from white matter recipe
+                        import pdb
+                        pdb.set_trace()
                         terminal_data["cluster_size"] = -1
                         terminal_data["cluster_orientation"] = None
 

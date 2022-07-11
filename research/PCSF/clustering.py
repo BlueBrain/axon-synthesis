@@ -264,11 +264,6 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         # Get the complete morphology
         new_terminal_points = []
-        # if group_name == "out_curated/CheckNeurites/data/AA0411.asc":
-        #     import pdb
-        #     pdb.set_trace()
-        # else:
-        #     return []
         nodes, edges, directed_graph = neurite_to_graph(axon)
         graph = nx.Graph(directed_graph)
         terminal_ids = nodes.loc[nodes["is_terminal"]].index
@@ -302,6 +297,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             if pdist(path_points[["x", "y", "z"]].values).max() > self.max_path_clustering_distance:
                 # Skip if a point on the path exceeds the clustering distance
                 continue
+
+            # TODO: Do not cluster the terminals if they are in different regions?
+            # Or if the path between them goes too far inside another region?
 
             # Add points to clusters
             term_a_cluster_id = nodes.loc[term_a, "cluster_id"]

@@ -11,8 +11,11 @@ from scipy.spatial.distance import squareform
 from voxcell import VoxelData
 from voxcell.nexus.voxelbrain import Atlas
 
+from atlas import load as load_atlas
 from config import Config
 from source_points import CreateSourcePoints
+from white_matter_recipe import load as load_wmr
+from white_matter_recipe import process
 
 logger = logging.getLogger(__name__)
 
@@ -78,44 +81,13 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         )
 
         # Get atlas data
-        logger.info(f"Loading atlas from: {str(config.atlas_path)}")
-        atlas = Atlas.open(str(config.atlas_path))
-
-        logger.debug(
-            f"Loading brain regions from the atlas using: {config.atlas_region_filename}"
-        )
-        brain_regions = atlas.load_data(config.atlas_region_filename)
-
-        logger.debug(
-            f"Loading region map from the atlas using: {config.atlas_hierarchy_filename}"
-        )
-        region_map = atlas.load_region_map(config.atlas_hierarchy_filename)
-
-        # if config.atlas_flatmap_filename is None:
-        #     # Create the flatmap of the atlas
-        #     logger.debug("Building flatmap")
-        #     one_layer_flatmap = np.mgrid[
-        #         : brain_regions.raw.shape[2],
-        #         : brain_regions.raw.shape[0],
-        #     ].T[:, :, ::-1]
-        #     flatmap = VoxelData(
-        #         np.stack([one_layer_flatmap] * brain_regions.raw.shape[1], axis=1),
-        #         voxel_dimensions=brain_regions.voxel_dimensions,
-        #     )
-        # else:
-        #     # Load the flatmap of the atlas
-        #     flatmap = atlas.load_data(config.atlas_flatmap_filename)
-
-        # if self.debug_flatmap:
-        #     logger.debug(f"Saving flatmap to: {self.output()['flatmap'].path}")
-        #     flatmap.save_nrrd(self.output()["flatmap"].path, encoding="raw")
+        atlas, brain_regions, region_map = load_atlas(str(config.atlas_path))
 
         # Get the white matter recipe
-        logger.debug(
-            f"Loading white matter recipe file from: {config.white_matter_file}"
-        )
-        with config.white_matter_file.open("r", encoding="utf-8") as f:
-            wm_recipe = yaml.load(f, Loader=yaml.SafeLoader)
+        wm_recipe = load_wmr(config.white_matter_file)
+
+        # Process the white matter recipe
+        # wm_populations, wm_projections, wm_targets, wm_fractions, wm_interaction_strengths = process(wm_recipe)
 
         # Get populations
         wm_populations = pd.DataFrame.from_records(wm_recipe["populations"])
@@ -260,6 +232,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
 
         def get_layer(atlas, brain_regions, pos):
             # Get layer data
+            # TODO: get layer from the region names?
             names, ids = atlas.get_layers()
             layers = np.zeros_like(brain_regions.raw, dtype="uint8")
             layer_mapping = {}
@@ -375,7 +348,9 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                     f"Density for {row['morph_file']} - {term_id}: {target['density']}"
                 )
 
-                # TODO: Create several targets in the region where the density is high?
+                # TODO: Create several targets in the region where the density is high? => We could find a ratio between input axons and number of tufts in the region ?
+
+                # TODO: Use the topographical mapping to refine targeted area in the target region
 
                 # Get a random voxel where the brain region value is equal to the target id
                 voxel = rng.choice(
