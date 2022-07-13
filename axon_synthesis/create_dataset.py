@@ -3,6 +3,7 @@
 The workflow should be called using the luigi.cfg file from this directory and
 "morphology-workflows==0.2.0".
 """
+import json
 from pathlib import Path
 
 import luigi
@@ -11,8 +12,11 @@ import pandas as pd
 from data_validation_framework.target import TaggedOutputLocalTarget
 from morphology_workflows.tasks.workflows import Curate
 
+from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
 from axon_synthesis.white_matter_recipe import fetch as fetch_wmr
+from axon_synthesis.white_matter_recipe import load as load_wmr
+from axon_synthesis.white_matter_recipe import process as process_wmr
 
 
 class CreateDatasetForRepair(luigi_tools.task.WorkflowTask):
@@ -65,6 +69,12 @@ class RawDataset(luigi_tools.task.WorkflowWrapperTask):
         )
 
 
+class WMROutputLocalTarget(TaggedOutputLocalTarget):
+    """Target for white matter recipe outputs."""
+
+    __prefix = "white_matter_recipe"  # pylint: disable=unused-private-member
+
+
 class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
     """Task to fetch the White Matter Recipe file from a repository."""
 
@@ -80,9 +90,25 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
         description=":str: Version of the repository to checkout (use HEAD if not given).",
         default=None,
     )
+    sub_region_separator = luigi.Parameter(
+        description="Separator use between region and subregion names to build the acronym.",
+        default="",
+    )
+    subregion_uppercase = luigi.BoolParameter(
+        description=("If set to True, the subregion names are uppercased."),
+        default=False,
+        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
+    )
+    subregion_remove_prefix = luigi.BoolParameter(
+        description=(
+            "If set to True, only the layer numbers are extracted from the subregion names."
+        ),
+        default=False,
+        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
+    )
 
     def run(self):
-        target = self.output()
+        target = self.output()["WMR"]
         if not target.pathlib_path.exists():
             # Note: this check should be useless because luigi calls the run() method only if the
             # target does not exist, but we keep it for safety.
@@ -93,5 +119,71 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
                 output_path=target.path,
             )
 
+        config = Config()
+
+        # Get atlas data
+        atlas, brain_regions, region_map = load_atlas(
+            str(config.atlas_path),
+            config.atlas_region_filename,
+            config.atlas_hierarchy_filename,
+        )
+
+        # Get the white matter recipe
+        wm_recipe = load_wmr(target.pathlib_path)
+
+        # Process the white matter recipe
+        (
+            wm_populations,
+            wm_projections,
+            wm_targets,
+            wm_fractions,
+            wm_interaction_strengths,
+            projection_targets,
+        ) = process_wmr(
+            wm_recipe,
+            region_map,
+            self.subregion_uppercase,
+            self.subregion_remove_prefix,
+            self.sub_region_separator,
+        )
+
+        # Export the population DataFrame
+        wm_populations.to_csv(self.output()["wm_populations"].path, index=False)
+
+        # Export the projection DataFrame
+        wm_projections.to_csv(self.output()["wm_projections"].path, index=False)
+
+        # Export the targets DataFrame
+        wm_targets.to_csv(self.output()["wm_targets"].path, index=False)
+
+        # Export the projection DataFrame
+        projection_targets.to_csv(self.output()["wm_projection_targets"].path, index=False)
+
+        # Export the fractions
+        with self.output()["wm_fractions"].pathlib_path.open("w", encoding="utf-8") as f:
+            json.dump(wm_fractions, f)
+
+        # Export the interaction strengths
+        with self.output()["wm_interaction_strengths"].pathlib_path.open(
+            "w", encoding="utf-8"
+        ) as f:
+            json.dump({k: v.to_dict("index") for k, v in wm_interaction_strengths.items()}, f)
+
     def output(self):
-        return TaggedOutputLocalTarget(Config().white_matter_file)
+        return {
+            "WMR": WMROutputLocalTarget(Config().white_matter_file),
+            "wm_populations": WMROutputLocalTarget(
+                "white_matter_population.csv", create_parent=True
+            ),
+            "wm_projections": WMROutputLocalTarget(
+                "white_matter_projections.csv", create_parent=True
+            ),
+            "wm_projection_targets": WMROutputLocalTarget(
+                "white_matter_projection_targets.csv", create_parent=True
+            ),
+            "wm_fractions": WMROutputLocalTarget("white_matter_fractions.csv", create_parent=True),
+            "wm_targets": WMROutputLocalTarget("white_matter_targets.csv", create_parent=True),
+            "wm_interaction_strengths": WMROutputLocalTarget(
+                "white_matter_interaction_strengths.csv", create_parent=True
+            ),
+        }

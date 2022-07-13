@@ -12,8 +12,6 @@ from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
 from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 from axon_synthesis.source_points import CreateSourcePoints
-from axon_synthesis.white_matter_recipe import load as load_wmr
-from axon_synthesis.white_matter_recipe import process as process_wmr
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +37,6 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         description="Output source population dataset file",
         default="source_populations.csv",
     )
-    sub_region_separator = luigi.Parameter(
-        description="Separator use between region and subregion names to build the acronym.",
-        default="",
-    )
     seed = luigi.IntParameter(
         description="The seed used to generate random points.",
         default=0,
@@ -50,18 +44,6 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
     min_target_points = luigi.IntParameter(
         description="The minimal number of target points to consider a point as valid.",
         default=2,
-    )
-    subregion_uppercase = luigi.BoolParameter(
-        description=("If set to True, the subregion names are uppercased."),
-        default=False,
-        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
-    )
-    subregion_remove_prefix = luigi.BoolParameter(
-        description=(
-            "If set to True, only the layer numbers are extracted from the subregion names."
-        ),
-        default=False,
-        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
     )
     debug_flatmap = luigi.BoolParameter(
         description=("If set to True, the flatmap is exported."),
@@ -76,8 +58,6 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         }
 
     def run(self):
-        # pylint: disable=too-many-locals
-        # pylint: disable=too-many-statements
         rng = np.random.default_rng(self.seed)
         config = Config()
 
@@ -93,46 +73,15 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             config.atlas_hierarchy_filename,
         )
 
-        # Get the white matter recipe
-        wm_recipe = load_wmr(self.input()["WMR"].pathlib_path)
-
-        # Process the white matter recipe
-        (
-            wm_populations,
-            wm_projections,
-            wm_targets,
-            wm_fractions,
-            wm_interaction_strengths,
-            projection_targets,
-        ) = process_wmr(
-            wm_recipe,
-            region_map,
-            self.subregion_uppercase,
-            self.subregion_remove_prefix,
-            self.sub_region_separator,
-        )
-
-        # Export the population DataFrame
-        wm_populations.to_csv(self.output()["wm_populations"].path, index=False)
-
-        # Export the projection DataFrame
-        wm_projections.to_csv(self.output()["wm_projections"].path, index=False)
-
-        # Export the projection DataFrame
-        projection_targets.to_csv(self.output()["wm_projection_targets"].path, index=False)
-
-        # Export the fractions
-        with self.output()["wm_fractions"].pathlib_path.open("w", encoding="utf-8") as f:
-            json.dump(wm_fractions, f)
-
-        # Export the targets DataFrame
-        wm_targets.to_csv(self.output()["wm_targets"].path, index=False)
-
-        # Export the interaction strengths
-        with self.output()["wm_interaction_strengths"].pathlib_path.open(
-            "w", encoding="utf-8"
-        ) as f:
-            json.dump({k: v.to_dict("index") for k, v in wm_interaction_strengths.items()}, f)
+        # Get the white matter recipe data
+        wm_populations = pd.read_csv(self.input()["WMR"]["wm_populations"].pathlib_path)
+        wm_projections = pd.read_csv(self.input()["WMR"]["wm_projections"].pathlib_path)
+        with self.input()["WMR"]["wm_fractions"].pathlib_path.open("r", encoding="utf-8") as f:
+            wm_fractions = json.load(f)
+        # with self.input()["WMR"]["wm_interaction_strengths"].pathlib_path.open(
+        #     "r", encoding="utf-8"
+        # ) as f:
+        #     wm_interaction_strengths = json.load(f)
 
         # Get brain regions from source positions
         source_points["brain_region"] = brain_regions.lookup(source_points[["x", "y", "z"]].values)
@@ -334,25 +283,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             "source_populations": TaggedOutputLocalTarget(
                 self.output_source_populations, create_parent=True
             ),
-            "wm_populations": TargetPointsOutputLocalTarget(
-                "white_matter_population.csv", create_parent=True
-            ),
-            "wm_projections": TargetPointsOutputLocalTarget(
-                "white_matter_projections.csv", create_parent=True
-            ),
-            "wm_projection_targets": TargetPointsOutputLocalTarget(
-                "white_matter_projection_targets.csv", create_parent=True
-            ),
-            "wm_fractions": TargetPointsOutputLocalTarget(
-                "white_matter_fractions.csv", create_parent=True
-            ),
-            "wm_targets": TargetPointsOutputLocalTarget(
-                "white_matter_targets.csv", create_parent=True
-            ),
-            "wm_interaction_strengths": TargetPointsOutputLocalTarget(
-                "white_matter_interaction_strengths.csv", create_parent=True
-            ),
         }
-        if self.debug_flatmap:
-            targets["flatmap"] = TargetPointsOutputLocalTarget("flatmap.nrrd", create_parent=True)
+        # if self.debug_flatmap:
+        #     targets["flatmap"] = TargetPointsOutputLocalTarget("flatmap.nrrd", create_parent=True)
         return targets
