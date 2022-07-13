@@ -14,6 +14,7 @@ from morphology_workflows.tasks.workflows import Curate
 
 from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
+from axon_synthesis.utils import cols_to_json
 from axon_synthesis.white_matter_recipe import fetch as fetch_wmr
 from axon_synthesis.white_matter_recipe import load as load_wmr
 from axon_synthesis.white_matter_recipe import process as process_wmr
@@ -148,15 +149,24 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
         )
 
         # Export the population DataFrame
+        wm_populations = cols_to_json(wm_populations, ["atlas_region", "filters"])
         wm_populations.to_csv(self.output()["wm_populations"].path, index=False)
 
         # Export the projection DataFrame
+        wm_projections = cols_to_json(
+            wm_projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
+        )
         wm_projections.to_csv(self.output()["wm_projections"].path, index=False)
 
         # Export the targets DataFrame
+        wm_targets = cols_to_json(wm_targets, ["target"])
         wm_targets.to_csv(self.output()["wm_targets"].path, index=False)
 
         # Export the projection DataFrame
+        projection_targets = cols_to_json(
+            projection_targets,
+            ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
+        )
         projection_targets.to_csv(self.output()["wm_projection_targets"].path, index=False)
 
         # Export the fractions

@@ -12,6 +12,7 @@ from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
 from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 from axon_synthesis.source_points import CreateSourcePoints
+from axon_synthesis.utils import cols_from_json
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,11 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         # Get the white matter recipe data
         wm_populations = pd.read_csv(self.input()["WMR"]["wm_populations"].pathlib_path)
         wm_projections = pd.read_csv(self.input()["WMR"]["wm_projections"].pathlib_path)
+        wm_populations = cols_from_json(wm_populations, ["atlas_region", "filters"])
+        wm_projections = cols_from_json(
+            wm_projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
+        )
+
         with self.input()["WMR"]["wm_fractions"].pathlib_path.open("r", encoding="utf-8") as f:
             wm_fractions = json.load(f)
         # with self.input()["WMR"]["wm_interaction_strengths"].pathlib_path.open(
@@ -161,6 +167,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                 continue
             logger.debug("Fractions for %s: %s", row["morph_file"], row_fractions)
             while not row_targets and n_tries <= 10:
+                logger.warning('row["targets"]: %s', row["targets"])
                 row_targets = [
                     j
                     for j in list(row["targets"])

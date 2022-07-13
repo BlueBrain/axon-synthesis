@@ -10,7 +10,7 @@ from data_validation_framework.target import TaggedOutputLocalTarget
 
 from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
-from axon_synthesis.target_points import FindTargetPoints
+from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class PickPopulationNeuronNumbers(luigi_tools.task.WorkflowTask):
     )
 
     def requires(self):
-        return FindTargetPoints()
+        return FetchWhiteMatterRecipe()
 
     def run(self):
         config = Config()

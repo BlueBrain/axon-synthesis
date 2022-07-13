@@ -1,4 +1,5 @@
 """Some utils for the AxonSynthesis package."""
+import json
 import re
 
 import networkx as nx
@@ -11,6 +12,22 @@ def fill_diag(mat, val=1):
     """Fill the diagonal of the given matrix."""
     np.fill_diagonal(mat, val)
     return mat
+
+
+def cols_to_json(df, cols):
+    """Transform the given columns from Python objects to JSON strings."""
+    df = df.copy(deep=False)
+    for col in cols:
+        df[col] = df[col].map(json.dumps)
+    return df
+
+
+def cols_from_json(df, cols):
+    """Transform the given columns to Python objects from JSON strings."""
+    df = df.copy(deep=False)
+    for col in cols:
+        df[col] = df[col].map(json.loads)
+    return df
 
 
 def add_camera_sync(fig_path):

@@ -30,26 +30,13 @@ from neurom.core import Morphology
 from neurom.morphmath import section_length
 from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
-
-# from scipy import stats
-# from scipy.sparse import csr_matrix
-# from scipy.sparse.csgraph import connected_components
-# from scipy.spatial import KDTree
-# from scipy.spatial.distance import pdist
 from tmd.io.conversion import convert_morphio_trees
-
-# from tmd.io.io import load_neuron_from_morphio
-# from tmd.Topology.analysis import barcode_bin_centers
-# from tmd.Topology.analysis import histogram_horizontal
-# from tmd.Topology.analysis import histogram_stepped
 from tmd.Topology.methods import tree_to_property_barcode
 from tmd.Topology.persistent_properties import PersistentAngles
 
 from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
 from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
-
-# from axon_synthesis.geometry import voxel_intersection
 from axon_synthesis.PCSF.clustering.from_barcodes import compute_clusters as clusters_from_barcodes
 from axon_synthesis.PCSF.clustering.from_brain_regions import (
     compute_clusters as clusters_from_brain_regions,
@@ -61,13 +48,9 @@ from axon_synthesis.PCSF.clustering.from_spheres import compute_clusters as clus
 from axon_synthesis.PCSF.clustering.utils import common_path
 from axon_synthesis.PCSF.extract_terminals import ExtractTerminals
 from axon_synthesis.utils import add_camera_sync
+from axon_synthesis.utils import cols_from_json
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import neurite_to_graph
-from axon_synthesis.white_matter_recipe import load as load_wmr
-from axon_synthesis.white_matter_recipe import process as process_wmr
-
-# from tmd.view.plot import barcode as plot_barcode
-
 
 logger = logging.getLogger(__name__)
 
@@ -165,24 +148,28 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             config.atlas_hierarchy_filename,
         )
 
-        # Get the white matter recipe
-        self.wm_recipe = load_wmr(self.input()["WMR"].pathlib_path)
-
-        # Process the white matter recipe
-        (
-            self.wm_populations,
-            self.wm_projections,
-            self.wm_targets,
-            self.wm_fractions,
-            self.wm_interaction_strengths,
-            self.projection_targets,
-        ) = process_wmr(
-            self.wm_recipe,
-            self.region_map,
-            False,
-            True,
-            "",
+        # Get the white matter recipe data
+        self.wm_populations = pd.read_csv(self.input()["WMR"]["wm_populations"].pathlib_path)
+        self.wm_populations = cols_from_json(self.wm_populations, ["atlas_region", "filters"])
+        self.wm_projections = pd.read_csv(self.input()["WMR"]["wm_projections"].pathlib_path)
+        self.wm_projections = cols_from_json(
+            self.wm_projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
         )
+        self.wm_targets = pd.read_csv(self.input()["WMR"]["wm_targets"].pathlib_path)
+        self.wm_targets = cols_from_json(self.wm_targets, ["target"])
+        self.projection_targets = pd.read_csv(
+            self.input()["WMR"]["wm_projection_targets"].pathlib_path
+        )
+        self.projection_targets = cols_from_json(
+            self.projection_targets,
+            ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
+        )
+        with self.input()["WMR"]["wm_fractions"].pathlib_path.open("r", encoding="utf-8") as f:
+            self.wm_fractions = json.load(f)
+        with self.input()["WMR"]["wm_interaction_strengths"].pathlib_path.open(
+            "r", encoding="utf-8"
+        ) as f:
+            self.wm_interaction_strengths = json.load(f)
 
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
@@ -427,6 +414,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Plot the clusters
             if self.plot_debug:
+                logging.getLogger("matplotlib.font_manager").disabled = True
 
                 plotted_morph = Morphology(
                     resampling.resample_linear_density(morph, 0.005),
@@ -531,6 +519,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 fig.write_html(filepath)
 
                 add_camera_sync(filepath)
+
+                logging.getLogger("matplotlib.font_manager").disabled = False
 
         # Export tuft properties
         cluster_props_df = pd.DataFrame(

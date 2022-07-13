@@ -22,6 +22,7 @@ from voxcell import OrientationField
 
 from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
+from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 from axon_synthesis.PCSF.clustering import ClusterTerminals
 from axon_synthesis.PCSF.create_graph import CreateGraph
 from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
@@ -167,6 +168,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         }
         if Config().input_data_type == "white_matter":
             tasks["target_points"] = FindTargetPoints()
+            tasks["WMR"] = FetchWhiteMatterRecipe()
         return tasks
 
     def run(self):
@@ -220,23 +222,21 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
             # wm_populations = pd.read_csv(self.input()["target_points"]["wm_populations"].path)
 
             # Get fractions
-            with self.input()["target_points"]["wm_fractions"].pathlib_path.open(
-                "r", encoding="utf-8"
-            ) as f:
+            with self.input()["WMR"]["wm_fractions"].pathlib_path.open("r", encoding="utf-8") as f:
                 wm_fractions = json.load(f)
 
             # Get targets
-            # wm_targets = pd.read_csv(self.input()["target_points"]["wm_targets"].path)
+            # wm_targets = pd.read_csv(self.input()["WMR"]["wm_targets"].path)
 
             # Get projections
-            # wm_projections = pd.read_csv(self.input()["target_points"]["wm_projections"].path)
+            # wm_projections = pd.read_csv(self.input()["WMR"]["wm_projections"].path)
             # wm_projection_targets = pd.read_csv(
-            #     self.input()["target_points"]["wm_projection_targets"].path
+            #     self.input()["WMR"]["wm_projection_targets"].path
             # )
             # wm_projection_targets["target"] = wm_projection_targets["target"].apply(literal_eval)
 
             # Get interaction strengths
-            # with self.input()["target_points"]["wm_interaction_strengths"].pathlib_path.open(
+            # with self.input()["WMR"]["wm_interaction_strengths"].pathlib_path.open(
             #     "r", encoding="utf-8"
             # ) as f:
             #     wm_interation_strengths = {
