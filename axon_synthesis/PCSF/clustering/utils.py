@@ -1,5 +1,9 @@
 """Some clustering utils."""
 import networkx as nx
+from morphio.mut import Morphology as MorphIoMorphology
+from tmd.io.conversion import convert_morphio_trees
+from tmd.Topology.methods import tree_to_property_barcode
+from tmd.Topology.persistent_properties import PersistentAngles
 
 
 def common_path(graph, nodes, source=None, shortest_paths=None):
@@ -36,3 +40,15 @@ def common_path(graph, nodes, source=None, shortest_paths=None):
     shortest_common_path = [i for i in shortest_paths[nodes[0]] if i in common_nodes]
 
     return shortest_common_path
+
+
+def get_barcode(morph, metric="path_distance", tree_index=0):
+    """Compute the barcode of the given morphology."""
+    tmd_axon = list(convert_morphio_trees(MorphIoMorphology(morph).as_immutable()))[tree_index]
+    tuft_barcode, _ = tree_to_property_barcode(
+        tmd_axon,
+        lambda tree: tree.get_point_path_distances()
+        if metric == "path_distance"
+        else tree.get_point_radial_distances(point=morph.soma.center),
+        property_class=PersistentAngles,
+    )

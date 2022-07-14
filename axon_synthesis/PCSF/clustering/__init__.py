@@ -6,33 +6,19 @@ from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
 
-# import dask.distributed
 import luigi
 import luigi_tools
 import networkx as nx
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-
-# from bluepyparallel import evaluate
-# from bluepyparallel import init_parallel_factory
 from data_validation_framework.target import TaggedOutputLocalTarget
-from matplotlib import pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-from morph_tool import resampling
 from morphio import IterType
 from morphio import PointLevel
-from morphio.mut import Morphology as MorphIoMorphology
 from neurom import COLS
 from neurom import NeuriteType
 from neurom import load_morphology
 from neurom.core import Morphology
 from neurom.morphmath import section_length
-from plotly.subplots import make_subplots
-from plotly_helper.neuron_viewer import NeuronBuilder
-from tmd.io.conversion import convert_morphio_trees
-from tmd.Topology.methods import tree_to_property_barcode
-from tmd.Topology.persistent_properties import PersistentAngles
 
 from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
@@ -45,9 +31,11 @@ from axon_synthesis.PCSF.clustering.from_sphere_parents import (
     compute_clusters as clusters_from_sphere_parents,
 )
 from axon_synthesis.PCSF.clustering.from_spheres import compute_clusters as clusters_from_spheres
+from axon_synthesis.PCSF.clustering.plot import plot_cluster_properties
+from axon_synthesis.PCSF.clustering.plot import plot_clusters
 from axon_synthesis.PCSF.clustering.utils import common_path
+from axon_synthesis.PCSF.clustering.utils import get_barcode
 from axon_synthesis.PCSF.extract_terminals import ExtractTerminals
-from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import cols_from_json
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import neurite_to_graph
@@ -134,21 +122,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             "WMR": FetchWhiteMatterRecipe(),
         }
 
-    def run(self):
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-locals
-        # pylint: disable=too-many-statements
-        config = Config()
-        terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
-
-        # Get atlas data
-        self.atlas, self.brain_regions, self.region_map = load_atlas(
-            str(config.atlas_path),
-            config.atlas_region_filename,
-            config.atlas_hierarchy_filename,
-        )
-
-        # Get the white matter recipe data
+    def load_WMR(self):
+        """Get the white matter recipe data."""
         self.wm_populations = pd.read_csv(self.input()["WMR"]["wm_populations"].pathlib_path)
         self.wm_populations = cols_from_json(self.wm_populations, ["atlas_region", "filters"])
         self.wm_projections = pd.read_csv(self.input()["WMR"]["wm_projections"].pathlib_path)
@@ -171,8 +146,25 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         ) as f:
             self.wm_interaction_strengths = json.load(f)
 
+    def run(self):
+        config = Config()
+
+        # Load terminals
+        terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
+
+        # Create output directories
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
+
+        # Get atlas data
+        self.atlas, self.brain_regions, self.region_map = load_atlas(
+            str(config.atlas_path),
+            config.atlas_region_filename,
+            config.atlas_hierarchy_filename,
+        )
+
+        # Load data from WMR
+        self.load_WMR()
 
         all_terminal_points = []
         cluster_props = []
@@ -195,14 +187,15 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 if i.type != NeuriteType.axon:
                     axon_morph.delete_section(i)
 
-            # Soma center
+            # Select the soma center
             soma_center = soma_centers.loc[
                 soma_centers["morph_file"] == group_name, ["x", "y", "z"]
             ].values[0]
 
-            # Cluster each axon
+            # Get the list of axons of the morphology
             axons = get_axons(morph)
 
+            # Cluster each axon
             for axon_id, axon in enumerate(axons):
 
                 if self.clustering_mode == "sphere":
@@ -240,12 +233,13 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             # to cluster centers
             directed_graphes = {}
             shortest_paths = {}
+            kept_path = set()
             for axon_id, axon in enumerate(axons):
                 _, __, directed_graph = neurite_to_graph(axon)
                 directed_graphes[axon_id] = directed_graph
                 sections_to_add = defaultdict(list)
-                kept_path = None
                 shortest_paths[axon_id] = nx.single_source_shortest_path(directed_graph, -1)
+
             for (axon_id, cluster_id), cluster in group.groupby(["axon_id", "cluster_id"]):
                 # Skip the root cluster
                 if (cluster.cluster_id == 0).any():
@@ -264,10 +258,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 common_ancestor = cluster_common_path[common_ancestor_shift]
                 common_section = morph.section(common_ancestor)
 
-                if kept_path is None:
-                    kept_path = set(cluster_common_path)
-                else:
-                    kept_path = kept_path.union(cluster_common_path)
+                kept_path = kept_path.union(cluster_common_path)
 
                 # Get the current tuft barcode
                 tuft_sections = set(
@@ -313,15 +304,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
 
                 # Compute the barcode
-                tmd_axon = list(
-                    convert_morphio_trees(MorphIoMorphology(tuft_morph).as_immutable())
-                )[axon_id]
-                tuft_barcode, _ = tree_to_property_barcode(
-                    tmd_axon,
-                    lambda tree: tree.get_point_path_distances(),
-                    # lambda tree: tree.get_point_radial_distances(point=tuft_morph.soma.center),
-                    property_class=PersistentAngles,
-                )
+                tuft_barcode = get_barcode(tuft_morph)
 
                 # Add tuft category data
                 path_distance = sum(
@@ -414,113 +397,18 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Plot the clusters
             if self.plot_debug:
-                logging.getLogger("matplotlib.font_manager").disabled = True
 
-                plotted_morph = Morphology(
-                    resampling.resample_linear_density(morph, 0.005),
-                    name=Path(group_name).with_suffix("").name,
-                )
-                fig_builder = NeuronBuilder(
-                    plotted_morph, "3d", line_width=4, title=f"{plotted_morph.name}"
-                )
-
-                x, y, z = group[["x", "y", "z"]].values.T
-                node_trace = go.Scatter3d(
-                    x=x,
-                    y=y,
-                    z=z,
-                    mode="markers",
-                    marker={"size": 3, "color": "black"},
-                    name="Morphology nodes",
-                )
-                x, y, z = cluster_df[["x", "y", "z"]].values.T
-                cluster_trace = go.Scatter3d(
-                    x=x,
-                    y=y,
-                    z=z,
-                    mode="markers",
-                    marker={"size": 5, "color": "red"},
-                    name="Cluster centers",
-                )
-                cluster_lines = [
-                    [
-                        [
-                            i["x"],
-                            cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "x"].iloc[
-                                0
-                            ],
-                            None,
-                        ],
-                        [
-                            i["y"],
-                            cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "y"].iloc[
-                                0
-                            ],
-                            None,
-                        ],
-                        [
-                            i["z"],
-                            cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "z"].iloc[
-                                0
-                            ],
-                            None,
-                        ],
-                    ]
-                    for i in group.to_dict("records")
-                    if i["cluster_id"] >= 0
-                ]
-                edge_trace = go.Scatter3d(
-                    x=[j for i in cluster_lines for j in i[0]],
-                    y=[j for i in cluster_lines for j in i[1]],
-                    z=[j for i in cluster_lines for j in i[2]],
-                    hoverinfo="none",
-                    mode="lines",
-                    line={
-                        "color": "green",
-                        "width": 4,
-                    },
-                    name="Morphology nodes to cluster",
-                )
-
-                # Build the clustered morph figure
-                clustered_builder = NeuronBuilder(
+                plot_clusters(
+                    morph,
                     clustered_morph,
-                    "3d",
-                    line_width=4,
-                    title=f"Clustered {clustered_morph.name}",
+                    group,
+                    group_name,
+                    cluster_df,
+                    str(
+                        self.output()["figures"].pathlib_path
+                        / f"{Path(group_name).with_suffix('').name}.html"
+                    ),
                 )
-
-                # Create the figure from the traces
-                fig = make_subplots(
-                    cols=2,
-                    specs=[[{"is_3d": True}, {"is_3d": True}]],
-                    subplot_titles=("Node clusters", "Clustered morphology"),
-                )
-
-                morph_data = fig_builder.get_figure()["data"]
-                fig.add_traces(morph_data, rows=[1] * len(morph_data), cols=[1] * len(morph_data))
-                fig.add_trace(node_trace, row=1, col=1)
-                fig.add_trace(edge_trace, row=1, col=1)
-                fig.add_trace(cluster_trace, row=1, col=1)
-
-                clustered_morph_data = clustered_builder.get_figure()["data"]
-                fig.add_traces(
-                    clustered_morph_data,
-                    rows=[1] * len(clustered_morph_data),
-                    cols=[2] * len(clustered_morph_data),
-                )
-                fig.add_trace(cluster_trace, row=1, col=2)
-
-                # Export figure
-                filepath = str(
-                    self.output()["figures"].pathlib_path
-                    / f"{Path(group_name).with_suffix('').name}.html"
-                )
-                fig.write_html(filepath)
-
-                add_camera_sync(filepath)
-
-                logging.getLogger("matplotlib.font_manager").disabled = False
 
         # Export tuft properties
         cluster_props_df = pd.DataFrame(
@@ -545,68 +433,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         # Plot cluster properties
         if self.plot_debug:
-            with PdfPages(self.output()["figures"].pathlib_path / "tuft_properties.pdf") as pdf:
-                ax = cluster_props_df.plot.scatter(
-                    x="path_distance",
-                    y="cluster_size",
-                    title="Cluster size vs path distance",
-                    legend=True,
-                )
-                ax.set_yscale("log")
-                pdf.savefig()
-                plt.close()
-
-                ax = cluster_props_df.plot.scatter(
-                    x="radial_distance",
-                    y="cluster_size",
-                    title="Cluster size vs radial distance",
-                    legend=True,
-                )
-                ax.set_yscale("log")
-                pdf.savefig()
-                plt.close()
-
-                ax = (
-                    plt.scatter(
-                        x=cluster_props_df["radial_distance"],
-                        y=(
-                            cluster_props_df["cluster_center_coords"].apply(np.array)
-                            - cluster_props_df["common_ancestor_coords"]
-                        ).apply(np.linalg.norm),
-                    )
-                    .get_figure()
-                    .gca()
-                )
-                ax.set_title("Cluster radial length vs radial distance")
-                pdf.savefig()
-                plt.close()
-
-                ax = cluster_props_df.plot.scatter(
-                    x="cluster_size",
-                    y="path_length",
-                    title="Path length vs cluster size",
-                    legend=True,
-                )
-                pdf.savefig()
-                plt.close()
-
-                ax = cluster_props_df.plot.scatter(
-                    x="path_distance",
-                    y="path_length",
-                    title="Path length vs path distance",
-                    legend=True,
-                )
-                pdf.savefig()
-                plt.close()
-
-                ax = cluster_props_df.plot.scatter(
-                    x="radial_distance",
-                    y="path_length",
-                    title="Path length vs radial distance",
-                    legend=True,
-                )
-                pdf.savefig()
-                plt.close()
+            plot_cluster_properties(
+                cluster_props_df, self.output()["figures"].pathlib_path / "tuft_properties.pdf"
+            )
 
         # Export the terminals
         new_terminals = pd.DataFrame(all_terminal_points, columns=output_cols)
