@@ -1,6 +1,15 @@
-"""Some clustering utils."""
+"""Some utils for clustering."""
+from copy import deepcopy
+from pathlib import Path
+
 import networkx as nx
+import numpy as np
+from morphio import IterType
+from morphio import PointLevel
 from morphio.mut import Morphology as MorphIoMorphology
+from neurom import COLS
+from neurom import NeuriteType
+from neurom.core import Morphology
 from tmd.io.conversion import convert_morphio_trees
 from tmd.Topology.methods import tree_to_property_barcode
 from tmd.Topology.persistent_properties import PersistentAngles
@@ -42,6 +51,32 @@ def common_path(graph, nodes, source=None, shortest_paths=None):
     return shortest_common_path
 
 
+def create_tuft_morphology(
+    morph, tuft_section_ids, common_ancestor, cluster_common_path, shortest_paths
+):
+    """Create a new morphology containing only the given tuft."""
+    tuft_sections = set(
+        j
+        for terminal_id, path in shortest_paths.items()
+        if terminal_id in tuft_section_ids
+        for j in path
+    ).difference(cluster_common_path)
+    tuft_morph = Morphology(morph)
+
+    tuft_ancestor = tuft_morph.section(common_ancestor)
+
+    for i in tuft_morph.sections:
+        if i.id not in tuft_sections:
+            tuft_morph.delete_section(i.morphio_section, recursive=False)
+
+    for sec in list(tuft_ancestor.iter(IterType.upstream)):
+        if sec is tuft_ancestor:
+            continue
+        tuft_morph.delete_section(sec, recursive=False)
+
+    return tuft_morph, tuft_ancestor
+
+
 def get_barcode(morph, metric="path_distance", tree_index=0):
     """Compute the barcode of the given morphology."""
     tmd_axon = list(convert_morphio_trees(MorphIoMorphology(morph).as_immutable()))[tree_index]
@@ -52,3 +87,44 @@ def get_barcode(morph, metric="path_distance", tree_index=0):
         else tree.get_point_radial_distances(point=morph.soma.center),
         property_class=PersistentAngles,
     )
+    return tuft_barcode
+
+
+def create_clustered_morphology(morph, group_name, kept_path, sections_to_add):
+    """Create a new morphology with the kept path and add new sections to cluster centers."""
+    clustered_morph = Morphology(
+        deepcopy(morph),
+        name=f"Clustered {Path(group_name).with_suffix('').name}",
+    )
+
+    for axon, new_axon in zip(morph.neurites, clustered_morph.neurites):
+        if axon.type != NeuriteType.axon:
+            continue
+
+        root = axon.root_node
+        new_root = new_axon.root_node
+
+        assert np.array_equal(root.points, new_root.points), "The axons where messed up!"
+
+        for sec in new_root.children:
+            clustered_morph.delete_section(sec.morphio_section)
+
+        current_sections = [(root, new_root)]
+
+        # Add kept sections
+        while current_sections:
+            current_section, current_new_section = current_sections.pop()
+            for child in current_section.children:
+                if child.id in kept_path:
+                    new_section = PointLevel(
+                        child.points[:, COLS.XYZ].tolist(),
+                        (child.points[:, COLS.R] * 2).tolist(),
+                    )
+                    current_sections.append(
+                        (child, current_new_section.append_section(new_section))
+                    )
+
+            if current_section.id in sections_to_add:
+                for new_sec in sections_to_add[current_section.id]:
+                    current_new_section.append_section(new_sec)
+    return clustered_morph

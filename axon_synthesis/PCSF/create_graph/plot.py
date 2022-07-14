@@ -1,6 +1,8 @@
+"""Some plot utils for create graph."""
 import logging
 import time
 
+import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -8,6 +10,9 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 def plot_triangulation(edges_df, from_coord_cols, to_coord_cols, tri, all_points, pts):
     """Plot the given triangulation for debugging purpose."""
+    old_backend = matplotlib.get_backend()
+    matplotlib.use("TkAgg")
+
     try:
         disabled_loggers = [
             logging.getLogger("matplotlib.font_manager"),
@@ -82,3 +87,4 @@ def plot_triangulation(edges_df, from_coord_cols, to_coord_cols, tri, all_points
     finally:
         for dl in disabled_loggers:
             dl.disabled = False
+        matplotlib.use(old_backend)

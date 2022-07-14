@@ -24,6 +24,25 @@ def get_fiber_tracts(atlas_path, atlas_hierarchy_filename, atlas_region_filename
     return fiber_tract_points
 
 
+def use_ancestors(terminals, tuft_properties_path):
+    """Use ancestor coords instead of the center of the cluster."""
+    cluster_props_df = pd.read_json(tuft_properties_path)
+    tmp = pd.merge(
+        terminals,
+        cluster_props_df,
+        left_on=["morph_file", "axon_id", "terminal_id"],
+        right_on=["morph_file", "axon_id", "cluster_id"],
+        how="left",
+    )
+    mask = ~tmp["cluster_id"].isnull()
+    new_terminal_coords = pd.DataFrame(
+        tmp.loc[mask, "common_ancestor_coords"].to_list(),
+        columns=["x", "y", "z"],
+    )
+    tmp.loc[mask, ["x", "y", "z"]] = new_terminal_coords.values
+    terminals[["x", "y", "z"]] = tmp[["x", "y", "z"]]
+
+
 def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermediate_number):
     """Add intermediate points between each pair of points."""
     terms = pts - ref_coords
@@ -103,7 +122,7 @@ def add_random_points(all_pts, min_random_point_distance, seed):
 
 def add_voronoi_points(all_pts, voronoi_steps):
     """Add Voronoi points between the given points."""
-    for i in range(voronoi_steps):
+    for _ in range(voronoi_steps):
         vor = Voronoi(all_pts, qhull_options="QJ")
         all_pts = np.concatenate([all_pts, vor.vertices])  # pylint: disable=no-member
     return all_pts
@@ -165,8 +184,17 @@ def create_edges(all_points, from_coord_cols, to_coord_cols, group_name):
     return edges_df, tri
 
 
-def add_terminal_penalty(edges_df, terminal_edges, penalty):
+def add_terminal_penalty(edges_df, all_points_df):
     """Add penalty to terminals to ensure the Steiner algorithm don't connect terminals directly."""
+    # Compute penalty
+    penalty = edges_df["length"].max() + edges_df["length"].mean()
+
+    # Get terminal edges
+    terminal_edges = edges_df[["from", "to"]].isin(
+        all_points_df.loc[all_points_df["is_terminal"], "id"].values
+    )
+
+    # Add the penalty
     edges_df_terminals = edges_df.join(terminal_edges, rsuffix="_is_terminal")
     from_to_all_terminals = edges_df_terminals.groupby("from")[
         ["from_is_terminal", "to_is_terminal"]
@@ -191,22 +219,20 @@ def add_orientation_penalty(
     edges_df,
     from_coord_cols,
     to_coord_cols,
-    orientation_penalty,
     orientation_penalty_exponent,
     soma_center_coords,
 ):
     """Add penalty to terminals according to their orientation."""
-    if orientation_penalty:
-        vectors = edges_df[to_coord_cols].values - edges_df[from_coord_cols].values
-        origin_to_mid_vectors = (
-            0.5 * (edges_df[to_coord_cols].values + edges_df[from_coord_cols].values)
-            - soma_center_coords
-        )
-        data = np.stack([origin_to_mid_vectors, vectors], axis=1)
+    vectors = edges_df[to_coord_cols].values - edges_df[from_coord_cols].values
+    origin_to_mid_vectors = (
+        0.5 * (edges_df[to_coord_cols].values + edges_df[from_coord_cols].values)
+        - soma_center_coords
+    )
+    data = np.stack([origin_to_mid_vectors, vectors], axis=1)
 
-        edge_angles = np.array([angle_between_vectors(i[0], i[1]) for i in data.tolist()])
-        orientation_penalty = np.power(
-            np.clip(np.sin(edge_angles), 1e-3, 1 - 1e-3),
-            orientation_penalty_exponent,
-        )
-        edges_df["length"] *= orientation_penalty
+    edge_angles = np.array([angle_between_vectors(i[0], i[1]) for i in data.tolist()])
+    orientation_penalty = np.power(
+        np.clip(np.sin(edge_angles), 1e-3, 1 - 1e-3),
+        orientation_penalty_exponent,
+    )
+    edges_df["length"] *= orientation_penalty

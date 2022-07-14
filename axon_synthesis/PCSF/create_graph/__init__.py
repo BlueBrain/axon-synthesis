@@ -7,7 +7,6 @@ import sys
 
 import luigi
 import luigi_tools
-import matplotlib
 import numpy as np
 import pandas as pd
 from data_validation_framework.target import TaggedOutputLocalTarget
@@ -25,6 +24,7 @@ from axon_synthesis.PCSF.create_graph.utils import create_edges
 from axon_synthesis.PCSF.create_graph.utils import drop_close_points
 from axon_synthesis.PCSF.create_graph.utils import drop_outside_points
 from axon_synthesis.PCSF.create_graph.utils import get_fiber_tracts
+from axon_synthesis.PCSF.create_graph.utils import use_ancestors
 from axon_synthesis.target_points import FindTargetPoints
 
 logger = logging.getLogger(__name__)
@@ -97,29 +97,26 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             "the cluster centers."
         ),
         default=False,
+        parsing=luigi.BoolParameter.EXPLICIT_PARSING,
     )
-    terminal_penalty = luigi.BoolParameter(
+    use_terminal_penalty = luigi.BoolParameter(
         description=(
             "If set to True, a penalty is added to edges that are connected to a terminal."
         ),
         default=False,
+        parsing=luigi.BoolParameter.EXPLICIT_PARSING,
     )
-    orientation_penalty = luigi.BoolParameter(
+    use_orientation_penalty = luigi.BoolParameter(
         description=("If set to True, a penalty is added to edges whose direction is not radial."),
         default=True,
+        parsing=luigi.BoolParameter.EXPLICIT_PARSING,
     )
-    atlas_path = luigi.parameter.OptionalPathParameter(
-        description="Path to the atlas directory.",
-        default=None,
-        exists=True,
-    )
-    atlas_hierarchy_filename = luigi.Parameter(
-        description="Atlas hierarchy file.",
-        default="hierarchy.json",
-    )
-    atlas_region_filename = luigi.Parameter(
-        description="Atlas regions file.",
-        default="brain_regions",
+    use_fiber_tracts = luigi.BoolParameter(
+        description=(
+            "If set to True, fiber tracts are loaded from the atlas and used to weight the graph "
+            "edges."
+        ),
+        default=False,
     )
     plot_debug = luigi.BoolParameter(
         description=(
@@ -141,16 +138,19 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             raise ValueError(f"The value of 'input_data_type' is unknown ({input_data_type}).")
 
     def run(self):
+        config = Config()
+
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
         terminals.to_csv(self.output()["input_terminals"].path, index=False)
 
-        if self.atlas_path is not None:
+        if self.use_fiber_tracts is not None:  # pylint: disable=no-else-raise
             fiber_tract_points = get_fiber_tracts(
-                self.atlas_path,
-                self.atlas_hierarchy_filename,
-                self.atlas_region_filename,
+                str(config.atlas_path),
+                config.atlas_hierarchy_filename,
+                config.atlas_region_filename,
             )
             fiber_tract_tree = KDTree(fiber_tract_points)  # noqa; pylint: disable=unused-variable
+            raise NotImplementedError("The fiber tracts can not be used yet.")
         else:
             fiber_tract_points = None
             fiber_tract_tree = None  # noqa
@@ -158,23 +158,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         if self.use_ancestors:
             if self.terminals_path:
                 raise ValueError("Can not use ancestors when 'terminals_path' is not None")
-            cluster_props_df = pd.read_json(
-                self.tuft_properties_path or self.input()["tuft_properties"].path
+            use_ancestors(
+                terminals, self.tuft_properties_path or self.input()["tuft_properties"].path
             )
-            tmp = pd.merge(
-                terminals,
-                cluster_props_df,
-                left_on=["morph_file", "axon_id", "terminal_id"],
-                right_on=["morph_file", "axon_id", "cluster_id"],
-                how="left",
-            )
-            mask = ~tmp["cluster_id"].isnull()
-            new_terminal_coords = pd.DataFrame(
-                tmp.loc[mask, "common_ancestor_coords"].to_list(),
-                columns=["x", "y", "z"],
-            )
-            tmp.loc[mask, ["x", "y", "z"]] = new_terminal_coords.values
-            terminals[["x", "y", "z"]] = tmp[["x", "y", "z"]]
 
         soma_centers = terminals.loc[terminals["axon_id"] == -1].copy()
         terminals = terminals.loc[terminals["axon_id"] != -1].copy()
@@ -184,10 +170,6 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         from_coord_cols = ["x_from", "y_from", "z_from"]
         to_coord_cols = ["x_to", "y_to", "z_to"]
 
-        if self.plot_debug:
-            old_backend = matplotlib.get_backend()
-            matplotlib.use("TkAgg")
-
         for group_name, group in terminals.groupby("morph_file"):
             logger.debug("%s: %s points", group_name, len(group))
 
@@ -196,13 +178,11 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             soma_center = soma_centers.loc[soma_centers["morph_file"] == group_name]
             soma_center_coords = soma_center[["x", "y", "z"]].values[0]
 
-            all_pts = pts
-
             # Add intermediate points
             inter_pts = add_intermediate_points(
                 pts, soma_center_coords, self.min_intermediate_distance, self.intermediate_number
             )
-            all_pts = np.concatenate([all_pts] + [i[1] for i in inter_pts if i[0] > 0])
+            all_pts = np.concatenate([pts] + [i[1] for i in inter_pts if i[0] > 0])
 
             # Add random points
             all_pts = add_random_points(all_pts, self.min_random_point_distance, self.seed)
@@ -227,41 +207,31 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
             # Save nodes
             all_nodes.append(all_points_df[["morph_file", "x", "y", "z", "is_terminal", "id"]])
-            all_points = all_points_df[["x", "y", "z"]]
 
             # Create edges using the Delaunay triangulation of the union of the terminals,
             # intermediate and Voronoï points
-            edges_df, tri = create_edges(all_points, from_coord_cols, to_coord_cols, group_name)
-
-            # Get terminal edges
-            terminal_edges = edges_df[["from", "to"]].isin(
-                all_points_df.loc[all_points_df["is_terminal"], "id"].values
+            edges_df, tri = create_edges(
+                all_points_df[["x", "y", "z"]], from_coord_cols, to_coord_cols, group_name
             )
-
-            # Compute penalty
-            penalty = edges_df["length"].max() + edges_df["length"].mean()
-
-            # Add penalty to all terminal edges in order to ensure the terminals are also terminals
-            # in the solution
-
-            # NOTE: Disabled because we don't generate the actual terminals of the tufts for now,
-            # we just generate long range trunk that passes near the target points.
-            # edges_df.loc[terminal_edges.any(axis=1), "length"] += penalty
 
             # Add penalty to edges between two terminals (except if a terminal is only
-            # connected to other terminals)
-            if self.terminal_penalty:
-                add_terminal_penalty(edges_df, terminal_edges, penalty)
+            # connected to other terminals) in order to ensure the terminals are also terminals
+            # in the solution
+            # NOTE: This behavior is disabled by default because we don't generate the actual
+            # terminals of the tufts with Steiner Tree, we just generate long range trunk that
+            # passes near the target points.
+            if self.use_terminal_penalty:
+                add_terminal_penalty(edges_df, all_points_df)
 
             # Increase edge lengths of edges whose angle with radial direction is close to pi/2
-            add_orientation_penalty(
-                edges_df,
-                from_coord_cols,
-                to_coord_cols,
-                self.orientation_penalty,
-                self.orientation_penalty_exponent,
-                soma_center_coords,
-            )
+            if self.use_orientation_penalty:
+                add_orientation_penalty(
+                    edges_df,
+                    from_coord_cols,
+                    to_coord_cols,
+                    self.orientation_penalty_exponent,
+                    soma_center_coords,
+                )
 
             # TODO: increase lengths of more impossible edges
 
@@ -272,10 +242,14 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             logger.info("%s: %s edges", group_name, len(edges_df))
 
             if self.plot_debug:
-                plot_triangulation(edges_df, from_coord_cols, to_coord_cols, tri, all_points, pts)
-
-        if self.plot_debug:
-            matplotlib.use(old_backend)
+                plot_triangulation(
+                    edges_df,
+                    from_coord_cols,
+                    to_coord_cols,
+                    tri,
+                    all_points_df[["x", "y", "z"]],
+                    pts,
+                )
 
         # Export the nodes
         all_nodes_df = pd.concat(all_nodes)

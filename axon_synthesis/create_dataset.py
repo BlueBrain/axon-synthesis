@@ -123,7 +123,7 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
         config = Config()
 
         # Get atlas data
-        atlas, brain_regions, region_map = load_atlas(
+        _, _, region_map = load_atlas(
             str(config.atlas_path),
             config.atlas_region_filename,
             config.atlas_hierarchy_filename,

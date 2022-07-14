@@ -3,7 +3,6 @@ import json
 import logging
 import sys
 from collections import defaultdict
-from copy import deepcopy
 from pathlib import Path
 
 import luigi
@@ -34,6 +33,8 @@ from axon_synthesis.PCSF.clustering.from_spheres import compute_clusters as clus
 from axon_synthesis.PCSF.clustering.plot import plot_cluster_properties
 from axon_synthesis.PCSF.clustering.plot import plot_clusters
 from axon_synthesis.PCSF.clustering.utils import common_path
+from axon_synthesis.PCSF.clustering.utils import create_clustered_morphology
+from axon_synthesis.PCSF.clustering.utils import create_tuft_morphology
 from axon_synthesis.PCSF.clustering.utils import get_barcode
 from axon_synthesis.PCSF.extract_terminals import ExtractTerminals
 from axon_synthesis.utils import cols_from_json
@@ -195,7 +196,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             # Get the list of axons of the morphology
             axons = get_axons(morph)
 
-            # Cluster each axon
+            # Run the clustering function on each axon
             for axon_id, axon in enumerate(axons):
 
                 if self.clustering_mode == "sphere":
@@ -229,17 +230,19 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             cluster_df = pd.DataFrame(new_terminal_points, columns=output_cols)
 
-            # Replace terminals by the cluster centers and create sections from common ancestors
-            # to cluster centers
+            # Create a graph for each axon and compute the shortest paths from the soma to all
+            # terminals
             directed_graphes = {}
             shortest_paths = {}
-            kept_path = set()
             for axon_id, axon in enumerate(axons):
                 _, __, directed_graph = neurite_to_graph(axon)
                 directed_graphes[axon_id] = directed_graph
                 sections_to_add = defaultdict(list)
                 shortest_paths[axon_id] = nx.single_source_shortest_path(directed_graph, -1)
 
+            # Replace terminals by the cluster centers and create sections from common ancestors
+            # to cluster centers
+            kept_path = set()
             for (axon_id, cluster_id), cluster in group.groupby(["axon_id", "cluster_id"]):
                 # Skip the root cluster
                 if (cluster.cluster_id == 0).any():
@@ -260,30 +263,15 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
                 kept_path = kept_path.union(cluster_common_path)
 
-                # Get the current tuft barcode
-                tuft_sections = set(
-                    j
-                    for terminal_id, path in shortest_paths[axon_id].items()
-                    if terminal_id in set(cluster["section_id"])
-                    for j in path
-                ).difference(cluster_common_path[:common_ancestor_shift])
-                tuft_morph = Morphology(axon_morph)
-
-                tuft_ancestor = tuft_morph.section(common_ancestor)
-
-                for i in tuft_morph.sections:
-                    if i.id not in tuft_sections:
-                        # if i is tuft_ancestor:
-                        #     import pdb
-
-                        #     pdb.set_trace()
-
-                        tuft_morph.delete_section(i.morphio_section, recursive=False)
-
-                for sec in list(tuft_ancestor.iter(IterType.upstream)):
-                    if sec is tuft_ancestor:
-                        continue
-                    tuft_morph.delete_section(sec, recursive=False)
+                # Create a morphology for the current tuft and compute its barcode
+                tuft_morph, tuft_ancestor = create_tuft_morphology(
+                    axon_morph,
+                    set(cluster["section_id"]),
+                    common_ancestor,
+                    cluster_common_path[:common_ancestor_shift],
+                    shortest_paths[axon_id],
+                )
+                tuft_barcode = get_barcode(tuft_morph)
 
                 # Compute tuft orientation
                 cluster_center = cluster_df.loc[
@@ -302,9 +290,6 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     ]
                 )
                 new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
-
-                # Compute the barcode
-                tuft_barcode = get_barcode(tuft_morph)
 
                 # Add tuft category data
                 path_distance = sum(
@@ -351,42 +336,10 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     )
                 )
 
-            # Create a new morphology with the kept path and add new sections to cluster centers
-            clustered_morph = Morphology(
-                deepcopy(morph),
-                name=f"Clustered {Path(group_name).with_suffix('').name}",
+            # Create the clustered morphology
+            clustered_morph = create_clustered_morphology(
+                morph, group_name, kept_path, sections_to_add
             )
-
-            for axon, new_axon in zip(morph.neurites, clustered_morph.neurites):
-                if axon.type != NeuriteType.axon:
-                    continue
-
-                root = axon.root_node
-                new_root = new_axon.root_node
-
-                assert np.array_equal(root.points, new_root.points), "The axons where messed up!"
-
-                for sec in new_root.children:
-                    clustered_morph.delete_section(sec.morphio_section)
-
-                current_sections = [(root, new_root)]
-
-                # Add kept sections
-                while current_sections:
-                    current_section, current_new_section = current_sections.pop()
-                    for child in current_section.children:
-                        if child.id in kept_path:
-                            new_section = PointLevel(
-                                child.points[:, COLS.XYZ].tolist(),
-                                (child.points[:, COLS.R] * 2).tolist(),
-                            )
-                            current_sections.append(
-                                (child, current_new_section.append_section(new_section))
-                            )
-
-                    if current_section.id in sections_to_add:
-                        for new_sec in sections_to_add[current_section.id]:
-                            current_new_section.append_section(new_sec)
 
             # Export the clustered morphology
             morph_path = (
@@ -404,10 +357,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     group,
                     group_name,
                     cluster_df,
-                    str(
-                        self.output()["figures"].pathlib_path
-                        / f"{Path(group_name).with_suffix('').name}.html"
-                    ),
+                    self.output()["figures"].pathlib_path
+                    / f"{Path(group_name).with_suffix('').name}.html",
                 )
 
         # Export tuft properties

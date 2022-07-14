@@ -1,3 +1,4 @@
+"""Some plot utils for clustering."""
 import logging
 from pathlib import Path
 
@@ -105,16 +106,16 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
     fig.add_trace(cluster_trace, row=1, col=2)
 
     # Export figure
-    fig.write_html(output_path)
+    fig.write_html(str(output_path))
 
-    add_camera_sync(output_path)
+    add_camera_sync(str(output_path))
 
     logging.getLogger("matplotlib.font_manager").disabled = False
 
 
 def plot_cluster_properties(cluster_props_df, output_path):
     """Plot the cluster properties to a PDF figure."""
-    with PdfPages(output_path) as pdf:
+    with PdfPages(str(output_path)) as pdf:
         ax = cluster_props_df.plot.scatter(
             x="path_distance",
             y="cluster_size",
