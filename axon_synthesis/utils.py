@@ -30,6 +30,19 @@ def cols_from_json(df, cols):
     return df
 
 
+def get_layers(atlas, brain_regions, pos):
+    """Get layer data."""
+    # TODO: get layer from the region names?
+    names, ids = atlas.get_layers()
+    layers = np.zeros_like(brain_regions.raw, dtype="uint8")
+    layer_mapping = {}
+    for layer_id, (ids_set, layer) in enumerate(zip(ids, names)):
+        layer_mapping[layer_id] = layer
+        layers[np.isin(brain_regions.raw, list(ids_set))] = layer_id + 1
+    layers = brain_regions.with_data(layers)
+    return layers.lookup(pos, outer_value=0)
+
+
 def add_camera_sync(fig_path):
     """Update the HTML file to synchronize the cameras between the two plots."""
     with open(fig_path, encoding="utf-8") as f:

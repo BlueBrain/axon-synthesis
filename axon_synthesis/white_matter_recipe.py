@@ -1,4 +1,5 @@
 """Helpers for white matter recipe."""
+import json
 import logging
 import shutil
 from functools import lru_cache
@@ -11,6 +12,7 @@ import yaml
 from git import Repo
 from scipy.spatial.distance import squareform
 
+from axon_synthesis.utils import cols_from_json
 from axon_synthesis.utils import fill_diag
 
 logger = logging.getLogger(__name__)
@@ -151,9 +153,11 @@ def process(
         .reset_index(level=1)
         .rename(columns={"level_1": "target_num"})
     )
-    projection_targets = wm_projections.join(wm_targets).set_index("target_num", append=True)
-    projection_targets["strength"] = projection_targets["target"].apply(lambda row: row["density"])
-    projection_targets["topographical_mapping"] = projection_targets["target"].apply(
+    wm_projection_targets = wm_projections.join(wm_targets).set_index("target_num", append=True)
+    wm_projection_targets["strength"] = wm_projection_targets["target"].apply(
+        lambda row: row["density"]
+    )
+    wm_projection_targets["topographical_mapping"] = wm_projection_targets["target"].apply(
         lambda row: row["presynaptic_mapping"]
     )
 
@@ -184,7 +188,7 @@ def process(
         wm_targets,
         wm_fractions,
         wm_interaction_strengths,
-        projection_targets,
+        wm_projection_targets,
     )
 
 
@@ -208,4 +212,64 @@ def fetch(url, output_path, file_path="white_matter_FULL_RECIPE_v1p20.yaml", ver
         url,
         version,
         output_path,
+    )
+
+
+def load_WMR_data(
+    wm_populations_path,
+    wm_projections_path,
+    wm_targets_path,
+    wm_projection_targets_path,
+    wm_fractions_path,
+    wm_interaction_strengths_path,
+):
+    """Get the white matter recipe data."""
+    if wm_populations_path is not None:
+        wm_populations = pd.read_csv(wm_populations_path)
+        wm_populations = cols_from_json(wm_populations, ["atlas_region", "filters"])
+    else:
+        wm_populations = None
+
+    if wm_projections_path is not None:
+        wm_projections = pd.read_csv(wm_projections_path)
+        wm_projections = cols_from_json(
+            wm_projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
+        )
+    else:
+        wm_projections = None
+
+    if wm_targets_path is not None:
+        wm_targets = pd.read_csv(wm_targets_path)
+        wm_targets = cols_from_json(wm_targets, ["target"])
+    else:
+        wm_targets = None
+
+    if wm_projection_targets_path is not None:
+        wm_projection_targets = pd.read_csv(wm_projection_targets_path)
+        wm_projection_targets = cols_from_json(
+            wm_projection_targets,
+            ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
+        )
+    else:
+        wm_projection_targets = None
+
+    if wm_fractions_path is not None:
+        with Path(wm_fractions_path).open("r", encoding="utf-8") as f:
+            wm_fractions = json.load(f)
+    else:
+        wm_fractions = None
+
+    if wm_interaction_strengths_path is not None:
+        with Path(wm_interaction_strengths_path).open("r", encoding="utf-8") as f:
+            wm_interaction_strengths = json.load(f)
+    else:
+        wm_interaction_strengths = None
+
+    return (
+        wm_populations,
+        wm_projections,
+        wm_targets,
+        wm_projection_targets,
+        wm_fractions,
+        wm_interaction_strengths,
     )

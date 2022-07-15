@@ -55,13 +55,17 @@ def create_tuft_morphology(
     morph, tuft_section_ids, common_ancestor, cluster_common_path, shortest_paths
 ):
     """Create a new morphology containing only the given tuft."""
+    tuft_morph = Morphology(morph)
+    for i in tuft_morph.root_sections:
+        if i.type != NeuriteType.axon:
+            tuft_morph.delete_section(i)
+
     tuft_sections = set(
         j
         for terminal_id, path in shortest_paths.items()
         if terminal_id in tuft_section_ids
         for j in path
     ).difference(cluster_common_path)
-    tuft_morph = Morphology(morph)
 
     tuft_ancestor = tuft_morph.section(common_ancestor)
 
@@ -88,6 +92,18 @@ def get_barcode(morph, metric="path_distance", tree_index=0):
         property_class=PersistentAngles,
     )
     return tuft_barcode
+
+
+def resize_root_section(tuft_morph, tuft_orientation, root_section_idx=0):
+    """Resize the root section to 1um."""
+    new_root_section = tuft_morph.root_sections[root_section_idx]
+    new_root_section.points = np.vstack(
+        [
+            new_root_section.points[-1] - tuft_orientation,
+            new_root_section.points[-1],
+        ]
+    )
+    new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
 
 
 def create_clustered_morphology(morph, group_name, kept_path, sections_to_add):

@@ -14,9 +14,7 @@ from data_validation_framework.target import TaggedOutputLocalTarget
 from morphio import IterType
 from morphio import PointLevel
 from neurom import COLS
-from neurom import NeuriteType
 from neurom import load_morphology
-from neurom.core import Morphology
 from neurom.morphmath import section_length
 
 from axon_synthesis.atlas import load as load_atlas
@@ -36,10 +34,11 @@ from axon_synthesis.PCSF.clustering.utils import common_path
 from axon_synthesis.PCSF.clustering.utils import create_clustered_morphology
 from axon_synthesis.PCSF.clustering.utils import create_tuft_morphology
 from axon_synthesis.PCSF.clustering.utils import get_barcode
+from axon_synthesis.PCSF.clustering.utils import resize_root_section
 from axon_synthesis.PCSF.extract_terminals import ExtractTerminals
-from axon_synthesis.utils import cols_from_json
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import neurite_to_graph
+from axon_synthesis.white_matter_recipe import load_WMR_data
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +107,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
     # Attributes that are populated in the run() method
     atlas = None
     brain_regions = None
+    config = None
     region_map = None
     wm_recipe = None
     wm_populations = None
@@ -123,32 +123,36 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             "WMR": FetchWhiteMatterRecipe(),
         }
 
+    def load_atlas(self):
+        """Get the atlas data."""
+        self.atlas, self.brain_regions, self.region_map = load_atlas(
+            str(self.config.atlas_path),
+            self.config.atlas_region_filename,
+            self.config.atlas_hierarchy_filename,
+        )
+
     def load_WMR(self):
         """Get the white matter recipe data."""
-        self.wm_populations = pd.read_csv(self.input()["WMR"]["wm_populations"].pathlib_path)
-        self.wm_populations = cols_from_json(self.wm_populations, ["atlas_region", "filters"])
-        self.wm_projections = pd.read_csv(self.input()["WMR"]["wm_projections"].pathlib_path)
-        self.wm_projections = cols_from_json(
-            self.wm_projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
-        )
-        self.wm_targets = pd.read_csv(self.input()["WMR"]["wm_targets"].pathlib_path)
-        self.wm_targets = cols_from_json(self.wm_targets, ["target"])
-        self.projection_targets = pd.read_csv(
-            self.input()["WMR"]["wm_projection_targets"].pathlib_path
-        )
-        self.projection_targets = cols_from_json(
+        (
+            self.wm_populations,
+            self.wm_projections,
+            self.wm_targets,
             self.projection_targets,
-            ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
+            self.wm_fractions,
+            self.wm_interaction_strengths,
+        ) = load_WMR_data(
+            self.input()["WMR"]["wm_populations"].pathlib_path,
+            self.input()["WMR"]["wm_projections"].pathlib_path,
+            self.input()["WMR"]["wm_targets"].pathlib_path,
+            self.input()["WMR"]["wm_projection_targets"].pathlib_path,
+            self.input()["WMR"]["wm_fractions"].pathlib_path,
+            self.input()["WMR"]["wm_interaction_strengths"].pathlib_path,
         )
-        with self.input()["WMR"]["wm_fractions"].pathlib_path.open("r", encoding="utf-8") as f:
-            self.wm_fractions = json.load(f)
-        with self.input()["WMR"]["wm_interaction_strengths"].pathlib_path.open(
-            "r", encoding="utf-8"
-        ) as f:
-            self.wm_interaction_strengths = json.load(f)
 
     def run(self):
-        config = Config()
+        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-statements
+        self.config = Config()
 
         # Load terminals
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
@@ -158,11 +162,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
 
         # Get atlas data
-        self.atlas, self.brain_regions, self.region_map = load_atlas(
-            str(config.atlas_path),
-            config.atlas_region_filename,
-            config.atlas_hierarchy_filename,
-        )
+        self.load_atlas()
 
         # Load data from WMR
         self.load_WMR()
@@ -183,10 +183,6 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Load the morphology
             morph = load_morphology(group_name)
-            axon_morph = Morphology(morph)
-            for i in axon_morph.root_sections:
-                if i.type != NeuriteType.axon:
-                    axon_morph.delete_section(i)
 
             # Select the soma center
             soma_center = soma_centers.loc[
@@ -199,17 +195,15 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             # Run the clustering function on each axon
             for axon_id, axon in enumerate(axons):
 
-                if self.clustering_mode == "sphere":
-                    clustering_func = clusters_from_spheres
-                elif self.clustering_mode == "sphere_parents":
-                    clustering_func = clusters_from_sphere_parents
-                elif self.clustering_mode == "barcode":
-                    clustering_func = clusters_from_barcodes
-                elif self.clustering_mode == "brain_regions":
-                    clustering_func = clusters_from_brain_regions
+                clustering_func = {
+                    "sphere": clusters_from_spheres,
+                    "sphere_parents": clusters_from_sphere_parents,
+                    "barcode": clusters_from_barcodes,
+                    "brain_regions": clusters_from_brain_regions,
+                }
 
                 axon_group = group.loc[group["axon_id"] == axon_id]
-                (new_terminal_points, cluster_ids, _,) = clustering_func(
+                (new_terminal_points, cluster_ids, _,) = clustering_func[self.clustering_mode](
                     self,
                     axon,
                     axon_id,
@@ -265,7 +259,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
                 # Create a morphology for the current tuft and compute its barcode
                 tuft_morph, tuft_ancestor = create_tuft_morphology(
-                    axon_morph,
+                    morph,
                     set(cluster["section_id"]),
                     common_ancestor,
                     cluster_common_path[:common_ancestor_shift],
@@ -273,23 +267,18 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 )
                 tuft_barcode = get_barcode(tuft_morph)
 
-                # Compute tuft orientation
+                # Compute cluster center
                 cluster_center = cluster_df.loc[
                     (cluster_df["axon_id"] == axon_id) & (cluster_df["terminal_id"] == cluster_id),
                     ["x", "y", "z"],
                 ].values[0]
+
+                # Compute tuft orientation
                 tuft_orientation = cluster_center - tuft_ancestor.points[-1]
                 tuft_orientation /= np.linalg.norm(tuft_orientation)
 
                 # Resize the common section used as root (the root section is 1um)
-                new_root_section = tuft_morph.root_sections[0]
-                new_root_section.points = np.vstack(
-                    [
-                        new_root_section.points[-1] - tuft_orientation,
-                        new_root_section.points[-1],
-                    ]
-                )
-                new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
+                resize_root_section(tuft_morph, tuft_orientation)
 
                 # Add tuft category data
                 path_distance = sum(

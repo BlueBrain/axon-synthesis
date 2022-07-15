@@ -1,5 +1,4 @@
 """Find the target points of the input morphologies."""
-import json
 import logging
 
 import luigi
@@ -12,9 +11,32 @@ from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
 from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 from axon_synthesis.source_points import CreateSourcePoints
-from axon_synthesis.utils import cols_from_json
+from axon_synthesis.utils import get_layers
+from axon_synthesis.white_matter_recipe import load_WMR_data
 
 logger = logging.getLogger(__name__)
+
+
+def remove_invalid_points(target_df, min_target_points):
+    """Remove points with less target points than the minimum permitted."""
+    nb_targets = target_df.groupby("morph_file").size()
+    invalid_pts = nb_targets < min_target_points
+    if invalid_pts.any():
+        invalid_mask = target_df["morph_file"].isin(invalid_pts.loc[invalid_pts].index)
+
+        for k, v in nb_targets.loc[nb_targets < min_target_points].to_dict().items():
+            coords = (
+                target_df.loc[target_df["morph_file"] == k, ["x", "y", "z"]]
+                .values.flatten()
+                .tolist()
+            )
+            logger.warning(
+                "This point have less target points (%s) than the minimum permitted (%s): %s",
+                v,
+                min_target_points,
+                [k] + coords,
+            )
+        target_df.drop(target_df.loc[invalid_mask].index, inplace=True)
 
 
 class TargetPointsOutputLocalTarget(TaggedOutputLocalTarget):
@@ -52,11 +74,81 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
     )
 
+    # Attributes that are populated in the run() method
+    wm_populations = None
+    wm_projections = None
+    wm_targets = None
+    projection_targets = None
+    wm_fractions = None
+    wm_interaction_strengths = None
+
     def requires(self):
         return {
             "source_points": CreateSourcePoints(),
             "WMR": FetchWhiteMatterRecipe(),
         }
+
+    def load_WMR(self):
+        """Get the white matter recipe data."""
+        (
+            self.wm_populations,
+            self.wm_projections,
+            self.wm_targets,
+            self.projection_targets,
+            self.wm_fractions,
+            self.wm_interaction_strengths,
+        ) = load_WMR_data(
+            self.input()["WMR"]["wm_populations"].pathlib_path,
+            self.input()["WMR"]["wm_projections"].pathlib_path,
+            None,
+            None,
+            self.input()["WMR"]["wm_fractions"].pathlib_path,
+            None,
+        )
+
+    def find_pop_names(self, source_points):
+        """Find population name of each source point."""
+        source_points = source_points.merge(
+            self.wm_populations[["pop_raw_name", "atlas_region_id"]],
+            left_on="brain_region",
+            right_on="atlas_region_id",
+            how="left",
+        ).drop(columns=["atlas_region_id"])
+
+        if source_points["pop_raw_name"].isnull().any():
+            for i in source_points.loc[
+                source_points["pop_raw_name"].isnull(),
+                ["morph_file", "x", "y", "z", "brain_region"],
+            ].to_dict("records"):
+                logger.warning("Could not find the population name of: %s", i)
+
+            source_points.dropna(subset=["pop_raw_name"], inplace=True)
+
+        return source_points
+
+    def map_projections(self, source_points):
+        """Map a projection to each source point."""
+        source_points = source_points.merge(self.wm_projections, on="pop_raw_name", how="left")
+        current_ids = set(source_points["morph_file"].unique())
+        source_points.dropna(subset=["source"], inplace=True)
+        missing_ids = current_ids.difference(set(source_points["morph_file"].unique()))
+        if missing_ids:
+            logger.warning(
+                "Could not map the projection of the following point IDs: %s",
+                missing_ids,
+            )
+        return source_points
+
+    def drop_null_fractions(self, source_pop):
+        """Find population name of each source point."""
+        if source_pop["pop_raw_name"].isnull().any():
+            for i in source_pop.loc[
+                source_pop["pop_raw_name"].isnull(),
+                ["morph_file", "x", "y", "z", "pop_raw_name"],
+            ].to_dict("records"):
+                logger.warning("Could not map fractions for: %s", i)
+            source_pop = source_pop.dropna(subset=["pop_raw_name"])
+        return source_pop
 
     def run(self):
         rng = np.random.default_rng(self.seed)
@@ -75,67 +167,21 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         )
 
         # Get the white matter recipe data
-        wm_populations = pd.read_csv(self.input()["WMR"]["wm_populations"].pathlib_path)
-        wm_projections = pd.read_csv(self.input()["WMR"]["wm_projections"].pathlib_path)
-        wm_populations = cols_from_json(wm_populations, ["atlas_region", "filters"])
-        wm_projections = cols_from_json(
-            wm_projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
-        )
-
-        with self.input()["WMR"]["wm_fractions"].pathlib_path.open("r", encoding="utf-8") as f:
-            wm_fractions = json.load(f)
-        # with self.input()["WMR"]["wm_interaction_strengths"].pathlib_path.open(
-        #     "r", encoding="utf-8"
-        # ) as f:
-        #     wm_interaction_strengths = json.load(f)
+        self.load_WMR()
 
         # Get brain regions from source positions
         source_points["brain_region"] = brain_regions.lookup(source_points[["x", "y", "z"]].values)
 
-        def get_layer(atlas, brain_regions, pos):
-            # Get layer data
-            # TODO: get layer from the region names?
-            names, ids = atlas.get_layers()
-            layers = np.zeros_like(brain_regions.raw, dtype="uint8")
-            layer_mapping = {}
-            for layer_id, (ids_set, layer) in enumerate(zip(ids, names)):
-                layer_mapping[layer_id] = layer
-                layers[np.isin(brain_regions.raw, list(ids_set))] = layer_id + 1
-            layers = brain_regions.with_data(layers)
-            return layers.lookup(pos, outer_value=0)
-
         # Find in which layer is each source point
-        source_points["layer"] = get_layer(
+        source_points["layer"] = get_layers(
             atlas, brain_regions, source_points[["x", "y", "z"]].values
         )
 
         # Find population name of each source point
-        source_points = source_points.merge(
-            wm_populations[["pop_raw_name", "atlas_region_id"]],
-            left_on="brain_region",
-            right_on="atlas_region_id",
-            how="left",
-        ).drop(columns=["atlas_region_id"])
-
-        if source_points["pop_raw_name"].isnull().any():
-            for i in source_points.loc[
-                source_points["pop_raw_name"].isnull(),
-                ["morph_file", "x", "y", "z", "brain_region"],
-            ].to_dict("records"):
-                logger.warning("Could not find the population name of: %s", i)
-
-            source_points.dropna(subset=["pop_raw_name"], inplace=True)
+        source_points = self.find_pop_names(source_points)
 
         # Map projections to the source population of each source point
-        source_points = source_points.merge(wm_projections, on="pop_raw_name", how="left")
-        current_ids = set(source_points["morph_file"].unique())
-        source_points.dropna(subset=["source"], inplace=True)
-        missing_ids = current_ids.difference(set(source_points["morph_file"].unique()))
-        if missing_ids:
-            logger.warning(
-                "Could not map the projection of the following point IDs: %s",
-                missing_ids,
-            )
+        source_points = self.map_projections(source_points)
 
         # Remove duplicates to ensure that duplicated populations have the same probability to be
         # chosen than the others
@@ -144,13 +190,8 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         # Choose which population is used for each source point
         source_pop = source_points.groupby("morph_file").sample(random_state=rng.bit_generator)
 
-        if source_pop["pop_raw_name"].isnull().any():
-            for i in source_pop.loc[
-                source_pop["pop_raw_name"].isnull(),
-                ["morph_file", "x", "y", "z", "pop_raw_name"],
-            ].to_dict("records"):
-                logger.warning("Could not map fractions for: %s", i)
-            source_pop.dropna(subset=["pop_raw_name"], inplace=True)
+        # Remove source populations with a null fraction
+        source_pop = self.drop_null_fractions(source_pop)
 
         # Export the source populations
         source_pop.to_csv(self.output()["source_populations"].path, index=False)
@@ -161,11 +202,12 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             term_id = 1
             row_targets = []
             n_tries = 0
-            row_fractions = wm_fractions[row["pop_raw_name"]]
+            row_fractions = self.wm_fractions[row["pop_raw_name"]]
             if not row_fractions:
                 logger.warning("No fraction found for %s", row["morph_file"])
                 continue
             logger.debug("Fractions for %s: %s", row["morph_file"], row_fractions)
+
             while not row_targets and n_tries <= 10:
                 logger.warning('row["targets"]: %s', row["targets"])
                 row_targets = [
@@ -178,8 +220,8 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
 
             for target in row_targets:
                 region_id = (
-                    wm_populations.loc[
-                        wm_populations["pop_raw_name"] == target["population"],
+                    self.wm_populations.loc[
+                        self.wm_populations["pop_raw_name"] == target["population"],
                         "atlas_region_id",
                     ]
                     .sample(random_state=rng.bit_generator)
@@ -207,8 +249,8 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                 )[0]
 
                 # Compute coordinates of this voxel and add a random component up to the voxel size
-                coords = brain_regions.indices_to_positions(voxel)
-                coords += np.array(
+                # and convert to float32 to avoid rounding error later in MorphIO
+                coords = brain_regions.indices_to_positions(voxel) + np.array(
                     [
                         rng.uniform(
                             -0.5 * np.abs(brain_regions.voxel_dimensions[i]),
@@ -216,10 +258,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                         )
                         for i in range(3)
                     ]
-                )
-
-                # Convert to float32 to avoid rounding error later in MorphIO
-                coords = coords.astype(np.float32)
+                ).astype(np.float32)
 
                 targets.append([row["morph_file"], 0, term_id] + coords.tolist() + [target])
                 term_id += 1
@@ -239,24 +278,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         )
 
         # Discard invalid points
-        nb_targets = target_df.groupby("morph_file").size()
-        invalid_pts = nb_targets < self.min_target_points
-        if invalid_pts.any():
-            invalid_mask = target_df["morph_file"].isin(invalid_pts.loc[invalid_pts].index)
-
-            for k, v in nb_targets.loc[nb_targets < self.min_target_points].to_dict().items():
-                coords = (
-                    target_df.loc[target_df["morph_file"] == k, ["x", "y", "z"]]
-                    .values.flatten()
-                    .tolist()
-                )
-                logger.warning(
-                    "This point have less target points (%s) than the minimum permitted (%s): %s",
-                    v,
-                    self.min_target_points,
-                    [k] + coords,
-                )
-            target_df.drop(target_df.loc[invalid_mask].index, inplace=True)
+        remove_invalid_points(target_df, self.min_target_points)
 
         # Add source points as soma points
         soma_points = (
@@ -264,14 +286,11 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             .merge(source_points, on="morph_file")
             .drop_duplicates("morph_file")[["morph_file", "x", "y", "z"]]
         )
-        soma_points["axon_id"] = -1
-        soma_points["terminal_id"] = -1
-        soma_points["target_properties"] = None
+        soma_points[["axon_id", "terminal_id", "target_properties"]] = (-1, -1, None)
 
         # Add source points as terminals
         root_pts = soma_points.copy(deep=True)
-        root_pts["axon_id"] = 0
-        root_pts["terminal_id"] = 0
+        root_pts[["axon_id", "terminal_id"]] = (0, 0)
 
         target_df = pd.concat([target_df, soma_points, root_pts], ignore_index=True)
         target_df.sort_values(["morph_file", "axon_id", "terminal_id"], inplace=True)
