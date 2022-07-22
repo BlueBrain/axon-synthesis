@@ -14,7 +14,9 @@ from data_validation_framework.target import TaggedOutputLocalTarget
 
 from axon_synthesis.add_tufts import AddTufts
 from axon_synthesis.config import Config
+from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 from axon_synthesis.create_dataset import RepairDataset
+from axon_synthesis.PCSF.clustering import ClusterTerminals
 from axon_synthesis.PCSF.create_graph import CreateGraph
 from axon_synthesis.PCSF.plot_steiner import PlotSolutions
 from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
@@ -36,6 +38,16 @@ class ExploreStatistics(luigi_tools.task.WorkflowWrapperTask):
 
     def requires(self):
         return PlotStatistics()
+
+
+class CreateInputs(luigi_tools.task.WorkflowWrapperTask):
+    """This workflow creates inputs for long-range axon synthesis."""
+
+    def requires(self):
+        return {
+            "clusters": ClusterTerminals(),
+            "WMR": FetchWhiteMatterRecipe(),
+        }
 
 
 class PrepareSteinerData(luigi_tools.task.WorkflowWrapperTask):
