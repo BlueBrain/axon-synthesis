@@ -31,6 +31,37 @@ from axon_synthesis.utils import append_section_recursive
 logger = logging.getLogger(__name__)
 
 
+def plot_tuft(config, morph, morph_name, output_path, morph_file=None):
+    """Plot the given morphology.
+
+    If config.input_data_type == "biological_morphologies" then the biological one is also plotted
+    for comparison.
+    """
+    fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
+    fig_data = [fig_builder.get_figure()["data"]]
+
+    # if config.input_data_type == "biological_morphologies":
+    if morph_file is not None:
+        raw_morph = load_morphology(morph_file)
+        raw_morph = Morphology(resampling.resample_linear_density(raw_morph, 0.005))
+
+        raw_builder = NeuronBuilder(raw_morph, "3d", line_width=4, title=f"{morph_name}")
+
+        fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
+        fig_data.append(raw_builder.get_figure()["data"])
+    else:
+        fig = make_subplots(cols=1, specs=[[{"is_3d": True}]])
+
+    for col_num, data in enumerate(fig_data):
+        fig.add_traces(data, rows=[1] * len(data), cols=[col_num + 1] * len(data))
+
+    # Export figure
+    fig.write_html(output_path)
+
+    add_camera_sync(output_path)
+    logger.info("Exported figure to %s", output_path)
+
+
 class TuftsOutputLocalTarget(TaggedOutputLocalTarget):
     """Target for tuft outputs."""
 
@@ -87,9 +118,6 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         return tasks
 
     def run(self):
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-locals
-        # pylint: disable=too-many-statements
         config = Config()
         # input_dir = (
         #     self.input_dir
@@ -195,34 +223,16 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             morph.write(morph_path)
 
             if self.plot_debug:
-                fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
-                fig_data = [fig_builder.get_figure()["data"]]
-
-                if config.input_data_type == "biological_morphologies":
-                    raw_morph = load_morphology(morph_file)
-                    raw_morph = Morphology(resampling.resample_linear_density(raw_morph, 0.005))
-
-                    raw_builder = NeuronBuilder(
-                        raw_morph, "3d", line_width=4, title=f"{morph_name}"
-                    )
-
-                    fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
-                    fig_data.append(raw_builder.get_figure()["data"])
-                else:
-                    fig = make_subplots(cols=1, specs=[[{"is_3d": True}]])
-
-                for col_num, data in enumerate(fig_data):
-                    fig.add_traces(data, rows=[1] * len(data), cols=[col_num + 1] * len(data))
-
-                # Export figure
-                filepath = str(
+                plot_tuft(
+                    config,
+                    morph,
+                    morph_name,
                     self.output()["figures"].pathlib_path
-                    / f"{Path(morph_name).with_suffix('').name}.html"
+                    / f"{Path(morph_name).with_suffix('').name}.html",
+                    morph_file=morph_file
+                    if config.input_data_type == "biological_morphologies"
+                    else None,
                 )
-                fig.write_html(filepath)
-
-                add_camera_sync(filepath)
-                logger.info("Exported figure to %s", filepath)
 
     def output(self):
         return {
