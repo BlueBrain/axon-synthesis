@@ -31,16 +31,14 @@ from axon_synthesis.utils import append_section_recursive
 logger = logging.getLogger(__name__)
 
 
-def plot_tuft(config, morph, morph_name, output_path, morph_file=None):
+def plot_tuft(morph, morph_name, output_path, morph_file=None):
     """Plot the given morphology.
 
-    If config.input_data_type == "biological_morphologies" then the biological one is also plotted
-    for comparison.
+    If `morph_file` is not None then the given morphology is also plotted for comparison.
     """
     fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
     fig_data = [fig_builder.get_figure()["data"]]
 
-    # if config.input_data_type == "biological_morphologies":
     if morph_file is not None:
         raw_morph = load_morphology(morph_file)
         raw_morph = Morphology(resampling.resample_linear_density(raw_morph, 0.005))
@@ -224,7 +222,6 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
             if self.plot_debug:
                 plot_tuft(
-                    config,
                     morph,
                     morph_name,
                     self.output()["figures"].pathlib_path

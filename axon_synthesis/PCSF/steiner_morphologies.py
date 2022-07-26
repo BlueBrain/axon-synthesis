@@ -60,6 +60,8 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
         # Create an empty column for future file locations
         nodes["steiner_morph_file"] = None
 
+        morph_paths = []
+
         for group_name in group_names:
             group_nodes = node_groups.get_group(group_name)
             group_edges = edge_groups.get_group(group_name)
@@ -174,11 +176,18 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
 
             logger.info("%s: exported to %s", morph_name, morph_path)
 
+            morph_paths.append((str(group_name), morph_path))
+
             # Set the path of the new morph in the node DF
             nodes.loc[nodes["morph_file"] == group_name, "steiner_morph_file"] = morph_path
 
         # Export the node DF
         nodes.to_csv(self.output()["nodes"].path, index=False)
+
+        # Export the morph path DF
+        pd.DataFrame(morph_paths, columns=["morph_file", "steiner_morph_file"]).to_csv(
+            self.output()["morphology_paths"].path, index=False
+        )
 
     def output(self):
         return {
@@ -186,4 +195,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                 self.output_dir / "steiner_morph_nodes.csv", create_parent=True
             ),
             "morphologies": TaggedOutputLocalTarget(self.output_dir, create_parent=True),
+            "morphology_paths": TaggedOutputLocalTarget(
+                self.output_dir / "steiner_morph_paths.csv", create_parent=True
+            ),
         }
