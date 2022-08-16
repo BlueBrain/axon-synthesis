@@ -15,3 +15,14 @@ include = 'axon_synthesis\/.*\.py$|tests\/.*\.py$|doc\/source\/conf\.py$|setup\.
 profile = "black"
 line_length = 100
 force_single_line = true
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning:ipyparallel",
+    "ignore::DeprecationWarning:luigi",
+    "ignore::DeprecationWarning:neurom.morphmath",
+    "ignore::DeprecationWarning:neuror.unravel",
+    "ignore::DeprecationWarning:sphinx.util.docutil",
+    "ignore:Config file does not exist. luigi\\.cfg:UserWarning:luigi",
+    "ignore:Please use `cKDTree` from the `scipy.spatial` namespace, the `scipy.spatial.ckdtree` namespace is deprecated.:DeprecationWarning:morphology_workflows.repair",
+]

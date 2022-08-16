@@ -5,6 +5,7 @@ import shutil
 from functools import lru_cache
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Union
 
 import pandas as pd
 import voxcell
@@ -19,8 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache
-def load(white_matter_file: Path):
+def load(white_matter_file: Union[str, Path]):
     """Load the white matter recipe."""
+    white_matter_file = Path(white_matter_file)
     logger.debug("Loading white matter recipe file from: %s", white_matter_file)
     with white_matter_file.open("r", encoding="utf-8") as f:
         wm_recipe = yaml.load(f, Loader=yaml.SafeLoader)
@@ -88,18 +90,8 @@ def process(
         wm_populations = wm_populations.join(wm_populations_sub, how="left")
         wm_populations["atlas_region_split"].fillna(wm_populations["atlas_region"], inplace=True)
         wm_populations.drop(columns=["atlas_region"], inplace=True)
-        wm_populations.rename(
-            columns={
-                "atlas_region_split": "atlas_region",
-            },
-            inplace=True,
-        )
-    wm_populations.rename(
-        columns={
-            "name": "pop_raw_name",
-        },
-        inplace=True,
-    )
+        wm_populations.rename(columns={"atlas_region_split": "atlas_region"}, inplace=True)
+    wm_populations.rename(columns={"name": "pop_raw_name"}, inplace=True)
     wm_populations["region_acronym"] = wm_populations["atlas_region"].apply(lambda row: row["name"])
     wm_populations_sub = (
         wm_populations["atlas_region"]

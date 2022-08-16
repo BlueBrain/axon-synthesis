@@ -1,13 +1,25 @@
+attrs
 BluePyParallel
 dask[dataframe, distributed]
-data-validation-framework
+data-validation-framework>=0.3.1
 gitpython
 Jinja2<3
+luigi
+luigi-tools
 MarkupSafe<2.1
-morphology-workflows
+matplotlib
+morph-tool
+morphio
+morphology-workflows>=0.2.0
 networkx
+NeuroM
 NeuroTS
+numpy
+pandas
 pcst_fast
+plotly
+plotly-helper
+scipy
 seaborn
 TMD
 voxcell

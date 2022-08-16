@@ -1,7 +1,6 @@
 """Smooth the Steiner solutions."""
 import json
 import logging
-import sys
 from pathlib import Path
 
 import luigi
@@ -15,6 +14,7 @@ from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 from scipy.spatial import KDTree
 
+from axon_synthesis import seed_param
 from axon_synthesis.create_tuft_props import CreateTuftTerminalProperties
 from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
 from axon_synthesis.utils import add_camera_sync
@@ -36,13 +36,7 @@ class SmoothSteinerMorphologies(luigi_tools.task.WorkflowTask):
         default=None,
         exists=True,
     )
-    seed = luigi.NumericalParameter(
-        description="The seed used by the random number generator for jittering.",
-        var_type=int,
-        default=0,
-        min_value=0,
-        max_value=sys.float_info.max,
-    )
+    seed = seed_param("The seed used by the random number generator for jittering.")
     plot_debug = luigi.BoolParameter(
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "

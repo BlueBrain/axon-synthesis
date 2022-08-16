@@ -20,6 +20,7 @@ from neurom.morphmath import section_length
 from scipy.spatial import KDTree
 from voxcell import OrientationField
 
+from axon_synthesis import seed_param
 from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
 from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
@@ -302,13 +303,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         max_value=sys.float_info.max,
         left_op=luigi.parameter.operator.lt,
     )
-    seed = luigi.NumericalParameter(
-        description="The seed used by the random number generator.",
-        var_type=int,
-        default=0,
-        min_value=0,
-        max_value=sys.float_info.max,
-    )
+    seed = seed_param()
 
     # Attributes that are populated in the run() method
     rng = None
@@ -352,6 +347,33 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
 
         chosen_index = self.rng.choice(cluster_props_df.index, p=prob)
         return chosen_index
+
+    @staticmethod
+    def get_tuft_root(sec, axon_tree, group):
+        """Get the root section of the tuft."""
+        last_pt = sec.points[-1, COLS.XYZ]
+        dist, index = axon_tree.query(last_pt)
+        if dist > 1e-3:
+            logger.debug(
+                (
+                    "Skip section %s with point %s since no tuft root was found near "
+                    "this location (the point %s is the closest with %s distance)."
+                ),
+                sec.id,
+                last_pt,
+                group.iloc[index][["x", "y", "z"]].tolist(),
+                dist,
+            )
+            return None
+
+        tuft_root = group.iloc[index]
+        logger.debug(
+            "Found tuft root for the section %s with point %s at a distance %s",
+            sec.id,
+            last_pt,
+            dist,
+        )
+        return tuft_root
 
     def run(self):
         self.rng = np.random.default_rng(self.seed)
@@ -417,28 +439,9 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     if sec.parent is None:
                         continue
 
-                    last_pt = sec.points[-1, COLS.XYZ]
-                    dist, index = axon_tree.query(last_pt)
-                    if dist > 1e-3:
-                        logger.debug(
-                            (
-                                "Skip section %s with point %s since no tuft root was found near "
-                                "this location (the point %s is the closest with %s distance)."
-                            ),
-                            sec.id,
-                            last_pt,
-                            group.iloc[index][["x", "y", "z"]].tolist(),
-                            dist,
-                        )
+                    tuft_root = self.get_tuft_root(sec, axon_tree, group)
+                    if tuft_root is None:
                         continue
-
-                    tuft_root = group.iloc[index]
-                    logger.debug(
-                        "Found tuft root for the section %s with point %s at a distance %s",
-                        sec.id,
-                        last_pt,
-                        dist,
-                    )
 
                     if self.use_cluster_props:
                         # Use properties from clustered morphologies

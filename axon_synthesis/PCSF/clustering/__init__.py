@@ -100,8 +100,13 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         default=False,
         parsing=luigi.BoolParameter.EXPLICIT_PARSING,
     )
+    export_tuft_morphs = luigi.BoolParameter(
+        description=("If set to True, each tuft will be exported as a morphology."),
+        default=False,
+        parsing=luigi.BoolParameter.EXPLICIT_PARSING,
+    )
     nb_workers = luigi.IntParameter(
-        default=-1, description=":int: Number of jobs used by parallel tasks."
+        default=1, description=":int: Number of jobs used by parallel tasks."
     )
 
     # Attributes that are populated in the run() method
@@ -280,6 +285,13 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 # Resize the common section used as root (the root section is 1um)
                 resize_root_section(tuft_morph, tuft_orientation)
 
+                if self.export_tuft_morphs:
+                    # Export each tuft as a morphology
+                    tuft_morph.write(
+                        self.output()["tuft_morphologies"].pathlib_path
+                        / f"{Path(group_name).with_suffix('').name}_{axon_id}_{cluster_id}.asc"
+                    )
+
                 # Add tuft category data
                 path_distance = sum(
                     section_length(i.points) for i in common_section.iter(IterType.upstream)
@@ -393,7 +405,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         new_terminals.to_csv(self.output()["terminals"].path, index=False)
 
     def output(self):
-        return {
+        targets = {
             "figures": ClusteringOutputLocalTarget("figures", create_parent=True),
             "morphologies": ClusteringOutputLocalTarget("morphologies", create_parent=True),
             "terminals": ClusteringOutputLocalTarget("clustered_terminals.csv", create_parent=True),
@@ -401,3 +413,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 "tuft_properties.json", create_parent=True
             ),
         }
+        if self.export_tuft_morphs:
+            targets["tuft_morphologies"] = ClusteringOutputLocalTarget(
+                "tuft_morphologies", create_parent=True
+            )
+        return targets

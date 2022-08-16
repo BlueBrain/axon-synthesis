@@ -1,7 +1,6 @@
 """Add tufts to Steiner solutions."""
 import json
 import logging
-import sys
 from copy import deepcopy
 from pathlib import Path
 
@@ -21,6 +20,7 @@ from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 from scipy.spatial import KDTree
 
+from axon_synthesis import seed_param
 from axon_synthesis.config import Config
 from axon_synthesis.create_tuft_props import CreateTuftTerminalProperties
 from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
@@ -84,13 +84,7 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         default="tuft_distributions.json",
         exists=True,
     )
-    seed = luigi.NumericalParameter(
-        description="The seed used by the random number generator.",
-        var_type=int,
-        default=0,
-        min_value=0,
-        max_value=sys.float_info.max,
-    )
+    seed = seed_param()
     use_smooth_trunks = luigi.BoolParameter(
         description=("If set to True, the Steiner solutions are smoothed before adding the tufts."),
         default=False,
@@ -114,6 +108,22 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         else:
             tasks["steiner_solutions"] = SteinerMorphologies()
         return tasks
+
+    @staticmethod
+    def check_props(tuft_roots, ref_terminal_props):
+        """Check tuft properties."""
+        if len(tuft_roots) != len(ref_terminal_props):
+            all_props = ref_terminal_props.to_dict("records")
+            for props in all_props:
+                counter = 0
+                for tuft_root_props in tuft_roots:
+                    if (
+                        props["common_ancestor_coords"]
+                        != tuft_root_props[1]["common_ancestor_coords"]
+                    ):
+                        counter += 1
+                if counter == len(tuft_roots):
+                    logger.warning("No section could be found for the following tuft: %s", props)
 
     def run(self):
         config = Config()
@@ -162,20 +172,7 @@ class AddTufts(luigi_tools.task.WorkflowTask):
                 for i in tree.query_ball_point(section.points[-1], 1e-6):
                     tuft_roots.append((section, ref_terminal_props.iloc[i]))
 
-            if len(tuft_roots) != len(ref_terminal_props):
-                all_props = ref_terminal_props.to_dict("records")
-                for props in all_props:
-                    counter = 0
-                    for tuft_root_props in tuft_roots:
-                        if (
-                            props["common_ancestor_coords"]
-                            != tuft_root_props[1]["common_ancestor_coords"]
-                        ):
-                            counter += 1
-                    if counter == len(tuft_roots):
-                        logger.warning(
-                            "No section could be found for the following tuft: %s", props
-                        )
+            self.check_props(tuft_roots, ref_terminal_props)
 
             # Create the tufts
             for tuft_section, tuft_props in tuft_roots:

@@ -1,0 +1,347 @@
+connection_mapping:
+- name: type_1
+  noise:
+  - type: uniform
+    widths:
+    - x: 200.0
+      y: 0.0
+      z: 200.0
+  scaling:
+  - x: 1.0
+    y: 0.01
+    z: 1.0
+layer_profiles:
+- name: profile_1
+  relative_densities:
+  - layers:
+    - l1
+    value: 2.63902
+  - layers:
+    - l2
+    - l3
+    value: 1.65524
+  - layers:
+    - l4
+    value: 0.39496
+  - layers:
+    - l5
+    value: 0.351513
+  - layers:
+    - l6a
+    - l6b
+    value: 0.351513
+- name: profile_2
+  relative_densities:
+  - layers:
+    - ALL
+    value: 1.0
+p-types:
+- fractions:
+    MC0_to_MC11_ipsi: 0.257721
+    MC0_to_MC12_ipsi: 0.216921
+    MC0_to_MC13_ipsi: 0.129604
+    MC0_to_MC14_ipsi: 0.260862
+    MC0_to_MC15_ipsi: 0.254711
+    MC0_to_MC16_ipsi: 0.34855
+    MC0_to_MC17_ipsi: 0.03454
+  interaction_mat:
+    projections:
+    - MC0_to_MC11_ipsi
+    - MC0_to_MC12_ipsi
+    - MC0_to_MC13_ipsi
+    - MC0_to_MC15_ipsi
+    - MC0_to_MC17_ipsi
+    strengths:
+    - 3.01
+    - 2.097
+    - 2.078
+    - 2.097
+    - 2.097
+    - 2.078
+    - 2.097
+    - 2.078
+    - 2.732
+    - 2.078
+  population: MC0
+populations:
+- atlas_region:
+    name: mc0
+    subregions:
+    - l1
+    - l2
+    - l3
+    - l4
+    - l5
+    - l6
+  filters:
+    synapse_type: EXC
+  name: MC0
+- atlas_region:
+    name: mc1
+    subregions:
+    - l1
+  filters:
+    synapse_type: EXC
+  name: MC1;1
+- atlas_region:
+    name: mc1
+    subregions:
+    - l2
+  filters:
+    synapse_type: EXC
+  name: MC1;2
+- atlas_region:
+    name: mc1
+    subregions:
+    - l3
+  filters:
+    synapse_type: EXC
+  name: MC1;3
+- atlas_region:
+    name: mc1
+    subregions:
+    - l4
+  filters:
+    synapse_type: EXC
+  name: MC1;4
+- atlas_region:
+    name: mc1
+    subregions:
+    - l5
+  filters:
+    synapse_type: EXC
+  name: MC1;5
+- atlas_region:
+    name: mc1
+    subregions:
+    - l6
+  filters:
+    synapse_type: EXC
+  name: MC1;6
+projections:
+- mapping_coordinate_system:
+    base_system: per_region_flatmap_mixed_pp.nrrd
+    x:
+    - 8.019
+    - 4.019
+    - 0.019
+    y:
+    - 66.048
+    - 59.048
+    - 64.048
+  source: MC0
+  targets:
+  - connection_mapping:
+      type: type_1
+    density: 0.00227
+    hemisphere: ipsi
+    population: MC1;1
+    presynaptic_mapping:
+      mapping_coordinate_system:
+        base_system: per_region_flatmap_mixed_pp.nrrd
+        x:
+        - 10.919
+        - 1.266
+        - 0.614
+        y:
+        - 54.442
+        - 62.795
+        - 51.593
+      mapping_variance: 5.52875
+    projection_name: MC0_to_MC11_ipsi
+    source_filters: []
+    synapse_types:
+    - fraction: 1.0
+      name: type_1
+    target_layer_profiles:
+    - fraction: 1.0
+      name: profile_4
+  - connection_mapping:
+      type: type_1
+    density: 0.00413
+    hemisphere: ipsi
+    population: MC1;2
+    presynaptic_mapping:
+      mapping_coordinate_system:
+        base_system: per_region_flatmap_mixed_pp.nrrd
+        x:
+        - -3.302
+        - 14.711
+        - 13.416
+        y:
+        - 56.97
+        - 68.655
+        - 50.925
+      mapping_variance: 12.25809
+    projection_name: MC0_to_MC12_ipsi
+    source_filters: []
+    synapse_types:
+    - fraction: 1.0
+      name: type_1
+    target_layer_profiles:
+    - fraction: 1.0
+      name: profile_4
+  - connection_mapping:
+      type: type_1
+    density: 0.00477
+    hemisphere: ipsi
+    population: MC1;6
+    presynaptic_mapping:
+      mapping_coordinate_system:
+        base_system: per_region_flatmap_mixed_pp.nrrd
+        x:
+        - 7.369
+        - 15.201
+        - 0.051
+        y:
+        - 69.489
+        - 56.096
+        - 58.48
+      mapping_variance: 4.87481
+    projection_name: MC0_to_MC16_ipsi
+    source_filters: []
+    synapse_types:
+    - fraction: 1.0
+      name: type_1
+    target_layer_profiles:
+    - fraction: 1.0
+      name: profile_4
+  - connection_mapping:
+      type: type_1
+    density: 0.00125
+    hemisphere: ipsi
+    population: MC1;3
+    presynaptic_mapping:
+      mapping_coordinate_system:
+        base_system: per_region_flatmap_mixed_pp.nrrd
+        x:
+        - 11.107
+        - 8.069
+        - 11.93
+        y:
+        - 56.345
+        - 60.937
+        - 59.203
+      mapping_variance: 6.00969
+    projection_name: MC0_to_MC13_ipsi
+    source_filters: []
+    synapse_types:
+    - fraction: 1.0
+      name: type_1
+    target_layer_profiles:
+    - fraction: 1.0
+      name: profile_4
+  - connection_mapping:
+      type: type_1
+    density: 0.00352
+    hemisphere: ipsi
+    population: MC1;4
+    presynaptic_mapping:
+      mapping_coordinate_system:
+        base_system: per_region_flatmap_mixed_pp.nrrd
+        x:
+        - 2.853
+        - 10.211
+        - -1.267
+        y:
+        - 57.192
+        - 65.507
+        - 63.907
+      mapping_variance: 4.44229
+    projection_name: MC0_to_MC14_ipsi
+    source_filters: []
+    synapse_types:
+    - fraction: 1.0
+      name: type_1
+    target_layer_profiles:
+    - fraction: 1.0
+      name: profile_4
+  - connection_mapping:
+      type: type_1
+    density: 0.00421
+    hemisphere: ipsi
+    population: MC1;5
+    presynaptic_mapping:
+      mapping_coordinate_system:
+        base_system: per_region_flatmap_mixed_pp.nrrd
+        x:
+        - 6.365
+        - 2.685
+        - 6.018
+        y:
+        - 66.363
+        - 61.795
+        - 55.899
+      mapping_variance: 3.79007
+    projection_name: MC0_to_MC15_ipsi
+    source_filters: []
+    synapse_types:
+    - fraction: 1.0
+      name: type_1
+    target_layer_profiles:
+    - fraction: 1.0
+      name: profile_4
+  - connection_mapping:
+      type: type_1
+    density: 0.00143
+    hemisphere: ipsi
+    population: MC1;6
+    presynaptic_mapping:
+      mapping_coordinate_system:
+        base_system: per_region_flatmap_mixed_pp.nrrd
+        x:
+        - 5.323
+        - 1.596
+        - 1.743
+        y:
+        - 63.066
+        - 60.229
+        - 64.413
+      mapping_variance: 3.70321
+    projection_name: MC0_to_MC16_ipsi
+    source_filters: []
+    synapse_types:
+    - fraction: 1.0
+      name: type_1
+    target_layer_profiles:
+    - fraction: 1.0
+      name: profile_4
+synapse_types:
+  type_1:
+    physiology:
+      D:
+        distribution:
+          name: truncated_gaussian
+          params:
+            mean: 600.0
+            std: 22.0
+      F:
+        distribution:
+          name: truncated_gaussian
+          params:
+            mean: 22.0
+            std: 5.0
+      U:
+        distribution:
+          name: truncated_gaussian
+          params:
+            mean: 0.336
+            std: 0.25
+      dtc:
+        distribution:
+          name: truncated_gaussian
+          params:
+            mean: 1.55
+            std: 0.4
+      gsyn:
+        distribution:
+          name: truncated_gaussian
+          params:
+            mean: 0.72
+            std: 0.44
+      nrrp:
+        distribution:
+          name: uniform_int
+          params:
+            max: 4
+            min: 1

@@ -206,10 +206,11 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             if not row_fractions:
                 logger.warning("No fraction found for %s", row["morph_file"])
                 continue
+
             logger.debug("Fractions for %s: %s", row["morph_file"], row_fractions)
+            logger.debug('Value of row["targets"]: %s', row["targets"])
 
             while not row_targets and n_tries <= 10:
-                logger.warning('row["targets"]: %s', row["targets"])
                 row_targets = [
                     j
                     for j in list(row["targets"])
@@ -218,7 +219,16 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                 n_tries += 1
             # TODO: Use interaction_map to improve pair-projection probabilities
 
+            logger.debug("Targets found: %s", row_targets)
+
             for target in row_targets:
+                logger.debug(
+                    "Potential populations:\n%s",
+                    self.wm_populations.loc[
+                        self.wm_populations["pop_raw_name"] == target["population"],
+                        "atlas_region_id",
+                    ],
+                )
                 region_id = (
                     self.wm_populations.loc[
                         self.wm_populations["pop_raw_name"] == target["population"],

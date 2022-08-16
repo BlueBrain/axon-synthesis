@@ -33,7 +33,17 @@ setup(
     install_requires=reqs,
     packages=find_packages(exclude=["tests"]),
     python_requires=">=3.8",
-    extras_require={"docs": ["m2r2", "sphinx", "sphinx-bluebrain-theme"]},
+    extras_require={
+        "docs": ["m2r2", "sphinx", "sphinx-bluebrain-theme"],
+        "test": [
+            "brainbuilder",
+            "mock",
+            "pytest",
+            "pytest-cov",
+            "pytest-depends",
+            "pytest-html",
+        ],
+    },
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Education",

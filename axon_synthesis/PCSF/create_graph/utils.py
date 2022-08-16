@@ -122,6 +122,8 @@ def add_random_points(all_pts, min_random_point_distance, seed):
 
 def add_voronoi_points(all_pts, voronoi_steps):
     """Add Voronoi points between the given points."""
+    if len(all_pts) < 5:
+        return all_pts
     for _ in range(voronoi_steps):
         vor = Voronoi(all_pts, qhull_options="QJ")
         all_pts = np.concatenate([all_pts, vor.vertices])  # pylint: disable=no-member

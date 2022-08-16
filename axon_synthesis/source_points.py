@@ -72,6 +72,11 @@ class CreateSourcePoints(luigi_tools.task.WorkflowTask):
         else:
             potential_voxels = np.argwhere(brain_regions.raw != 0)
 
+        if len(potential_voxels) == 0:
+            logger.error("No potential voxels found to place source points")
+        else:
+            logger.debug("Potential voxels found: %s", len(potential_voxels))
+
         # Get random voxels where the brain region value is not 0
         voxels = rng.choice(potential_voxels, self.nb_points)
 
@@ -80,8 +85,8 @@ class CreateSourcePoints(luigi_tools.task.WorkflowTask):
         coords += np.vstack(
             [
                 rng.uniform(
-                    -0.5 * np.abs(brain_regions.voxel_dimensions[i]),
-                    0.5 * np.abs(brain_regions.voxel_dimensions[i]),
+                    0,
+                    brain_regions.voxel_dimensions[i],
                     size=self.nb_points,
                 )
                 for i in range(3)

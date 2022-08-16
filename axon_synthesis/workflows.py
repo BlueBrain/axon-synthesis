@@ -1,14 +1,4 @@
-"""The main workflows.
-
-These workflows should be run with the following command:
-python -m luigi --local-scheduler --module workflows <workflow>
-
-TODO: Make a real package and update imports
-
-Requirements:
-- "data-validation-framework>=0.3.1"
-- "morphology-workflows>=0.2.0"
-"""
+"""The main workflows of the AxonSynthesis package."""
 import luigi_tools
 from data_validation_framework.target import TaggedOutputLocalTarget
 
@@ -76,6 +66,16 @@ class BuildTufts(luigi_tools.task.WorkflowWrapperTask):
 
     def requires(self):
         return AddTufts()
+
+
+class Synthesis(luigi_tools.task.WorkflowWrapperTask):
+    """This workflow synthesize morphologies according to given inputs."""
+
+    def requires(self):
+        return {
+            "inputs": CreateInputs(),
+            "tufts": AddTufts(),
+        }
 
 
 class ValidateSolutions(luigi_tools.task.WorkflowWrapperTask):

@@ -143,7 +143,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
         terminals.to_csv(self.output()["input_terminals"].path, index=False)
 
-        if self.use_fiber_tracts is not None:  # pylint: disable=no-else-raise
+        if self.use_fiber_tracts:  # pylint: disable=no-else-raise
             fiber_tract_points = get_fiber_tracts(
                 str(config.atlas_path),
                 config.atlas_hierarchy_filename,

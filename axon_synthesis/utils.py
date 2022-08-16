@@ -1,7 +1,10 @@
 """Some utils for the AxonSynthesis package."""
 import json
+import logging
 import re
+from contextlib import contextmanager
 
+import matplotlib
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -170,3 +173,45 @@ def append_section_recursive(source, target):
         # if current_parent.id in sections_to_add:
         #     for new_sec in sections_to_add[current_parent.id]:
         #         current_child.append_section(new_sec)
+
+
+@contextmanager
+def disable_loggers(*logger_names):
+    """
+    A context manager that will prevent any logging messages triggered during the body from being
+    processed.
+
+    Args:
+        *logger_names (str): The names of the loggers to be disabled.
+    """
+
+    if not logger_names:
+        loggers = [logging.root]
+    else:
+        loggers = [logging.getLogger(i) for i in logger_names]
+
+    disabled_loggers = [(i, i.disabled) for i in loggers]
+
+    try:
+        for i, _ in disabled_loggers:
+            i.disabled = True
+        yield
+    finally:
+        for i, j in disabled_loggers:
+            i.disabled = j
+
+
+@contextmanager
+def use_matplotlib_backend(new_backend):
+    """
+    A context manager that will set a new temporary backend to matplotlib then restore the old one.
+
+    Args:
+        new_backend (str): The name of the backend to use in this context.
+    """
+    old_backend = matplotlib.get_backend()
+    matplotlib.use(new_backend)
+    try:
+        yield
+    finally:
+        matplotlib.use(old_backend)
