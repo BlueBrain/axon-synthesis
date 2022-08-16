@@ -17,14 +17,14 @@ with open("requirements.txt", encoding="utf-8") as f:
     reqs = f.read().splitlines()
 
 setup(
-    name="AxonSynthesis",
+    name="axon-synthesis",
     author="Adrien Berchet",
     author_email="adrien.berchet@epfl.ch",
     version=VERSION,
     description="A package to synthesize artificial axons",
     long_description=Path("README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
-    url="https://bbpteam.epfl.ch/documentation/projects/AxonSynthesis",
+    url="https://bbpteam.epfl.ch/documentation/projects/axon-synthesis",
     project_urls={
         "Tracker": "https://bbpteam.epfl.ch/project/issues/projects/CELLS/issues",
         "Source": "git@bbpgitlab.epfl.ch:neuromath/user/aberchet/axon-synthesis.git",

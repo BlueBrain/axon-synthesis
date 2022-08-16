@@ -12,7 +12,7 @@ module.exports = {
 		'subject-empty': [1, 'never'],
 		'subject-full-stop': [2, 'never', '.'],
 		'type-case': [2, 'always', 'start-case'],
-		'type-empty': [1, 'never'],
+		'type-empty': [2, 'never'],
 		'type-enum': [
 			2,
 			'always',

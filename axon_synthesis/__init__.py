@@ -1,9 +1,10 @@
 """AxonSynthesis package."""
+import importlib.metadata
+
 import luigi
 import numpy as np
-import pkg_resources
 
-__version__ = pkg_resources.get_distribution("AxonSynthesis").version
+__version__ = importlib.metadata.version("axon-synthesis")
 
 
 def seed_param(desc=None):
