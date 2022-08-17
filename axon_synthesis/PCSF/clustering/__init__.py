@@ -154,6 +154,13 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             self.input()["WMR"]["wm_interaction_strengths"].pathlib_path,
         )
 
+    def tuft_morph_path(self, group_name, axon_id, cluster_id):
+        """Create a tuft file path according to the group name, axon ID and cluster ID."""
+        return (
+            self.output()["tuft_morphologies"].pathlib_path
+            / f"{Path(group_name).with_suffix('').name}_{axon_id}_{cluster_id}.asc"
+        )
+
     def run(self):
         # pylint: disable=too-many-locals
         # pylint: disable=too-many-statements
@@ -165,6 +172,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         # Create output directories
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
+        if self.export_tuft_morphs:
+            self.output()["tuft_morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
 
         # Get atlas data
         self.load_atlas()
@@ -287,10 +296,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
                 if self.export_tuft_morphs:
                     # Export each tuft as a morphology
-                    tuft_morph.write(
-                        self.output()["tuft_morphologies"].pathlib_path
-                        / f"{Path(group_name).with_suffix('').name}_{axon_id}_{cluster_id}.asc"
-                    )
+                    tuft_morph_path = self.tuft_morph_path(group_name, axon_id, cluster_id)
+                    logger.debug("Export tuft morphology to %s", tuft_morph_path)
+                    tuft_morph.write(tuft_morph_path)
 
                 # Add tuft category data
                 path_distance = sum(
@@ -347,6 +355,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 self.output()["morphologies"].pathlib_path
                 / f"{Path(group_name).with_suffix('').name}.asc"
             )
+            logger.debug("Export clustered morphology to %s", morph_path)
             clustered_morph.write(str(morph_path))
 
             # Plot the clusters

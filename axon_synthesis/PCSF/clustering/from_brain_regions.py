@@ -415,6 +415,18 @@ def compute_clusters(task, axon, axon_id, group_name, group, _, __):
             ),
         )
 
+    if task.export_tuft_morphs:
+        tuft_brain_region_path = (
+            task.output()["tuft_morphologies"].pathlib_path
+            / f"{Path(group_name).with_suffix('').name}_{axon_id}.csv"
+        )
+        logger.debug("Export tuft brain regions to %s", tuft_brain_region_path)
+        group_nodes["region_acronym"] = group_nodes["wm_brain_region"].map(region_acronyms)
+        group_nodes["tuft_morph_path"] = group_nodes.apply(
+            lambda row: task.tuft_morph_path(group_name, axon_id, row["cluster_id"]), axis=1
+        )
+        group_nodes.to_csv(tuft_brain_region_path)
+
     return new_terminal_points, group["cluster_id"], []
 
 
