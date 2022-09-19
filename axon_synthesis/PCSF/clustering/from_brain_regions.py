@@ -425,6 +425,7 @@ def compute_clusters(task, axon, axon_id, group_name, group, _, __):
         group_nodes["tuft_morph_path"] = group_nodes.apply(
             lambda row: task.tuft_morph_path(group_name, axon_id, row["cluster_id"]), axis=1
         )
+        group_nodes.loc[group_nodes["cluster_id"] == 0, "tuft_morph_path"] = None
         group_nodes.to_csv(tuft_brain_region_path)
 
     return new_terminal_points, group["cluster_id"], []

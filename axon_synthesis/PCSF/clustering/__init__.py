@@ -15,6 +15,7 @@ from morphio import IterType
 from morphio import PointLevel
 from neurom import COLS
 from neurom import load_morphology
+from neurom.apps import morph_stats
 from neurom.morphmath import section_length
 
 from axon_synthesis.atlas import load as load_atlas
@@ -182,6 +183,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         self.load_WMR()
 
         all_terminal_points = []
+        long_range_trunk_props = []
         cluster_props = []
         output_cols = ["morph_file", "axon_id", "terminal_id", "x", "y", "z"]
 
@@ -346,9 +348,32 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 )
 
             # Create the clustered morphology
-            clustered_morph = create_clustered_morphology(
+            clustered_morph, trunk_morph = create_clustered_morphology(
                 morph, group_name, kept_path, sections_to_add
             )
+
+            # Compute long-range trunk features that will be used for smoothing and jittering
+            long_range_trunks = get_axons(trunk_morph)
+            for num, i in enumerate(long_range_trunks):
+                trunk_stats = morph_stats.extract_stats(
+                    axon,
+                    {
+                        "neurite": {
+                            "segment_lengths": {"modes": ["mean", "std"]},
+                            "segment_meander_angles": {"modes": ["mean", "std"]},
+                        }
+                    },
+                )["axon"]
+                long_range_trunk_props.append(
+                    (
+                        group_name,
+                        num,
+                        trunk_stats["mean_segment_lengths"],
+                        trunk_stats["std_segment_lengths"],
+                        trunk_stats["mean_segment_meander_angles"],
+                        trunk_stats["std_segment_meander_angles"],
+                    )
+                )
 
             # Export the clustered morphology
             morph_path = (
@@ -370,6 +395,21 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     self.output()["figures"].pathlib_path
                     / f"{Path(group_name).with_suffix('').name}.html",
                 )
+
+        # Export long-range trunk properties
+        trunk_props_df = pd.DataFrame(
+            long_range_trunk_props,
+            columns=[
+                "morph_file",
+                "axon_id",
+                "mean_segment_lengths",
+                "std_segment_lengths",
+                "mean_segment_meander_angles",
+                "std_segment_meander_angles",
+            ],
+        )
+        trunk_props_df.sort_values(["morph_file", "axon_id"], inplace=True)
+        trunk_props_df.to_csv(self.output()["trunk_properties"].path, index=False)
 
         # Export tuft properties
         cluster_props_df = pd.DataFrame(
@@ -420,6 +460,9 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             "terminals": ClusteringOutputLocalTarget("clustered_terminals.csv", create_parent=True),
             "tuft_properties": ClusteringOutputLocalTarget(
                 "tuft_properties.json", create_parent=True
+            ),
+            "trunk_properties": ClusteringOutputLocalTarget(
+                "trunk_properties.csv", create_parent=True
             ),
         }
         if self.export_tuft_morphs:

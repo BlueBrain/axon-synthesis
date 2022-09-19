@@ -1,6 +1,7 @@
 """Compute and plot some statistics."""
 import json
 import logging
+from collections import defaultdict
 from itertools import chain
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import luigi
 import luigi_tools
 import matplotlib.pyplot as plt
 import neurom as nm
+import neurots.extract_input
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -18,11 +20,13 @@ from luigi.parameter import PathParameter
 from matplotlib import cm
 from matplotlib.backends.backend_pdf import PdfPages
 from neurom import load_morphologies
+from neurom import load_morphology
 from neurom.apps.morph_stats import extract_dataframe
 from neurom.core.types import NeuriteType
 
 from axon_synthesis.add_tufts import AddTufts
 from axon_synthesis.create_dataset import RepairDataset
+from axon_synthesis.PCSF.clustering import ClusterTerminals
 
 # from PCSF.clustering import ClusterTerminals
 # from PCSF.steiner_morphologies import SteinerMorphologies
@@ -540,3 +544,66 @@ class CompareStatistics(luigi_tools.task.WorkflowTask):
 
     def output(self):
         return StatisticsOutputLocalTarget(self.output_dir)
+
+
+class CheckTuftStatistics(luigi_tools.task.WorkflowTask):
+    """Task to compute the statistics of the given tuft morphologies and check them."""
+
+    morph_dir = OptionalPathParameter(
+        description="Folder containing the input morphologies.",
+        default=None,
+    )
+    output_dataset = luigi.Parameter(description="Output dataset file", default="statistics.json")
+
+    def requires(self):
+        if self.morph_dir is None:
+            return ClusterTerminals()
+        return None
+
+    def find_morph_from_pt(self, tufts_by_region, x, y, z):
+        for region_name, tuft_files in tufts_by_region.items():
+            for i in tuft_files:
+                morph = load_morphology(i)
+                if (
+                    (morph.points[:, 0] >= x)
+                    & (morph.points[:, 0] < x + 1)
+                    & (morph.points[:, 1] >= y)
+                    & (morph.points[:, 1] < y + 1)
+                    & (morph.points[:, 2] >= z)
+                    & (morph.points[:, 2] < z + 1)
+                ).any():
+                    print("File for:", x, y, z, "=>", region_name, i)
+
+    def run(self):
+        self.output().pathlib_path.mkdir(parents=True, exist_ok=True)
+        morph_dir = self.morph_dir or self.input()["tuft_morphologies"].pathlib_path
+        csv_files = sorted(filter(lambda x: x.suffix == ".csv", morph_dir.iterdir()))
+        tufts_by_region = defaultdict(list)
+        all_stats = {}
+        N = 0
+        for csv_file in csv_files:
+            df = pd.read_csv(csv_file)
+            df.drop(df.loc[df["tuft_morph_path"].isnull()].index, inplace=True)
+            for (region_name, cluster_id), tuft_files in df.groupby(
+                ["region_acronym", "cluster_id"]
+            ):
+                tufts_by_region[region_name].append(tuft_files["tuft_morph_path"].tolist()[0])
+                N += len(tuft_files["tuft_morph_path"].tolist())
+            if N > 100:
+                break
+
+        for region_name, tuft_files in tufts_by_region.items():
+            try:
+                all_stats[region_name] = neurots.extract_input.distributions(tuft_files)
+            except Exception:
+                # breakpoint()
+                print()
+
+        self.find_morph_from_pt(tufts_by_region, 4435, 4137, 7273)
+        self.find_morph_from_pt(tufts_by_region, 4458, 5309, 7710)
+
+        # breakpoint()
+        print(all_stats)
+
+    def output(self):
+        return StatisticsOutputLocalTarget("tufts", create_parent=True)

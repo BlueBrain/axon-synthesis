@@ -23,8 +23,8 @@ from scipy.spatial import KDTree
 from axon_synthesis import seed_param
 from axon_synthesis.config import Config
 from axon_synthesis.create_tuft_props import CreateTuftTerminalProperties
+from axon_synthesis.PCSF.post_process import PostProcessSteinerMorphologies
 from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
-from axon_synthesis.smoothing import SmoothSteinerMorphologies
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import append_section_recursive
 
@@ -104,7 +104,7 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             "terminal_properties": CreateTuftTerminalProperties(),
         }
         if self.use_smooth_trunks:
-            tasks["steiner_solutions"] = SmoothSteinerMorphologies()
+            tasks["steiner_solutions"] = PostProcessSteinerMorphologies()
         else:
             tasks["steiner_solutions"] = SteinerMorphologies()
         return tasks
@@ -151,6 +151,15 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
         with self.input()["terminal_properties"].open() as f:
             cluster_props_df = pd.DataFrame.from_records(json.load(f))
+
+        if self.use_smooth_trunks:
+            post_processed_paths = pd.read_csv(
+                self.input()["steiner_solutions"]["morphology_paths"].path,
+                dtype={"morph_file": str},
+            )
+            cluster_props_df["steiner_morph_file"] = pd.merge(
+                cluster_props_df, post_processed_paths, on="morph_file"
+            )["post_processed_morph_file"]
 
         for group_name, group in cluster_props_df.groupby("steiner_morph_file"):
             steiner_morph_file = Path(group_name)

@@ -112,24 +112,33 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add):
         deepcopy(morph),
         name=f"Clustered {Path(group_name).with_suffix('').name}",
     )
+    trunk_morph = Morphology(
+        deepcopy(morph),
+        name=f"Clustered {Path(group_name).with_suffix('').name}",
+    )
 
-    for axon, new_axon in zip(morph.neurites, clustered_morph.neurites):
+    for axon, new_axon, trunk_axon in zip(
+        morph.neurites, clustered_morph.neurites, trunk_morph.neurites
+    ):
         if axon.type != NeuriteType.axon:
             continue
 
         root = axon.root_node
         new_root = new_axon.root_node
+        new_trunk_root = trunk_axon.root_node
 
-        assert np.array_equal(root.points, new_root.points), "The axons where messed up!"
+        assert np.array_equal(root.points, new_root.points), "The axons were messed up!"
 
         for sec in new_root.children:
             clustered_morph.delete_section(sec.morphio_section)
+        for sec in new_trunk_root.children:
+            trunk_morph.delete_section(sec.morphio_section)
 
-        current_sections = [(root, new_root)]
+        current_sections = [(root, new_root, new_trunk_root)]
 
         # Add kept sections
         while current_sections:
-            current_section, current_new_section = current_sections.pop()
+            current_section, current_new_section, current_trunk_section = current_sections.pop()
             for child in current_section.children:
                 if child.id in kept_path:
                     new_section = PointLevel(
@@ -137,10 +146,14 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add):
                         (child.points[:, COLS.R] * 2).tolist(),
                     )
                     current_sections.append(
-                        (child, current_new_section.append_section(new_section))
+                        (
+                            child,
+                            current_new_section.append_section(new_section),
+                            current_trunk_section.append_section(new_section),
+                        )
                     )
 
             if current_section.id in sections_to_add:
                 for new_sec in sections_to_add[current_section.id]:
                     current_new_section.append_section(new_sec)
-    return clustered_morph
+    return clustered_morph, trunk_morph

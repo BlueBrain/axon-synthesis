@@ -235,7 +235,7 @@ def compute_cluster_properties(
     # region
 
     # Compute the orientation of the tuft from the atlas (the default
-    # orientation is up so we take the 2nd row of the ortation matrix)
+    # orientation is up so we take the 2nd row of the rotation matrix)
     # TODO: check that this formula is correct
     terminal_data["cluster_orientation"] = atlas_orientations.lookup(
         sec.points[-1, COLS.XYZ]

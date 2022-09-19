@@ -9,7 +9,6 @@ target-version = [
     'py38',
     'py39',
 ]
-include = 'axon_synthesis\/.*\.py$|tests\/.*\.py$|doc\/source\/conf\.py$|setup\.py$'
 
 [tool.isort]
 profile = "black"
