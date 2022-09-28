@@ -194,7 +194,9 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
                 # Create specific distributions
                 distrib = deepcopy(input_distributions)
-                distrib["apical_dendrite"]["persistence_diagram"] = [tuft_props["new_cluster_barcode"]]
+                distrib["apical_dendrite"]["persistence_diagram"] = [
+                    tuft_props["new_cluster_barcode"]
+                ]
                 logger.debug("Cluster_barcode: %s", tuft_props["new_cluster_barcode"])
 
                 # Grow a tuft

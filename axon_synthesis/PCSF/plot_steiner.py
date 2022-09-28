@@ -5,6 +5,7 @@ from pathlib import Path
 import luigi
 import luigi_tools
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 from data_validation_framework.target import TaggedOutputLocalTarget
 from morph_tool import resampling
@@ -55,7 +56,6 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
         return reqs
 
     def run(self):
-        # input_dir = self.input_morph_paths or self.input()["generated"]["morphologies"].pathlib_path
         input_morph_paths = pd.read_csv(
             self.input_morph_paths or self.input()["generated"]["morphology_paths"].path,
             dtype={"morph_file": str},
@@ -87,7 +87,7 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
             )
         # ################################################################################### #
 
-        for row in input_dir.iterrows():
+        for row in input_morph_paths.iterrows():
             morph_file = Path(row["steiner_morph_file"])
             morph_name = morph_file.name
 

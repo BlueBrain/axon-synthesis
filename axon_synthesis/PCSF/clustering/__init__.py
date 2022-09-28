@@ -8,15 +8,10 @@ from pathlib import Path
 import luigi
 import luigi_tools
 import networkx as nx
-import numpy as np
 import pandas as pd
 from data_validation_framework.target import TaggedOutputLocalTarget
-from morphio import IterType
-from morphio import PointLevel
-from neurom import COLS
 from neurom import load_morphology
 from neurom.apps import morph_stats
-from neurom.morphmath import section_length
 
 from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
@@ -31,24 +26,15 @@ from axon_synthesis.PCSF.clustering.from_sphere_parents import (
 from axon_synthesis.PCSF.clustering.from_spheres import compute_clusters as clusters_from_spheres
 from axon_synthesis.PCSF.clustering.plot import plot_cluster_properties
 from axon_synthesis.PCSF.clustering.plot import plot_clusters
-from axon_synthesis.PCSF.clustering.utils import common_path
 from axon_synthesis.PCSF.clustering.utils import create_clustered_morphology
-from axon_synthesis.PCSF.clustering.utils import create_tuft_morphology
-from axon_synthesis.PCSF.clustering.utils import get_barcode
-from axon_synthesis.PCSF.clustering.utils import resize_root_section
+from axon_synthesis.PCSF.clustering.utils import export_morph
+from axon_synthesis.PCSF.clustering.utils import reduce_clusters
 from axon_synthesis.PCSF.extract_terminals import ExtractTerminals
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import neurite_to_graph
 from axon_synthesis.white_matter_recipe import load_WMR_data
 
 logger = logging.getLogger(__name__)
-
-
-def _export_morph(root_path, group_name, exported_morph, morph_type, suffix=""):
-    morph_path = str(root_path / f"{Path(group_name).with_suffix('').name}{suffix}.asc")
-    logger.debug("Export %s morphology to %s", morph_type, morph_path)
-    exported_morph.write(morph_path)
-    return morph_path
 
 
 class ClusteringOutputLocalTarget(TaggedOutputLocalTarget):
@@ -253,113 +239,22 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                 sections_to_add = defaultdict(list)
                 shortest_paths[axon_id] = nx.single_source_shortest_path(directed_graph, -1)
 
-            # Replace terminals by the cluster centers and create sections from common ancestors
-            # to cluster centers
-            kept_path = set()
-            for (axon_id, cluster_id), cluster in group.groupby(["axon_id", "cluster_id"]):
-                # Skip the root cluster
-                if (cluster.cluster_id == 0).any():
-                    continue
-
-                # Compute the common ancestor of the nodes
-                cluster_common_path = common_path(
-                    directed_graphes[axon_id],
-                    cluster["section_id"].tolist(),
-                    shortest_paths=shortest_paths[axon_id],
-                )
-                if len(cluster) == 1 and len(cluster_common_path) > 2:
-                    common_ancestor_shift = -2
-                else:
-                    common_ancestor_shift = -1
-                common_ancestor = cluster_common_path[common_ancestor_shift]
-                common_section = morph.section(common_ancestor)
-
-                kept_path = kept_path.union(cluster_common_path)
-
-                # Create a morphology for the current tuft and compute its barcode
-                tuft_morph, tuft_ancestor = create_tuft_morphology(
-                    morph,
-                    set(cluster["section_id"]),
-                    common_ancestor,
-                    cluster_common_path[:common_ancestor_shift],
-                    shortest_paths[axon_id],
-                )
-                tuft_barcode = get_barcode(tuft_morph)
-
-                # Compute cluster center
-                cluster_center = cluster_df.loc[
-                    (cluster_df["axon_id"] == axon_id) & (cluster_df["terminal_id"] == cluster_id),
-                    ["x", "y", "z"],
-                ].values[0]
-
-                # Compute tuft orientation
-                tuft_orientation = cluster_center - tuft_ancestor.points[-1]
-                tuft_orientation /= np.linalg.norm(tuft_orientation)
-
-                # Resize the common section used as root (the root section is 1um)
-                resize_root_section(tuft_morph, tuft_orientation)
-
-                if self.export_tuft_morphs:
-                    # Export each tuft as a morphology
-                    morph_paths["tufts"].append(
-                        (
-                            group_name,
-                            axon_id,
-                            cluster_id,
-                            _export_morph(
-                                self.output()["tuft_morphologies"].pathlib_path,
-                                group_name,
-                                tuft_morph,
-                                "tuft",
-                                f"_{axon_id}_{cluster_id}",
-                            ),
-                        )
-                    )
-
-                # Add tuft category data
-                path_distance = sum(
-                    section_length(i.points) for i in common_section.iter(IterType.upstream)
-                )
-                radial_distance = np.linalg.norm(
-                    axons[axon_id].points[0, COLS.XYZ] - common_section.points[-1]
-                )
-                path_length = sum(section_length(i.points) for i in common_section.iter())
-
-                cluster_props.append(
-                    (
-                        group_name,
-                        axon_id,
-                        cluster_id,
-                        cluster_center.tolist(),
-                        common_ancestor,
-                        tuft_ancestor.points[-1].tolist(),
-                        path_distance,
-                        radial_distance,
-                        path_length,
-                        len(cluster),
-                        tuft_orientation.tolist(),
-                        np.array(tuft_barcode).tolist(),
-                    )
-                )
-
-                # Continue if the cluster has only one node
-                if len(cluster) == 1:
-                    continue
-
-                # Create a new section from the common ancestor to the center of the cluster
-                sections_to_add[common_section.id].append(
-                    PointLevel(
-                        [
-                            common_section.points[-1],
-                            cluster_df.loc[
-                                (cluster_df["axon_id"] == cluster["axon_id"].iloc[0])
-                                & (cluster_df["terminal_id"] == cluster_id),
-                                ["x", "y", "z"],
-                            ].values[0],
-                        ],
-                        [0, 0],
-                    )
-                )
+            # Reduce clusters to one section
+            kept_path = reduce_clusters(
+                group,
+                group_name,
+                morph,
+                axons,
+                cluster_df,
+                directed_graphes,
+                sections_to_add,
+                morph_paths,
+                cluster_props,
+                shortest_paths,
+                export_tuft_morph_dir=self.output()["tuft_morphologies"].pathlib_path
+                if self.export_tuft_morphs
+                else None,
+            )
 
             # Create the clustered morphology
             clustered_morph, trunk_morph = create_clustered_morphology(
@@ -393,7 +288,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             morph_paths["clustered"].append(
                 (
                     group_name,
-                    _export_morph(
+                    export_morph(
                         self.output()["morphologies"].pathlib_path,
                         group_name,
                         clustered_morph,
@@ -404,7 +299,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             morph_paths["trunks"].append(
                 (
                     group_name,
-                    _export_morph(
+                    export_morph(
                         self.output()["trunk_morphologies"].pathlib_path,
                         group_name,
                         trunk_morph,

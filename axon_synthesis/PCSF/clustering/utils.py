@@ -1,4 +1,5 @@
 """Some utils for clustering."""
+import logging
 from copy import deepcopy
 from pathlib import Path
 
@@ -10,9 +11,20 @@ from morphio.mut import Morphology as MorphIoMorphology
 from neurom import COLS
 from neurom import NeuriteType
 from neurom.core import Morphology
+from neurom.morphmath import section_length
 from tmd.io.conversion import convert_morphio_trees
 from tmd.Topology.methods import tree_to_property_barcode
 from tmd.Topology.persistent_properties import PersistentAngles
+
+logger = logging.getLogger(__name__)
+
+
+def export_morph(root_path, morph_name, morph, morph_type, suffix=""):
+    """Export the given morphology to the given path."""
+    morph_path = str(root_path / f"{Path(morph_name).with_suffix('').name}{suffix}.asc")
+    logger.debug("Export %s morphology to %s", morph_type, morph_path)
+    morph.write(morph_path)
+    return morph_path
 
 
 def common_path(graph, nodes, source=None, shortest_paths=None):
@@ -104,6 +116,129 @@ def resize_root_section(tuft_morph, tuft_orientation, root_section_idx=0):
         ]
     )
     new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
+
+
+def reduce_clusters(
+    group,
+    group_name,
+    morph,
+    axons,
+    cluster_df,
+    directed_graphes,
+    sections_to_add,
+    morph_paths,
+    cluster_props,
+    shortest_paths,
+    export_tuft_morph_dir=None,
+):
+    """Reduce clusters to one section from their common ancestors to their centers."""
+    kept_path = set()
+    for (axon_id, cluster_id), cluster in group.groupby(["axon_id", "cluster_id"]):
+        # Skip the root cluster
+        if (cluster.cluster_id == 0).any():
+            continue
+
+        # Compute the common ancestor of the nodes
+        cluster_common_path = common_path(
+            directed_graphes[axon_id],
+            cluster["section_id"].tolist(),
+            shortest_paths=shortest_paths[axon_id],
+        )
+        if len(cluster) == 1 and len(cluster_common_path) > 2:
+            common_ancestor_shift = -2
+        else:
+            common_ancestor_shift = -1
+        common_ancestor = cluster_common_path[common_ancestor_shift]
+        common_section = morph.section(common_ancestor)
+
+        kept_path = kept_path.union(cluster_common_path)
+
+        # Create a morphology for the current tuft and compute its barcode
+        tuft_morph, tuft_ancestor = create_tuft_morphology(
+            morph,
+            set(cluster["section_id"]),
+            common_ancestor,
+            cluster_common_path[:common_ancestor_shift],
+            shortest_paths[axon_id],
+        )
+        tuft_barcode = get_barcode(tuft_morph)
+
+        # Compute cluster center
+        cluster_center = cluster_df.loc[
+            (cluster_df["axon_id"] == axon_id) & (cluster_df["terminal_id"] == cluster_id),
+            ["x", "y", "z"],
+        ].values[0]
+
+        # Compute tuft orientation
+        tuft_orientation = cluster_center - tuft_ancestor.points[-1]
+        tuft_orientation /= np.linalg.norm(tuft_orientation)
+
+        # Resize the common section used as root (the root section is 1um)
+        resize_root_section(tuft_morph, tuft_orientation)
+
+        if export_tuft_morph_dir is not None:
+            # Export each tuft as a morphology
+            morph_paths["tufts"].append(
+                (
+                    group_name,
+                    axon_id,
+                    cluster_id,
+                    export_morph(
+                        # self.output()["tuft_morphologies"].pathlib_path,
+                        export_tuft_morph_dir,
+                        group_name,
+                        tuft_morph,
+                        "tuft",
+                        f"_{axon_id}_{cluster_id}",
+                    ),
+                )
+            )
+
+        # Add tuft category data
+        path_distance = sum(
+            section_length(i.points) for i in common_section.iter(IterType.upstream)
+        )
+        radial_distance = np.linalg.norm(
+            axons[axon_id].points[0, COLS.XYZ] - common_section.points[-1]
+        )
+        path_length = sum(section_length(i.points) for i in common_section.iter())
+
+        cluster_props.append(
+            (
+                group_name,
+                axon_id,
+                cluster_id,
+                cluster_center.tolist(),
+                common_ancestor,
+                tuft_ancestor.points[-1].tolist(),
+                path_distance,
+                radial_distance,
+                path_length,
+                len(cluster),
+                tuft_orientation.tolist(),
+                np.array(tuft_barcode).tolist(),
+            )
+        )
+
+        # Continue if the cluster has only one node
+        if len(cluster) == 1:
+            continue
+
+        # Create a new section from the common ancestor to the center of the cluster
+        sections_to_add[common_section.id].append(
+            PointLevel(
+                [
+                    common_section.points[-1],
+                    cluster_df.loc[
+                        (cluster_df["axon_id"] == cluster["axon_id"].iloc[0])
+                        & (cluster_df["terminal_id"] == cluster_id),
+                        ["x", "y", "z"],
+                    ].values[0],
+                ],
+                [0, 0],
+            )
+        )
+    return kept_path
 
 
 def create_clustered_morphology(morph, group_name, kept_path, sections_to_add):

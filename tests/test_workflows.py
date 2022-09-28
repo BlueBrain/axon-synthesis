@@ -32,12 +32,12 @@ def test_create_inputs(out_dir, luigi_cfg):
 @pytest.fixture
 def create_inputs(out_dir):
     """Copy outputs from the CreateInputs workflows."""
-    shutil.copytree(SharedData.create_inputs_path, out_dir, dirs_exist_ok=True)
 
 
 @pytest.mark.depends(on=["test_create_inputs"])
-def test_synthesis(out_dir, create_inputs, luigi_cfg, tuft_inputs):
+def test_synthesis(out_dir, luigi_cfg, tuft_inputs):
     """Test the complete Synthesis workflow."""
+    shutil.copytree(SharedData.create_inputs_path, out_dir, dirs_exist_ok=True)
     assert luigi.build([workflows.Synthesis()], local_scheduler=True)
 
     # assert (out_dir / "terminals.csv").exists()
