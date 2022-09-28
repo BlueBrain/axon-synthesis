@@ -12,7 +12,7 @@ morph-tool
 morphio
 morphology-workflows>=0.2.0
 networkx
-NeuroM
+NeuroM>3.2
 NeuroTS>=3.2
 numpy
 pandas

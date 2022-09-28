@@ -44,6 +44,13 @@ from axon_synthesis.white_matter_recipe import load_WMR_data
 logger = logging.getLogger(__name__)
 
 
+def _export_morph(root_path, group_name, exported_morph, morph_type, suffix=""):
+    morph_path = str(root_path / f"{Path(group_name).with_suffix('').name}{suffix}.asc")
+    logger.debug("Export %s morphology to %s", morph_type, morph_path)
+    exported_morph.write(morph_path)
+    return morph_path
+
+
 class ClusteringOutputLocalTarget(TaggedOutputLocalTarget):
     """Target for clustering outputs."""
 
@@ -155,13 +162,6 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             self.input()["WMR"]["wm_interaction_strengths"].pathlib_path,
         )
 
-    def tuft_morph_path(self, group_name, axon_id, cluster_id):
-        """Create a tuft file path according to the group name, axon ID and cluster ID."""
-        return (
-            self.output()["tuft_morphologies"].pathlib_path
-            / f"{Path(group_name).with_suffix('').name}_{axon_id}_{cluster_id}.asc"
-        )
-
     def run(self):
         # pylint: disable=too-many-locals
         # pylint: disable=too-many-statements
@@ -173,6 +173,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         # Create output directories
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
+        self.output()["trunk_morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
         if self.export_tuft_morphs:
             self.output()["tuft_morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
 
@@ -186,6 +187,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         long_range_trunk_props = []
         cluster_props = []
         output_cols = ["morph_file", "axon_id", "terminal_id", "x", "y", "z"]
+
+        morph_paths = defaultdict(list)
 
         # Drop soma terminals and add them to the final points
         soma_centers_mask = terminals["axon_id"] == -1
@@ -298,9 +301,20 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
                 if self.export_tuft_morphs:
                     # Export each tuft as a morphology
-                    tuft_morph_path = self.tuft_morph_path(group_name, axon_id, cluster_id)
-                    logger.debug("Export tuft morphology to %s", tuft_morph_path)
-                    tuft_morph.write(tuft_morph_path)
+                    morph_paths["tufts"].append(
+                        (
+                            group_name,
+                            axon_id,
+                            cluster_id,
+                            _export_morph(
+                                self.output()["tuft_morphologies"].pathlib_path,
+                                group_name,
+                                tuft_morph,
+                                "tuft",
+                                f"_{axon_id}_{cluster_id}",
+                            ),
+                        )
+                    )
 
                 # Add tuft category data
                 path_distance = sum(
@@ -375,13 +389,29 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
                     )
                 )
 
-            # Export the clustered morphology
-            morph_path = (
-                self.output()["morphologies"].pathlib_path
-                / f"{Path(group_name).with_suffix('').name}.asc"
+            # Export the trunk and clustered morphologies
+            morph_paths["clustered"].append(
+                (
+                    group_name,
+                    _export_morph(
+                        self.output()["morphologies"].pathlib_path,
+                        group_name,
+                        clustered_morph,
+                        "clustered",
+                    ),
+                )
             )
-            logger.debug("Export clustered morphology to %s", morph_path)
-            clustered_morph.write(str(morph_path))
+            morph_paths["trunks"].append(
+                (
+                    group_name,
+                    _export_morph(
+                        self.output()["trunk_morphologies"].pathlib_path,
+                        group_name,
+                        trunk_morph,
+                        "trunk",
+                    ),
+                )
+            )
 
             # Plot the clusters
             if self.plot_debug:
@@ -453,10 +483,31 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         new_terminals.sort_values(["morph_file", "axon_id", "terminal_id"], inplace=True)
         new_terminals.to_csv(self.output()["terminals"].path, index=False)
 
+        # Export morphology paths
+        pd.DataFrame(morph_paths["clustered"], columns=["morph_file", "morph_path"]).to_csv(
+            self.output()["morphology_paths"].path, index=False
+        )
+        pd.DataFrame(morph_paths["trunks"], columns=["morph_file", "morph_path"]).to_csv(
+            self.output()["trunk_morphology_paths"].path, index=False
+        )
+        if self.export_tuft_morphs:
+            pd.DataFrame(
+                morph_paths["tufts"], columns=["morph_file", "axon_id", "cluster_id", "morph_path"]
+            ).to_csv(self.output()["tuft_morphology_paths"].path, index=False)
+
     def output(self):
         targets = {
             "figures": ClusteringOutputLocalTarget("figures", create_parent=True),
             "morphologies": ClusteringOutputLocalTarget("morphologies", create_parent=True),
+            "morphology_paths": ClusteringOutputLocalTarget(
+                "morphology_paths.csv", create_parent=True
+            ),
+            "trunk_morphologies": ClusteringOutputLocalTarget(
+                "trunk_morphologies", create_parent=True
+            ),
+            "trunk_morphology_paths": ClusteringOutputLocalTarget(
+                "trunk_morphology_paths.csv", create_parent=True
+            ),
             "terminals": ClusteringOutputLocalTarget("clustered_terminals.csv", create_parent=True),
             "tuft_properties": ClusteringOutputLocalTarget(
                 "tuft_properties.json", create_parent=True
@@ -468,5 +519,8 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         if self.export_tuft_morphs:
             targets["tuft_morphologies"] = ClusteringOutputLocalTarget(
                 "tuft_morphologies", create_parent=True
+            )
+            targets["tuft_morphology_paths"] = ClusteringOutputLocalTarget(
+                "tuft_morphology_paths.csv", create_parent=True
             )
         return targets

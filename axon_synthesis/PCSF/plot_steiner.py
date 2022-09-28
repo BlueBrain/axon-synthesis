@@ -1,5 +1,6 @@
 """Plot the Steiner Tree solutions."""
 import logging
+from pathlib import Path
 
 import luigi
 import luigi_tools
@@ -25,8 +26,9 @@ logger = logging.getLogger(__name__)
 class PlotSolutions(luigi_tools.task.WorkflowTask):
     """Task to plot the Steiner solutions."""
 
-    input_dir = luigi.OptionalPathParameter(
-        description="Path to the generated morphologies.", default=None
+    input_morph_paths = luigi.OptionalPathParameter(
+        description="Path to the CSV file containing the paths to the generated morphologies.",
+        default=None,
     )
     output_dir = luigi.PathParameter(
         description="Output folder for figures.", default="steiner_solutions"
@@ -53,7 +55,11 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
         return reqs
 
     def run(self):
-        input_dir = self.input_dir or self.input()["generated"]["morphologies"].pathlib_path
+        # input_dir = self.input_morph_paths or self.input()["generated"]["morphologies"].pathlib_path
+        input_morph_paths = pd.read_csv(
+            self.input_morph_paths or self.input()["generated"]["morphology_paths"].path,
+            dtype={"morph_file": str},
+        )
 
         self.output().mkdir(is_dir=True)
 
@@ -81,10 +87,8 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
             )
         # ################################################################################### #
 
-        for morph_file in input_dir.iterdir():
-            if morph_file.suffix.lower() not in [".asc", ".h5", ".swc"]:
-                continue
-
+        for row in input_dir.iterrows():
+            morph_file = Path(row["steiner_morph_file"])
             morph_name = morph_file.name
 
             gen_morph = load_morphology(morph_file)
