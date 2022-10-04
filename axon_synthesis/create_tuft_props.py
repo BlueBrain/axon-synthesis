@@ -275,15 +275,6 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         min_value=0,
         max_value=sys.float_info.max,
     )
-    use_cluster_props = luigi.BoolParameter(
-        description=(
-            "If set to True, the properties of each morphology are taken from the clustering step "
-            "instead of computed from the white matter recipe (in this case the steiner "
-            "morphologies must have the same name as the clustered morphologies)."
-        ),
-        default=False,
-        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
-    )
     pop_numbers_file = luigi.parameter.OptionalPathParameter(
         description=(
             "Path to a CSV file containing the number of neuron for each population. These numbers "
@@ -433,7 +424,8 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                 axon_tree = KDTree(group[["x", "y", "z"]].values)
 
                 # Compute the length of the tree in each brain region
-                lengths_in_regions = tree_region_lengths(axon, brain_regions)
+                if config.input_data_type != "biological_morphologies":
+                    lengths_in_regions = tree_region_lengths(axon, brain_regions)
 
                 for sec in axon.iter_sections():
                     if sec.parent is None:
@@ -443,7 +435,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     if tuft_root is None:
                         continue
 
-                    if self.use_cluster_props:
+                    if config.input_data_type == "biological_morphologies":
                         # Use properties from clustered morphologies
                         axon_terminals = cluster_props_df.loc[
                             (cluster_props_df["morph_file"].str.endswith(steiner_morph_file.name))

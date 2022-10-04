@@ -21,8 +21,8 @@ from scipy.spatial import KDTree
 
 from axon_synthesis import seed_param
 from axon_synthesis.create_tuft_props import CreateTuftTerminalProperties
-from axon_synthesis.PCSF.clustering import ClusterTerminals
 from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
+from axon_synthesis.trunk_properties import LongRangeTrunkProperties
 from axon_synthesis.utils import add_camera_sync
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
 
     def requires(self):
         return {
-            "clustering": ClusterTerminals(),
+            "trunk_properties": LongRangeTrunkProperties(),
             "steiner_solutions": SteinerMorphologies(),
             "terminal_properties": CreateTuftTerminalProperties(),
         }
@@ -68,7 +68,7 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
         with self.input()["terminal_properties"].open() as f:
             cluster_props_df = pd.DataFrame.from_records(json.load(f))
         trunk_props_df = pd.read_csv(
-            self.input()["clustering"]["trunk_properties"].path, dtype={"morph_file": str}
+            self.input()["trunk_properties"].path, dtype={"morph_file": str}
         )
         steiner_morphs = pd.read_csv(self.input()["steiner_solutions"]["morphology_paths"].path)
         steiner_morphs["post_processed_morph_file"] = None

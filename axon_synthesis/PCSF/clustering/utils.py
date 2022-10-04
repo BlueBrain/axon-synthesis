@@ -118,6 +118,11 @@ def resize_root_section(tuft_morph, tuft_orientation, root_section_idx=0):
     new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
 
 
+def tuft_morph_path(root_path, group_name, axon_id, cluster_id):
+    """Create a tuft file path according to the group name, axon ID and cluster ID."""
+    return root_path / f"{Path(group_name).with_suffix('').name}_{axon_id}_{cluster_id}.asc"
+
+
 def reduce_clusters(
     group,
     group_name,
@@ -184,7 +189,6 @@ def reduce_clusters(
                     axon_id,
                     cluster_id,
                     export_morph(
-                        # self.output()["tuft_morphologies"].pathlib_path,
                         export_tuft_morph_dir,
                         group_name,
                         tuft_morph,
