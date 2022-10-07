@@ -25,10 +25,6 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
     nodes_path = OptionalStrParameter(description="Path to the nodes CSV file.", default=None)
     edges_path = OptionalStrParameter(description="Path to the edges CSV file.", default=None)
     somata_path = OptionalStrParameter(description="Path to the somata CSV file.", default=None)
-    smoothing = OptionalStrParameter(
-        description="Path to the edges CSV file.",
-        default=None,
-    )
     output_dir = PathParameter(
         description="Output folder for figures.",
         default="steiner_morphologies",

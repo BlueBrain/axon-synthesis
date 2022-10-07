@@ -263,5 +263,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         return {
             "nodes": TaggedOutputLocalTarget(self.output_nodes, create_parent=True),
             "edges": TaggedOutputLocalTarget(self.output_edges, create_parent=True),
-            "input_terminals": TaggedOutputLocalTarget("graph_input_terminals", create_parent=True),
+            "input_terminals": TaggedOutputLocalTarget(
+                "graph_input_terminals.csv", create_parent=True
+            ),
         }
