@@ -158,7 +158,7 @@ def reduce_clusters(
 
         kept_path = kept_path.union(cluster_common_path)
 
-        # Create a morphology for the current tuft and compute its barcode
+        # Create a morphology for the current tuft
         tuft_morph, tuft_ancestor = create_tuft_morphology(
             morph,
             set(cluster["section_id"]),
@@ -166,7 +166,6 @@ def reduce_clusters(
             cluster_common_path[:common_ancestor_shift],
             shortest_paths[axon_id],
         )
-        tuft_barcode = get_barcode(tuft_morph)
 
         # Compute cluster center
         cluster_center = cluster_df.loc[
@@ -180,6 +179,9 @@ def reduce_clusters(
 
         # Resize the common section used as root (the root section is 1um)
         resize_root_section(tuft_morph, tuft_orientation)
+
+        # Compute the barcode
+        tuft_barcode = get_barcode(tuft_morph)
 
         if export_tuft_morph_dir is not None:
             # Export each tuft as a morphology
