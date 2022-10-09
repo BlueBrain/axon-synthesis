@@ -1,6 +1,7 @@
 """Compute the long-range trunk properties after clustering."""
 import json
 import logging
+from functools import partial
 
 import luigi
 import luigi_tools
@@ -51,12 +52,6 @@ def angle_between_vectors(p1, p2):
     return np.arccos(np.clip(dot, -1.0, 1.0))
 
 
-@features.feature(shape=(...,), namespace=features.NameSpace.NEURITE)
-def segment_angles(neurite, reference=[0, 1, 0]):
-    res = features.neurite._map_segments(section_segment_angles, neurite)
-    return res
-
-
 def vector(p1, p2):
     """Compute vector between two 3D points.
 
@@ -70,12 +65,25 @@ def vector(p1, p2):
     return np.subtract(p1[..., COLS.XYZ], p2[..., COLS.XYZ])
 
 
-def section_segment_angles(section, reference=[0, 1, 0]):
+def section_segment_angles(section, reference=None):
     """Angles between the segments of a section and a reference vector."""
-    ref = np.array(reference)
+    if reference is not None:
+        ref = np.array(reference)
+    else:
+        ref = np.array([0, 1, 0])
+
     seg_vectors = vector(section.points[1:], section.points[:-1])
     directions = angle_between_vectors(seg_vectors, ref)
     return directions
+
+
+@features.feature(shape=(...,), namespace=features.NameSpace.NEURITE)
+def segment_angles(neurite, reference=None):
+    """Compute the angles between segments of the sections of a neurite."""
+    # pylint: disable=protected-access
+    func = partial(section_segment_angles, reference=reference)
+    res = features.neurite._map_segments(func, neurite)
+    return res
 
 
 class LongRangeTrunkProperties(luigi_tools.task.WorkflowTask):
@@ -99,7 +107,7 @@ class LongRangeTrunkProperties(luigi_tools.task.WorkflowTask):
         )
         long_range_trunk_props = []
 
-        for idx, row in morphology_paths.iterrows():
+        for _, row in morphology_paths.iterrows():
             logger.info("Extract trunk properties from %s", row["morph_path"])
             trunk_morph = load_morphology(row["morph_path"])
 

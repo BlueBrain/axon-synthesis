@@ -561,6 +561,7 @@ class CheckTuftStatistics(luigi_tools.task.WorkflowTask):
         return None
 
     def find_morph_from_pt(self, tufts_by_region, x, y, z):
+        """Find a morphology from a given point."""
         for region_name, tuft_files in tufts_by_region.items():
             for i in tuft_files:
                 morph = load_morphology(i)
@@ -584,26 +585,17 @@ class CheckTuftStatistics(luigi_tools.task.WorkflowTask):
         for csv_file in csv_files:
             df = pd.read_csv(csv_file)
             df.drop(df.loc[df["tuft_morph_path"].isnull()].index, inplace=True)
-            for (region_name, cluster_id), tuft_files in df.groupby(
-                ["region_acronym", "cluster_id"]
-            ):
+            for (region_name, _), tuft_files in df.groupby(["region_acronym", "cluster_id"]):
                 tufts_by_region[region_name].append(tuft_files["tuft_morph_path"].tolist()[0])
                 N += len(tuft_files["tuft_morph_path"].tolist())
             if N > 100:
                 break
 
         for region_name, tuft_files in tufts_by_region.items():
-            try:
-                all_stats[region_name] = neurots.extract_input.distributions(tuft_files)
-            except Exception:
-                # breakpoint()
-                print()
+            all_stats[region_name] = neurots.extract_input.distributions(tuft_files)
 
         self.find_morph_from_pt(tufts_by_region, 4435, 4137, 7273)
         self.find_morph_from_pt(tufts_by_region, 4458, 5309, 7710)
-
-        # breakpoint()
-        print(all_stats)
 
     def output(self):
         return StatisticsOutputLocalTarget("tufts", create_parent=True)

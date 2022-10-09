@@ -10,10 +10,12 @@ import pandas as pd
 from data_validation_framework.target import TaggedOutputLocalTarget
 from morph_tool import resampling
 from neurom import load_morphology
+from neurom import morphmath
 from neurom.apps import morph_stats
 from neurom.core import Morphology
 from neurom.core.dataformat import COLS
 from neurom.core.morphology import Section
+from neurots.morphmath import rotation
 from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 from scipy.spatial import KDTree
@@ -33,15 +35,24 @@ class PostProcessingOutputLocalTarget(TaggedOutputLocalTarget):
     __prefix = Path("steiner_post_processing")  # pylint: disable=unused-private-member
 
 
-def get_random_vector(D=1.0, norm=1, std=1, rng=np.random):
+def get_random_vector(
+    D=1.0, norm=None, std=None, initial_theta=None, initial_phi=None, rng=np.random
+):
     """Return 3-d coordinates of a new random point.
 
     The distance between the produced point and (0,0,0) is given by the value D.
     """
     # pylint: disable=assignment-from-no-return
-    phi = rng.normal(norm, std)
-    # phi = rng.uniform(0.0, 2.0 * np.pi)
-    theta = np.arccos(rng.uniform(-1.0, 1.0))
+    phi = rng.uniform(0.0, 2.0 * np.pi)
+    if norm is not None and std is not None:
+        theta = rng.normal(norm, std)
+    else:
+        theta = np.arccos(rng.uniform(-1.0, 1.0))
+
+    if initial_theta:
+        theta += initial_theta
+    if initial_phi:
+        phi += initial_phi
 
     sn_theta = np.sin(theta)
 
@@ -52,6 +63,35 @@ def get_random_vector(D=1.0, norm=1, std=1, rng=np.random):
     return np.array((x, y, z))
 
 
+def weights(lengths, history_path_length):
+    """Compute the weights depending on the lengths."""
+    return np.exp(np.array(lengths) - history_path_length)
+
+
+def history(latest_lengths, latest_directions, history_path_length):
+    """Returns a combination of the segments history."""
+    if not latest_directions:
+        return np.zeros(3)
+
+    weighted_history = np.dot(weights(latest_lengths, history_path_length), latest_directions)
+
+    distance = np.linalg.norm(weighted_history)
+    if distance > 1e-8:
+        weighted_history /= distance
+
+    return weighted_history
+
+
+def closest_seg_pt(pt, seg):
+    """Compute the closest point on a line from a given point."""
+    closest_pt = None
+    u = seg[0] - pt
+    v = seg[1] - seg[0]
+    t = -np.dot(v, u) / np.dot(v, v)
+    closest_pt = (1 - t) * seg[0] + t * seg[1]
+    return closest_pt, t
+
+
 def random_walk(
     starting_pt,
     intermediate_pts,
@@ -59,50 +99,31 @@ def random_walk(
     angle_stats,
     history_path_length,
     previous_history=None,
-    target_coeff=2.5,
-    random_coeff=4,
-    history_coeff=3.5,
+    global_target_coeff=0.5,
+    target_coeff=2,
+    random_coeff=3.5,
+    history_coeff=2,
     rng=np.random,
+    debug=False,
 ):
     """Perform a random walk guided by intermediate points."""
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     length_norm = length_stats["norm"]
     length_std = length_stats["std"]
     angle_norm = angle_stats["norm"]
     angle_std = angle_stats["std"]
 
-    current_pt = np.array(starting_pt)
-    intermediate_pts = np.array(intermediate_pts)
+    current_pt = np.array(starting_pt, dtype=float)
+    intermediate_pts = np.array(intermediate_pts, dtype=float)
     new_pts = [current_pt]
 
     tree = KDTree(intermediate_pts)
 
-    def weights(lengths):
-        """Compute the weights depending on the lengths."""
-        return np.exp(np.array(lengths) - history_path_length)
-
-    def history(latest_lengths, latest_directions):
-        """Returns a combination of the segments history."""
-        if not latest_directions:
-            return np.zeros(3)
-
-        history = np.dot(weights(latest_lengths), latest_directions)
-
-        distance = np.linalg.norm(history)
-        if distance > 1e-8:
-            history /= distance
-
-        return history
-
-    def closest_seg_pt(pt, seg):
-        closest_pt = None
-        u = seg[0] - pt
-        v = seg[1] - seg[0]
-        t = -np.dot(v, u) / np.dot(v, v)
-        closest_pt = (1 - t) * seg[0] + t * seg[1]
-        return closest_pt, t
-
     total_length = 0
     last_index = 0
+
+    segment_lengths = morphmath.interval_lengths(np.vstack([starting_pt, intermediate_pts]))
+    segment_path_lengths = np.cumsum(segment_lengths)
 
     global_target_direction = intermediate_pts[-1] - current_pt
     global_target_dist = np.linalg.norm(global_target_direction)
@@ -118,6 +139,8 @@ def random_walk(
 
     nb_intermediate_pts = len(intermediate_pts)
 
+    min_target_dist = global_target_dist * 2
+
     while global_target_dist >= length_norm:
         step_length = rng.normal(length_norm, length_std)
 
@@ -126,60 +149,155 @@ def random_walk(
         global_target_direction /= global_target_dist
 
         target_dist, target_index = tree.query(current_pt)
-        if target_index < last_index:
+        # TODO: Should check that there is no other possible target between the last target and
+        # this target that is further to this target.
+
+        if target_index < last_index or np.isinf(target_dist):
             target_index = last_index
-        if True:
-            if target_index < nb_intermediate_pts - 1:
-                next_closest_pt, next_side = closest_seg_pt(
+
+        next_closest_pt = intermediate_pts[-1]
+        next_side = 0
+        if target_index < nb_intermediate_pts - 1:
+            next_closest_pt, next_side = closest_seg_pt(
+                current_pt,
+                (intermediate_pts[target_index], intermediate_pts[target_index + 1]),
+            )
+            if target_index > 0:
+                _, previous_side = closest_seg_pt(
                     current_pt,
-                    (intermediate_pts[target_index], intermediate_pts[target_index + 1]),
+                    (intermediate_pts[target_index - 1], intermediate_pts[target_index]),
                 )
-                if target_index > 0:
-                    _, previous_side = closest_seg_pt(
-                        current_pt,
-                        (intermediate_pts[target_index - 1], intermediate_pts[target_index]),
-                    )
-                else:
-                    previous_side = 0
-                if previous_side >= 1 or (
-                    next_side < 0
-                    and np.linalg.norm(next_closest_pt - intermediate_pts[target_index])
-                    <= 2 * step_length
-                ):
-                    target_index += 1
-
-            if target_dist <= 2 * step_length and target_index < nb_intermediate_pts - 1:
+            else:
+                previous_side = 0
+            if previous_side >= 1 or (
+                next_side < 0
+                and np.linalg.norm(next_closest_pt - intermediate_pts[target_index])
+                <= 2 * step_length
+            ):
                 target_index += 1
-            target_dist = np.linalg.norm(intermediate_pts[target_index] - current_pt)
-            target_direction = intermediate_pts[target_index] - current_pt
-            target_direction /= target_dist
+                target_dist = np.linalg.norm(intermediate_pts[target_index] - current_pt)
+                min_target_dist = target_dist * 2
+                if target_index < nb_intermediate_pts - 1:
+                    next_closest_pt, next_side = closest_seg_pt(
+                        current_pt,
+                        (intermediate_pts[target_index], intermediate_pts[target_index + 1]),
+                    )
 
-            last_index = target_index
+        last_index = target_index
 
+        next_target_index = min(nb_intermediate_pts - 1, target_index + 1)
+
+        current_target_coeff = np.exp(
+            -np.linalg.norm(next_closest_pt - intermediate_pts[target_index]) / (2 * step_length)
+        )
+
+        target_direction = (1 - current_target_coeff) * (
+            intermediate_pts[target_index] - current_pt
+        ) + current_target_coeff * (intermediate_pts[next_target_index] - current_pt)
+
+        # target_direction = np.dot(
+        #     np.exp(-np.arange(nb_intermediate_pts - target_index)),
+        #     (intermediate_pts[target_index:] - current_pt),
+        # )
+        target_direction = np.dot(
+            np.exp(
+                -np.maximum(segment_path_lengths[target_index:] - total_length, 0)
+                / segment_lengths[target_index]
+            ),
+            (intermediate_pts[target_index:] - current_pt),
+        )
+
+        target_direction /= np.linalg.norm(target_direction)
+
+        step_global_target_coeff = global_target_coeff * max(
+            0,
+            1 + 2 * np.exp(-global_target_dist / (10 * step_length)),
+        )
         step_target_coeff = target_coeff * max(
             0,
             1
-            + (1 - min(1, target_dist / (10 * step_length)))
-            - (1 - min(1, total_length / (10 * step_length))),
+            + np.exp(-target_dist / (2 * step_length))
+            - np.exp(-total_length / (2 * step_length)),
         )
         step_random_coeff = random_coeff
         step_history_coeff = history_coeff * max(
             0,
             1
-            - (1 - min(1, target_dist / (10 * step_length)))
-            + (1 - min(1, total_length / (10 * step_length))),
+            - np.exp(-target_dist / (2 * step_length))
+            + np.exp(-total_length / (2 * step_length)),
+        )
+
+        history_direction = history(latest_lengths, latest_directions, history_path_length)
+        initial_phi, initial_theta = rotation.spherical_from_vector(latest_directions[-1])
+        random_direction = get_random_vector(
+            norm=angle_norm,
+            std=angle_std,
+            initial_theta=initial_theta,
+            initial_phi=initial_phi,
+            rng=rng,
         )
 
         direction = (
-            0.5 * step_target_coeff * global_target_direction
+            step_global_target_coeff * global_target_direction
             + step_target_coeff * target_direction
-            + step_random_coeff * get_random_vector(norm=angle_norm, std=angle_std, rng=rng)
-            + step_history_coeff * history(latest_lengths, latest_directions)
+            + step_random_coeff * random_direction
+            + step_history_coeff * history_direction
         ).astype(intermediate_pts.dtype)
         direction /= np.linalg.norm(direction)
 
         current_pt = current_pt + direction * step_length
         total_length += step_length
+
+        if target_dist >= min_target_dist + 10 * length_norm:
+            logger.warning("The random walk is going away from the target")
+            debug = True
+        else:
+            min_target_dist = min(min_target_dist, target_dist)
+
+        if debug:
+            actual_target_direction = intermediate_pts[target_index] - current_pt
+            actual_target_direction /= np.linalg.norm(actual_target_direction)
+            logger.debug(
+                (
+                    "In random walk:\n\t"
+                    "global_target_dist=%s\n\t"
+                    "global_target_direction=%s\n\t"
+                    "total_length=%s\n\t"
+                    "step_length=%s\n\t"
+                    "target_index=%s\n\t"
+                    "target_dist=%s\n\t"
+                    "target_direction=%s\n\t"
+                    "actual_target_direction=%s\n\t"
+                    "next_target_index=%s\n\t"
+                    "random_direction=%s\n\t"
+                    "history_direction=%s\n\t"
+                    "step_global_target_coeff=%s\n\t"
+                    "step_target_coeff=%s\n\t"
+                    "step_random_coeff=%s\n\t"
+                    "step_history_coeff=%s\n\t"
+                    "direction=%s\n\t"
+                    "diff_direction=%s\n\t"
+                    "current_pt=%s\n\t"
+                ),
+                global_target_dist,
+                global_target_direction,
+                total_length,
+                step_length,
+                target_index,
+                target_dist,
+                target_direction,
+                actual_target_direction,
+                next_target_index,
+                random_direction,
+                history_direction,
+                step_global_target_coeff,
+                step_target_coeff,
+                step_random_coeff,
+                step_history_coeff,
+                direction,
+                morphmath.angle_between_vectors(direction, target_direction),
+                current_pt,
+            )
         new_pts.append(current_pt)
         latest_lengths.append(step_length)
         latest_directions.append(direction)
@@ -218,6 +336,7 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
         }
 
     def run(self):
+        # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
         self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
 
