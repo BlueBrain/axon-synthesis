@@ -7,21 +7,25 @@ from neurom.morphmath import angle_between_vectors
 from scipy.spatial import Delaunay
 from scipy.spatial import KDTree
 from scipy.spatial import Voronoi
-from voxcell.nexus.voxelbrain import Atlas
+
+from axon_synthesis.utils import get_region_ids
 
 logger = logging.getLogger(__name__)
 
 
-def get_fiber_tracts(atlas_path, atlas_hierarchy_filename, atlas_region_filename):
-    """Extract fiber tracts points from an atlas."""
-    atlas = Atlas.open(atlas_path)
-    region_map = atlas.load_region_map(atlas_hierarchy_filename)
-    brain_regions = atlas.load_data(atlas_region_filename)
-    fiber_tracts_ids = region_map.find("fiber tracts", attr="name", with_descendants=True)
-    fiber_tracts_mask = np.isin(brain_regions.raw, list(fiber_tracts_ids))
-    brain_regions.raw[~fiber_tracts_mask] = 0  # Zeroes the complement region
-    fiber_tract_points = brain_regions.indices_to_positions(np.argwhere(brain_regions.raw))
-    return fiber_tract_points
+def get_region_points(atlas, brain_regions, region_map, brain_region_names, return_missing=False):
+    """Extract region points from an atlas."""
+    brain_region_ids, missing_ids = get_region_ids(region_map, brain_region_names)
+
+    brain_regions_mask = np.isin(brain_regions.raw, list(set(brain_region_ids)))
+    brain_region_points = brain_regions.indices_to_positions(np.argwhere(brain_regions_mask))
+
+    # Get voxel centers
+    brain_region_points += brain_regions.voxel_dimensions / 2
+
+    if return_missing:
+        return brain_region_points, missing_ids
+    return brain_region_points
 
 
 def use_ancestors(terminals, tuft_properties_path):
@@ -71,11 +75,13 @@ def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermed
     return inter_pts
 
 
-def add_random_points(all_pts, min_random_point_distance, seed):
+def add_random_points(all_pts, min_random_point_distance, bbox_buffer, seed):
     """Add random points in the bounding box of the given points."""
     if min_random_point_distance is not None:
         n_fails = 0
         bbox = np.vstack([all_pts.min(axis=0), all_pts.max(axis=0)])
+        bbox[0] -= bbox_buffer
+        bbox[1] += bbox_buffer
         rng = np.random.default_rng(seed)
         tree = KDTree(all_pts)
         new_pts = []
@@ -187,7 +193,7 @@ def create_edges(all_points, from_coord_cols, to_coord_cols, group_name):
 
 
 def add_terminal_penalty(edges_df, all_points_df):
-    """Add penalty to terminals to ensure the Steiner algorithm don't connect terminals directly."""
+    """Add penalty to edges to ensure the Steiner algorithm don't connect terminals directly."""
     # Compute penalty
     penalty = edges_df["length"].max() + edges_df["length"].mean()
 
@@ -221,10 +227,11 @@ def add_orientation_penalty(
     edges_df,
     from_coord_cols,
     to_coord_cols,
-    orientation_penalty_exponent,
     soma_center_coords,
+    orientation_penalty_exponent,
+    amplitude,
 ):
-    """Add penalty to terminals according to their orientation."""
+    """Add penalty to edges according to their orientation."""
     vectors = edges_df[to_coord_cols].values - edges_df[from_coord_cols].values
     origin_to_mid_vectors = (
         0.5 * (edges_df[to_coord_cols].values + edges_df[from_coord_cols].values)
@@ -233,8 +240,58 @@ def add_orientation_penalty(
     data = np.stack([origin_to_mid_vectors, vectors], axis=1)
 
     edge_angles = np.array([angle_between_vectors(i[0], i[1]) for i in data.tolist()])
-    orientation_penalty = np.power(
+    orientation_penalty = 1 + amplitude * np.power(
         np.clip(np.sin(edge_angles), 1e-3, 1 - 1e-3),
         orientation_penalty_exponent,
     )
-    edges_df["length"] *= orientation_penalty
+    # edges_df["length"] *= orientation_penalty
+    return orientation_penalty
+
+
+def add_depth_penalty(
+    edges_df,
+    from_coord_cols,
+    to_coord_cols,
+    atlas_helper,
+    sigma,
+    amplitude,
+):
+    """Add penalty to edges according to the difference of orientation at start and end points."""
+    # atlas_orientations = atlas.load_data("orientation", cls=OrientationField)
+    # from_orientations = atlas_orientations.lookup(edges_df[from_coord_cols].values)
+    # to_orientations = atlas_orientations.lookup(edges_df[to_coord_cols].values)
+
+    # # Compare the two rotation matrices
+    # transposed_orientations = np.transpose(from_orientations, axes=[0, 2, 1])
+    # dot_prod = np.einsum("...ij,...jk->...ik", transposed_orientations, to_orientations)
+
+    # # The trace of the dot product is equal to the cosine of the angle between the two matrices
+    # # and we want to take the cosine of the absolute value of the angle, so we can simplify.
+    # penalty = np.abs((np.trace(dot_prod, axis1=1, axis2=2) - 1) * 0.5)
+
+    from_depths = np.nan_to_num(atlas_helper.depths.lookup(edges_df[from_coord_cols].values))
+    to_depths = np.nan_to_num(atlas_helper.depths.lookup(edges_df[to_coord_cols].values))
+
+    relative_delta = np.clip(np.abs(from_depths - to_depths) / (edges_df["length"]), 0, 1)
+
+    penalties = 1 + amplitude * (1 - np.exp(-relative_delta / sigma))
+
+    return penalties
+
+
+def add_favored_reward(
+    edges_df,
+    from_coord_cols,
+    to_coord_cols,
+    favored_region_tree,
+    sigma,
+    amplitude,
+):
+    """Add rewards to edges depending on their distance to the favored points."""
+    from_distances, from_indices = favored_region_tree.query(edges_df[from_coord_cols].values)
+    to_distances, to_indices = favored_region_tree.query(edges_df[to_coord_cols].values)
+
+    # TODO: For now we just take the mean of the distance between the start point to the closest
+    # favored point and between the end point to the closest favored point, which is not accurate.
+    penalties = 1 + amplitude * (1 - np.exp(-0.5 * (from_distances + to_distances) / sigma))
+    return penalties

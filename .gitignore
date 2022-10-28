@@ -39,6 +39,3 @@ examples/.ipynb_checkpoints/
 # Node
 node_modules
 package-lock.json
-
-# Research stuff
-research

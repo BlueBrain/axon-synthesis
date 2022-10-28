@@ -1,9 +1,7 @@
 """The main workflows of the AxonSynthesis package."""
 import luigi_tools
-from data_validation_framework.target import TaggedOutputLocalTarget
 
 from axon_synthesis.add_tufts import AddTufts
-from axon_synthesis.config import Config
 from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 from axon_synthesis.create_dataset import RepairDataset
 from axon_synthesis.PCSF.clustering import ClusterTerminals
@@ -12,8 +10,6 @@ from axon_synthesis.PCSF.plot_steiner import PlotSolutions
 from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
 from axon_synthesis.statistics import CompareStatistics
 from axon_synthesis.statistics import PlotStatistics
-
-TaggedOutputLocalTarget.set_default_prefix(Config().output_dir)
 
 
 class DiscoverRawData(luigi_tools.task.WorkflowWrapperTask):

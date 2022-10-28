@@ -1,5 +1,6 @@
 """Store the general configuration values."""
 import luigi
+from data_validation_framework.target import TaggedOutputLocalTarget
 
 
 class Config(luigi.task.Config):
@@ -32,3 +33,8 @@ class Config(luigi.task.Config):
     white_matter_file = luigi.parameter.OptionalPathParameter(
         description="White matter file", default=None
     )
+
+    def __setattr__(self, name, value):
+        if name == "output_dir":
+            TaggedOutputLocalTarget.set_default_prefix(value)
+        super().__setattr__(name, value)

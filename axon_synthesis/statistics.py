@@ -507,7 +507,7 @@ class CompareStatistics(luigi_tools.task.WorkflowTask):
         # pdb.set_trace()
         plot_score_matrix(
             self.input()["bio"].path,
-            self.input()["gen"]["morphologies"].path,
+            self.input()["gen"]["morphologies_asc"].path,
             self.output().pathlib_path / "score_matrix.pdf",
             default_config(),
         )

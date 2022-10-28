@@ -60,10 +60,16 @@ def plot_tuft(morph, morph_name, output_path, morph_file=None):
     logger.info("Exported figure to %s", output_path)
 
 
-class TuftsOutputLocalTarget(TaggedOutputLocalTarget):
+class TuftsTarget(TaggedOutputLocalTarget):
     """Target for tuft outputs."""
 
     __prefix = Path("tufts")  # pylint: disable=unused-private-member
+
+
+class TuftMorphologiesTarget(TuftsTarget):
+    """Target for tuft outputs."""
+
+    __prefix = Path("morphologies")  # pylint: disable=unused-private-member
 
 
 class AddTufts(luigi_tools.task.WorkflowTask):
@@ -133,7 +139,9 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         # )
 
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
-        self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
+        self.output()["morphologies_asc"].mkdir(parents=True, exist_ok=True, is_dir=True)
+        self.output()["morphologies_h5"].mkdir(parents=True, exist_ok=True, is_dir=True)
+        self.output()["morphologies_swc"].mkdir(parents=True, exist_ok=True, is_dir=True)
 
         rng = np.random.default_rng(self.seed)
 
@@ -176,7 +184,9 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             # (all unifurcations may not be actual tuft roots, so we have to retrieve them using
             # the coordinates)
             tuft_roots = []
-            tree = KDTree(ref_terminal_props["common_ancestor_coords"].to_list())
+            tree = KDTree(
+                np.array(ref_terminal_props["common_ancestor_coords"].to_list(), dtype=np.float32)
+            )
             for section in morph.iter():
                 for i in tree.query_ball_point(section.points[-1], 1e-6):
                     tuft_roots.append((section, ref_terminal_props.iloc[i]))
@@ -220,13 +230,14 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             morph.remove_unifurcations()
 
             # Export the new morphology
-            morph_path = (
-                (self.output()["morphologies"].pathlib_path / morph_name)
-                .with_suffix(".asc")
-                .as_posix()
-            )
-            logger.info("Exported morphology to %s", morph_path)
-            morph.write(morph_path)
+            for ext in [".asc", ".h5", ".swc"]:
+                morph_path = (
+                    (self.output()["morphologies_" + ext[1:]].pathlib_path / morph_name)
+                    .with_suffix(ext)
+                    .as_posix()
+                )
+                logger.info("Exported morphology to %s", morph_path)
+                morph.write(morph_path)
 
             if self.plot_debug:
                 plot_tuft(
@@ -241,6 +252,8 @@ class AddTufts(luigi_tools.task.WorkflowTask):
 
     def output(self):
         return {
-            "figures": TuftsOutputLocalTarget("figures", create_parent=True),
-            "morphologies": TuftsOutputLocalTarget("morphologies", create_parent=True),
+            "figures": TuftsTarget("figures", create_parent=True),
+            "morphologies_swc": TuftMorphologiesTarget("swc", create_parent=True),
+            "morphologies_h5": TuftMorphologiesTarget("h5", create_parent=True),
+            "morphologies_asc": TuftMorphologiesTarget("asc", create_parent=True),
         }

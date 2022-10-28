@@ -10,6 +10,8 @@ from voxcell.nexus.voxelbrain import Atlas
 
 from axon_synthesis.config import Config
 
+# from axon_synthesis.utils import get_region_ids
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,6 +51,7 @@ class CreateSourcePoints(luigi_tools.task.WorkflowTask):
         rng = np.random.default_rng(self.seed)
 
         if self.source_regions:
+            # region_ids, missing_ids = get_region_ids(region_map, self.source_regions)
             missing_ids = []
             region_ids = []
             for i in self.source_regions:  # pylint: disable=not-an-iterable

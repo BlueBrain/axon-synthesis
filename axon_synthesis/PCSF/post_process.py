@@ -113,8 +113,17 @@ def random_walk(
     angle_norm = angle_stats["norm"]
     angle_std = angle_stats["std"]
 
-    current_pt = np.array(starting_pt, dtype=float)
-    intermediate_pts = np.array(intermediate_pts, dtype=float)
+    # Select dtype of computation
+    try:
+        dtype = starting_pt.dtype
+    except AttributeError:
+        try:
+            dtype = intermediate_pts.dtype
+        except AttributeError:
+            dtype = float
+
+    current_pt = np.array(starting_pt, dtype=dtype)
+    intermediate_pts = np.array(intermediate_pts, dtype=dtype)
     new_pts = [current_pt]
 
     tree = KDTree(intermediate_pts)
@@ -122,28 +131,49 @@ def random_walk(
     total_length = 0
     last_index = 0
 
+    # Compute the length of each segment
     segment_lengths = morphmath.interval_lengths(np.vstack([starting_pt, intermediate_pts]))
     segment_path_lengths = np.cumsum(segment_lengths)
 
+    # Compute the direction to the last target
     global_target_direction = intermediate_pts[-1] - current_pt
     global_target_dist = np.linalg.norm(global_target_direction)
     global_target_direction /= global_target_dist
 
+    # Setup initial history
     target_direction = intermediate_pts[0] - current_pt
     target_direction /= np.linalg.norm(target_direction)
     if previous_history:
         latest_lengths, latest_directions = previous_history
     else:
-        latest_lengths = [length_norm]
-        latest_directions = [target_direction]
+        nb_hist = int(history_path_length // length_norm)
+        latest_lengths = [length_norm] * nb_hist
+        latest_directions = [target_direction] * nb_hist
 
     nb_intermediate_pts = len(intermediate_pts)
 
     min_target_dist = global_target_dist * 2
 
+    logger.debug(
+        (
+            "In random walk:\n\t"
+            "global_target_dist=%s\n\t"
+            "global_target_direction=%s\n\t"
+            "target_direction=%s\n\t"
+            "current_pt=%s\n\t"
+            "intermediate_pts=%s\n\t"
+        ),
+        global_target_dist,
+        global_target_direction,
+        target_direction,
+        current_pt,
+        intermediate_pts,
+    )
+
     while global_target_dist >= length_norm:
         step_length = rng.normal(length_norm, length_std)
 
+        # Compute the direction to the last target
         global_target_direction = intermediate_pts[-1] - current_pt
         global_target_dist = np.linalg.norm(global_target_direction)
         global_target_direction /= global_target_dist
@@ -152,6 +182,7 @@ def random_walk(
         # TODO: Should check that there is no other possible target between the last target and
         # this target that is further to this target.
 
+        # Find next targets
         if target_index < last_index or np.isinf(target_dist):
             target_index = last_index
 
@@ -229,6 +260,7 @@ def random_walk(
 
         history_direction = history(latest_lengths, latest_directions, history_path_length)
         initial_phi, initial_theta = rotation.spherical_from_vector(latest_directions[-1])
+        # initial_phi, initial_theta = rotation.spherical_from_vector(target_direction)
         random_direction = get_random_vector(
             norm=angle_norm,
             std=angle_std,
@@ -242,7 +274,7 @@ def random_walk(
             + step_target_coeff * target_direction
             + step_random_coeff * random_direction
             + step_history_coeff * history_direction
-        ).astype(intermediate_pts.dtype)
+        ).astype(dtype)
         direction /= np.linalg.norm(direction)
 
         current_pt = current_pt + direction * step_length
@@ -307,7 +339,7 @@ def random_walk(
 
     new_pts.append(intermediate_pts[-1])
 
-    return np.array(new_pts), (latest_lengths, latest_directions)
+    return np.array(new_pts, dtype=dtype), (latest_lengths, latest_directions)
 
 
 class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):

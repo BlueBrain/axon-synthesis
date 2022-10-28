@@ -215,3 +215,38 @@ def use_matplotlib_backend(new_backend):
         yield
     finally:
         matplotlib.use(old_backend)
+
+
+def get_region_ids(region_map, brain_region_names, with_descendants=True):
+    """Find brain region IDs from their names of acronyms.
+
+    Args:
+        region_map (voxcell.region_map.RegionMap): The region map used to convert names into IDs.
+        brain_region_names (list[str]): The names of the brain regions to get IDs.
+        with_descendants (bool): If set to True,
+    """
+    missing_ids = []
+    brain_region_ids = []
+    for i in brain_region_names:
+        if isinstance(i, str):
+            try:
+                i = int(i)
+            except ValueError:
+                pass
+
+        new_ids = []
+
+        if isinstance(i, int):
+            new_ids.extend(list(region_map.find(i, attr="id", with_descendants=with_descendants)))
+        else:
+            new_ids.extend(list(region_map.find(i, attr="name", with_descendants=with_descendants)))
+            new_ids.extend(
+                list(region_map.find(i, attr="acronym", with_descendants=with_descendants))
+            )
+
+        if not new_ids:
+            missing_ids.append(i)
+        else:
+            brain_region_ids.extend(new_ids)
+
+    return list(set(brain_region_ids)), list(set(missing_ids))

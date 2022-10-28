@@ -12,9 +12,13 @@ import pandas as pd
 from data_validation_framework.target import TaggedOutputLocalTarget
 from scipy.spatial import KDTree
 
+from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
 from axon_synthesis.PCSF.clustering import ClusterTerminals
 from axon_synthesis.PCSF.create_graph.plot import plot_triangulation
+from axon_synthesis.PCSF.create_graph.utils import add_depth_penalty
+from axon_synthesis.PCSF.create_graph.utils import add_favored_reward
 from axon_synthesis.PCSF.create_graph.utils import add_intermediate_points
 from axon_synthesis.PCSF.create_graph.utils import add_orientation_penalty
 from axon_synthesis.PCSF.create_graph.utils import add_random_points
@@ -23,7 +27,7 @@ from axon_synthesis.PCSF.create_graph.utils import add_voronoi_points
 from axon_synthesis.PCSF.create_graph.utils import create_edges
 from axon_synthesis.PCSF.create_graph.utils import drop_close_points
 from axon_synthesis.PCSF.create_graph.utils import drop_outside_points
-from axon_synthesis.PCSF.create_graph.utils import get_fiber_tracts
+from axon_synthesis.PCSF.create_graph.utils import get_region_points
 from axon_synthesis.PCSF.create_graph.utils import use_ancestors
 from axon_synthesis.target_points import FindTargetPoints
 
@@ -87,6 +91,13 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         min_value=0,
         max_value=sys.float_info.max,
     )
+    random_point_bbox_buffer = luigi.parameter.NumericalParameter(
+        description="The distance used to add a buffer around the bbox of the points.",
+        var_type=float,
+        default=0,
+        min_value=0,
+        max_value=sys.float_info.max,
+    )
     seed = luigi.IntParameter(
         description="The seed used to generate random points.",
         default=0,
@@ -111,12 +122,64 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         default=True,
         parsing=luigi.BoolParameter.EXPLICIT_PARSING,
     )
-    use_fiber_tracts = luigi.BoolParameter(
+    orientation_penalty_amplitude = luigi.NumericalParameter(
+        description="The amplitude of the orientation penalty.",
+        var_type=float,
+        default=1,
+        min_value=0,
+        max_value=sys.float_info.max,
+        left_op=luigi.parameter.operator.lt,
+    )
+    use_depth_penalty = luigi.BoolParameter(
         description=(
-            "If set to True, fiber tracts are loaded from the atlas and used to weight the graph "
-            "edges."
+            "If set to True, a penalty is added to edges whose direction is not parallel to the "
+            "iso-depth curves."
         ),
-        default=False,
+        default=True,
+        parsing=luigi.BoolParameter.EXPLICIT_PARSING,
+    )
+    depth_penalty_sigma = luigi.NumericalParameter(
+        description="The sigma used for depth penalty.",
+        var_type=float,
+        default=100,
+        min_value=0,
+        max_value=sys.float_info.max,
+        left_op=luigi.parameter.operator.lt,
+    )
+    depth_penalty_amplitude = luigi.NumericalParameter(
+        description="The amplitude of the depth penalty.",
+        var_type=float,
+        default=1,
+        min_value=0,
+        max_value=sys.float_info.max,
+        left_op=luigi.parameter.operator.lt,
+    )
+    layers_indices = luigi.ListParameter(
+        description="The list of layer numbers.",
+        default=[1, 2, 3, 4, 5, 6],
+    )
+    favored_regions = luigi.OptionalListParameter(
+        description=(
+            "Provide a list of brain regions in which the edge weights are divided by the favoring "
+            "factor."
+        ),
+        default=None,
+    )
+    favoring_sigma = luigi.NumericalParameter(
+        description="The sigma used to favor some regions.",
+        var_type=float,
+        default=100,
+        min_value=0,
+        max_value=sys.float_info.max,
+        left_op=luigi.parameter.operator.lt,
+    )
+    favoring_amplitude = luigi.NumericalParameter(
+        description="The amplitude used to favor some regions.",
+        var_type=float,
+        default=1,
+        min_value=0,
+        max_value=sys.float_info.max,
+        left_op=luigi.parameter.operator.lt,
     )
     plot_debug = luigi.BoolParameter(
         description=(
@@ -143,17 +206,20 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
         terminals.to_csv(self.output()["input_terminals"].path, index=False)
 
-        if self.use_fiber_tracts:  # pylint: disable=no-else-raise
-            fiber_tract_points = get_fiber_tracts(
+        favored_region_tree = None
+        if self.favored_regions or self.use_depth_penalty:
+            atlas, brain_regions, region_map = load_atlas(
                 str(config.atlas_path),
-                config.atlas_hierarchy_filename,
                 config.atlas_region_filename,
+                config.atlas_hierarchy_filename,
             )
-            fiber_tract_tree = KDTree(fiber_tract_points)  # noqa; pylint: disable=unused-variable
-            raise NotImplementedError("The fiber tracts can not be used yet.")
-        else:
-            fiber_tract_points = None
-            fiber_tract_tree = None  # noqa
+            if self.use_depth_penalty:
+                atlas_helper = AtlasHelper(atlas, self.layers_indices)
+            if self.favored_regions:
+                favored_region_points = get_region_points(
+                    atlas, brain_regions, region_map, self.favored_regions
+                )
+                favored_region_tree = KDTree(favored_region_points)
 
         if self.use_ancestors:
             if self.terminals_path:
@@ -185,7 +251,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             all_pts = np.concatenate([pts] + [i[1] for i in inter_pts if i[0] > 0])
 
             # Add random points
-            all_pts = add_random_points(all_pts, self.min_random_point_distance, self.seed)
+            all_pts = add_random_points(
+                all_pts, self.min_random_point_distance, self.random_point_bbox_buffer, self.seed
+            )
 
             # Add Voronoï points
             all_pts = add_voronoi_points(all_pts, self.voronoi_steps)
@@ -214,6 +282,47 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 all_points_df[["x", "y", "z"]], from_coord_cols, to_coord_cols, group_name
             )
 
+            # Compute cumulative penalties
+            penalties = np.ones(len(edges_df))
+
+            # Increase the length of edges whose angle with radial direction is close to pi/2
+            if self.use_orientation_penalty:
+                penalties *= add_orientation_penalty(
+                    edges_df,
+                    from_coord_cols,
+                    to_coord_cols,
+                    soma_center_coords,
+                    self.orientation_penalty_exponent,
+                    self.orientation_penalty_amplitude,
+                )
+
+            # Increase the length of edges which do not follow an iso-depth curve
+            if self.use_depth_penalty:
+                penalties *= add_depth_penalty(
+                    edges_df,
+                    from_coord_cols,
+                    to_coord_cols,
+                    atlas_helper,
+                    self.depth_penalty_sigma,
+                    self.depth_penalty_amplitude,
+                )
+
+            # Reduce the lengths of edges that are close to fiber tracts
+            if favored_region_tree is not None:
+                penalties *= add_favored_reward(
+                    edges_df,
+                    from_coord_cols,
+                    to_coord_cols,
+                    favored_region_tree,
+                    self.favoring_sigma,
+                    self.favoring_amplitude,
+                )
+
+            # TODO: increase lengths of more impossible edges
+
+            # Apply cumulative penalties
+            edges_df["length"] *= penalties
+
             # Add penalty to edges between two terminals (except if a terminal is only
             # connected to other terminals) in order to ensure the terminals are also terminals
             # in the solution
@@ -222,20 +331,6 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             # passes near the target points.
             if self.use_terminal_penalty:
                 add_terminal_penalty(edges_df, all_points_df)
-
-            # Increase edge lengths of edges whose angle with radial direction is close to pi/2
-            if self.use_orientation_penalty:
-                add_orientation_penalty(
-                    edges_df,
-                    from_coord_cols,
-                    to_coord_cols,
-                    self.orientation_penalty_exponent,
-                    soma_center_coords,
-                )
-
-            # TODO: increase lengths of more impossible edges
-
-            # TODO: reduce lengths according to fiber tracts
 
             # Save edges
             all_edges.append(edges_df)
