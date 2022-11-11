@@ -145,15 +145,23 @@ def drop_close_points(all_points_df, duplicate_precision):
             all_points_df.drop(a, inplace=True)
 
 
-def drop_outside_points(all_points_df, ref_pts):
-    """Remove points outside the bounding box of reference points."""
-    min_pts = ref_pts.min(axis=0)
-    max_pts = ref_pts.max(axis=0)
-    outside_pts = all_points_df.loc[
-        ((all_points_df[["x", "y", "z"]] < min_pts).any(axis=1))
-        | ((all_points_df[["x", "y", "z"]] > max_pts).any(axis=1))
-    ]
-    all_points_df.drop(outside_pts.index, inplace=True)
+def drop_outside_points(all_points_df, ref_pts=None, brain_regions=None):
+    """Remove points outside the bounding box of reference points or brain regions."""
+    if brain_regions is not None:
+        outside_pts = all_points_df.loc[
+            ((all_points_df[["x", "y", "z"]] < brain_regions.bbox[0]).any(axis=1))
+            | ((all_points_df[["x", "y", "z"]] > brain_regions.bbox[1]).any(axis=1))
+        ]
+        all_points_df.drop(outside_pts.index, inplace=True)
+
+    if ref_pts is not None:
+        min_pts = ref_pts.min(axis=0)
+        max_pts = ref_pts.max(axis=0)
+        outside_pts = all_points_df.loc[
+            ((all_points_df[["x", "y", "z"]] < min_pts).any(axis=1))
+            | ((all_points_df[["x", "y", "z"]] > max_pts).any(axis=1))
+        ]
+        all_points_df.drop(outside_pts.index, inplace=True)
 
 
 def create_edges(all_points, from_coord_cols, to_coord_cols, group_name):

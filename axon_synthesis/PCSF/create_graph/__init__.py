@@ -207,6 +207,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         terminals.to_csv(self.output()["input_terminals"].path, index=False)
 
         favored_region_tree = None
+        brain_regions = None
         if self.favored_regions or self.use_depth_penalty:
             atlas, brain_regions, region_map = load_atlas(
                 str(config.atlas_path),
@@ -267,7 +268,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             drop_close_points(all_points_df, self.duplicate_precision)
 
             # Remove outside points
-            drop_outside_points(all_points_df, pts)
+            drop_outside_points(all_points_df, pts if self.use_ancestors else None, brain_regions)
 
             # Reset index and set IDs
             all_points_df.reset_index(drop=True, inplace=True)
