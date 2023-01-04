@@ -148,11 +148,11 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         with self.input_parameters.open() as f:  # pylint: disable=no-member
             input_parameters = json.load(f)
             if not input_parameters.get("basal_dendrite", None):
-                input_parameters["basal_dendrite"] = input_parameters["apical_dendrite"]
+                input_parameters["basal_dendrite"] = input_parameters["axon"]
         with self.input_distributions.open() as f:  # pylint: disable=no-member
             input_distributions = json.load(f)
             if not input_distributions.get("basal_dendrite", None):
-                input_distributions["basal_dendrite"] = input_distributions["apical_dendrite"]
+                input_distributions["basal_dendrite"] = input_distributions["axon"]
 
         validate_neuron_distribs(input_distributions)
         validate_neuron_params(input_parameters)
@@ -197,14 +197,14 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             for tuft_section, tuft_props in tuft_roots:
                 # Create specific parameters
                 params = deepcopy(input_parameters)
-                params["apical_dendrite"]["orientation"]["values"]["orientations"] = [
+                params["basal_dendrite"]["orientation"]["values"]["orientations"] = [
                     tuft_props["cluster_orientation"]
                 ]
                 logger.debug("Cluster_orientation: %s", tuft_props["cluster_orientation"])
 
                 # Create specific distributions
                 distrib = deepcopy(input_distributions)
-                distrib["apical_dendrite"]["persistence_diagram"] = [
+                distrib["basal_dendrite"]["persistence_diagram"] = [
                     tuft_props["new_cluster_barcode"]
                 ]
                 logger.debug("Cluster_barcode: %s", tuft_props["new_cluster_barcode"])
@@ -215,8 +215,8 @@ class AddTufts(luigi_tools.task.WorkflowTask):
                     new_morph,
                     initial_direction=tuft_props["cluster_orientation"],
                     initial_point=tuft_section.points[-1],
-                    parameters=params["apical_dendrite"],
-                    distributions=distrib["apical_dendrite"],
+                    parameters=params["basal_dendrite"],
+                    distributions=distrib["basal_dendrite"],
                     context=None,
                     random_generator=rng,
                 )

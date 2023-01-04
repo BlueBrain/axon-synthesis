@@ -40,14 +40,16 @@ class TuftsOutputLocalTarget(TaggedOutputLocalTarget):
     __prefix = Path("tufts")  # pylint: disable=unused-private-member
 
 
-def _exp(values, sigma, default_ind):
+def _exp(values, sigma, default_ind=None):
     if sigma != 0:
         return (
-            1.0 / (sigma * np.sqrt(2 * np.pi)) * np.exp(-np.power(values, 2) / (2.0 * sigma**2))
+            # 1.0 / (sigma * np.sqrt(2 * np.pi)) *
+            np.exp(-np.power(values, 2) / (2.0 * sigma**2))
         )
     else:
         new_values = pd.Series(0, index=values.index)
-        new_values.loc[default_ind] = 1
+        if default_ind is not None:
+            new_values.loc[default_ind] = 1
         return new_values
 
 
@@ -196,7 +198,8 @@ def compute_cluster_properties(
 ):  # pylint: disable=too-many-arguments
     """Compute properties for the cluster."""
     # Pick a random index for when the probabilities can not be computed
-    terminal_index = rng.choice(cluster_props_df.index)
+    # terminal_index = rng.choice(cluster_props_df.index)
+    terminal_index = None
 
     # Compute raw terminal properties
     terminal_data = {}
@@ -256,6 +259,13 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         min_value=0,
         max_value=sys.float_info.max,
     )
+    size_target = luigi.NumericalParameter(
+        description="The target value of the size used to select the barcode along the size axis.",
+        var_type=int,
+        default=0,
+        min_value=0,
+        max_value=sys.float_info.max,
+    )
     distance_variable = luigi.ChoiceParameter(
         description="The variable name to use to find the distance in the JSON records.",
         choices=["path_distance", "radial_distance"],
@@ -311,14 +321,13 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
             tasks["WMR"] = FetchWhiteMatterRecipe()
         return tasks
 
-    def pick_tuft(self, cluster_props_df, axon_terminal, terminal_index):
+    def pick_tuft(self, cluster_props_df, axon_terminal, terminal_index=None):
         """Choose a tuft according to the given properties."""
-        # size_prob = _exp(
-        #     cluster_props_df["cluster_size"]
-        #     - axon_terminal["cluster_size"],
-        #     self.size_sigma,
-        #     terminal_index,
-        # )
+        size_prob = _exp(
+            cluster_props_df["cluster_size"] - axon_terminal.get("cluster_size", self.size_target),
+            self.size_sigma,
+            terminal_index,
+        )
         length_prob = _exp(
             cluster_props_df["path_length"] - axon_terminal["path_length"],
             self.length_sigma,
@@ -330,9 +339,13 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
             terminal_index,
         )
 
-        prob = length_prob * distance_prob
-        if prob.sum() == 0:
-            prob.loc[terminal_index] = 1
+        prob = length_prob + distance_prob + size_prob
+        if prob.sum() <= 1e-8:
+            if terminal_index is None:
+                prob.loc[:] = 1
+            else:
+                prob.loc[:] = 0
+                prob.loc[terminal_index] = 1
         else:
             prob /= prob.sum()
 
@@ -348,7 +361,9 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
             logger.debug(
                 (
                     "Skip section %s with point %s since no tuft root was found near "
-                    "this location (the point %s is the closest with %s distance)."
+                    "this location (the point %s is the closest with %s distance). This probably "
+                    "just means that this section is an intermediate section but if all sections "
+                    "there is an issue."
                 ),
                 sec.id,
                 last_pt,
@@ -394,9 +409,9 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                 config.atlas_hierarchy_filename,
             )
 
-        if self.size_sigma == 0 or self.distance_sigma == 0:
-            self.size_sigma = 0
-            self.distance_sigma = 0
+        # if self.size_sigma == 0 or self.distance_sigma == 0:
+        #     self.size_sigma = 0
+        #     self.distance_sigma = 0
 
         with self.input()["clustered_morphologies"]["tuft_properties"].open() as f:
             # Get tuft data from the input biological morphologies
@@ -421,7 +436,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
 
             for axon_id, axon in enumerate(axons):
                 # Get terminals of the current group
-                axon_tree = KDTree(group[["x", "y", "z"]].values)
+                axon_tree = KDTree(group[["x", "y", "z"]].values.astype(np.float32))
 
                 # Compute the length of the tree in each brain region
                 if config.input_data_type != "biological_morphologies":
