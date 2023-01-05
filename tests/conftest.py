@@ -1,4 +1,5 @@
 """Prepare fixtures for the tests of the AxonSynthesis package."""
+import logging
 import shutil
 from configparser import ConfigParser
 from pathlib import Path
@@ -11,6 +12,25 @@ from voxcell.nexus.voxelbrain import Atlas
 from . import DATA
 from . import TEST_ROOT
 from .data_factories import generate_small_O1
+
+logging.getLogger("matplotlib").disabled = True
+logging.getLogger("matplotlib.font_manager").disabled = True
+
+
+def pytest_addoption(parser):
+    """Hook to add custom options to the CLI of pytest."""
+    parser.addoption(
+        "--interactive-plots",
+        action="store_true",
+        default=False,
+        help="Trigger interactive plots in tests to check the results",
+    )
+
+
+@pytest.fixture
+def interactive_plots(request):
+    """The value given to the option for interactive plots."""
+    return request.config.getoption("--interactive-plots")
 
 
 @pytest.fixture

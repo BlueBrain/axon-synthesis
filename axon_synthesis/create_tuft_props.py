@@ -198,8 +198,7 @@ def compute_cluster_properties(
 ):  # pylint: disable=too-many-arguments
     """Compute properties for the cluster."""
     # Pick a random index for when the probabilities can not be computed
-    # terminal_index = rng.choice(cluster_props_df.index)
-    terminal_index = None
+    terminal_index = rng.choice(cluster_props_df.index)
 
     # Compute raw terminal properties
     terminal_data = {}
@@ -342,7 +341,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         prob = length_prob + distance_prob + size_prob
         if prob.sum() <= 1e-8:
             if terminal_index is None:
-                prob.loc[:] = 1
+                prob.loc[:] = 1 / len(prob)
             else:
                 prob.loc[:] = 0
                 prob.loc[terminal_index] = 1
