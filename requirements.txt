@@ -3,10 +3,8 @@ BluePyParallel
 dask[dataframe, distributed]
 data-validation-framework>=0.3.1
 gitpython
-Jinja2<3
 luigi
 luigi-tools
-MarkupSafe<2.1
 matplotlib
 morph-tool
 morphio

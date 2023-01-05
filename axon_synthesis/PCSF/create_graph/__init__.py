@@ -201,6 +201,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             raise ValueError(f"The value of 'input_data_type' is unknown ({input_data_type}).")
 
     def run(self):
+        # pylint: disable=too-many-statements
         config = Config()
 
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
@@ -218,7 +219,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 atlas_helper = AtlasHelper(atlas, self.layers_indices)
             if self.favored_regions:
                 favored_region_points = get_region_points(
-                    atlas, brain_regions, region_map, self.favored_regions
+                    brain_regions, region_map, self.favored_regions
                 )
                 favored_region_tree = KDTree(favored_region_points)
 

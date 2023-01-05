@@ -13,7 +13,7 @@ from axon_synthesis.utils import get_region_ids
 logger = logging.getLogger(__name__)
 
 
-def get_region_points(atlas, brain_regions, region_map, brain_region_names, return_missing=False):
+def get_region_points(brain_regions, region_map, brain_region_names, return_missing=False):
     """Extract region points from an atlas."""
     brain_region_ids, missing_ids = get_region_ids(region_map, brain_region_names)
 
@@ -296,8 +296,8 @@ def add_favored_reward(
     amplitude,
 ):
     """Add rewards to edges depending on their distance to the favored points."""
-    from_distances, from_indices = favored_region_tree.query(edges_df[from_coord_cols].values)
-    to_distances, to_indices = favored_region_tree.query(edges_df[to_coord_cols].values)
+    from_distances, _ = favored_region_tree.query(edges_df[from_coord_cols].values)
+    to_distances, _ = favored_region_tree.query(edges_df[to_coord_cols].values)
 
     # TODO: For now we just take the mean of the distance between the start point to the closest
     # favored point and between the end point to the closest favored point, which is not accurate.
