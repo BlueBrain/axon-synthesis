@@ -452,7 +452,11 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     if config.input_data_type == "biological_morphologies":
                         # Use properties from clustered morphologies
                         axon_terminals = cluster_props_df.loc[
-                            (cluster_props_df["morph_file"].str.endswith(steiner_morph_file.name))
+                            (
+                                cluster_props_df["morph_file"].str.match(
+                                    f".*{steiner_morph_file.stem}\\.(asc|swc|h5)"
+                                )
+                            )
                             & (cluster_props_df["axon_id"] == axon_id)
                         ].copy()
                         axon_terminals["dist"] = np.linalg.norm(

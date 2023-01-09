@@ -105,12 +105,11 @@ def WMR_path(out_dir):
     return wmr_filepath
 
 
-@pytest.fixture
-def luigi_cfg(testing_dir, atlas_path, morphology_path, WMR_path):
+def _set_luigi_cfg(testing_dir, atlas_path, morphology_path, WMR_path, luigi_cfg_file):
     """Create a luigi configuration file with the proper paths."""
     # Load the config
     cfg = ConfigParser()
-    cfg.read(DATA / "luigi.cfg")
+    cfg.read(luigi_cfg_file)
 
     # Set the paths
     cfg["Config"]["atlas_path"] = str(atlas_path)
@@ -127,6 +126,29 @@ def luigi_cfg(testing_dir, atlas_path, morphology_path, WMR_path):
 
     # Copy the logging config file used by luigi
     shutil.copyfile(DATA / "logging.conf", testing_dir / "logging.conf")
+
+    return luigi_config, luigi_cfg_path
+
+
+@pytest.fixture
+def luigi_cfg(testing_dir, atlas_path, morphology_path, WMR_path):
+    """Create a luigi configuration file with the proper paths."""
+    luigi_config, luigi_cfg_path = _set_luigi_cfg(
+        testing_dir, atlas_path, morphology_path, WMR_path, DATA / "luigi.cfg"
+    )
+
+    yield luigi_cfg_path
+
+    # Reset luigi config
+    luigi_config.clear()
+
+
+@pytest.fixture
+def luigi_mimic_cfg(testing_dir, atlas_path, morphology_path, WMR_path):
+    """Create a luigi configuration file with the proper paths."""
+    luigi_config, luigi_cfg_path = _set_luigi_cfg(
+        testing_dir, atlas_path, morphology_path, WMR_path, DATA / "luigi_mimic.cfg"
+    )
 
     yield luigi_cfg_path
 

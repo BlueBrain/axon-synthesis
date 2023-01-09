@@ -52,3 +52,8 @@ def test_synthesis(out_dir, luigi_cfg, tuft_inputs):
     # assert (out_dir / "white_matter_recipe" / "white_matter_projection_targets.csv").exists()
     # assert (out_dir / "white_matter_recipe" / "white_matter_recipe_test.yaml").exists()
     # assert (out_dir / "white_matter_recipe" / "white_matter_targets.csv").exists()
+
+
+def test_synthesis_mimic(out_dir, luigi_mimic_cfg, tuft_inputs):
+    """Test the complete Synthesis workflow."""
+    assert luigi.build([workflows.Synthesis()], local_scheduler=True)
