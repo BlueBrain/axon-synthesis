@@ -1,7 +1,6 @@
 """Cluster the terminal points of a morphology so that a Steiner Tree can be computed on them."""
 import json
 import logging
-import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -25,6 +24,7 @@ from axon_synthesis.PCSF.clustering.from_sphere_parents import (
 from axon_synthesis.PCSF.clustering.from_spheres import compute_clusters as clusters_from_spheres
 from axon_synthesis.PCSF.clustering.plot import plot_cluster_properties
 from axon_synthesis.PCSF.clustering.plot import plot_clusters
+from axon_synthesis.PCSF.clustering.utils import DefaultValidatingValidator
 from axon_synthesis.PCSF.clustering.utils import create_clustered_morphology
 from axon_synthesis.PCSF.clustering.utils import export_morph
 from axon_synthesis.PCSF.clustering.utils import reduce_clusters
@@ -42,59 +42,117 @@ class ClusteringOutputLocalTarget(TaggedOutputLocalTarget):
     __prefix = "clustering"  # pylint: disable=unused-private-member
 
 
+_CLUSTERING_PARAM_SCHEMA = {
+    "type": "array",
+    "items": {
+        "oneOf": [
+            {
+                # For 'sphere' clustering mode
+                "additionalProperties": False,
+                "properties": {
+                    "clustering_mode": {
+                        "type": "string",
+                        "enum": ["sphere"],
+                    },
+                    "clustering_distance": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "default": 100,
+                    },
+                    "clustering_number": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 20,
+                    },
+                },
+                "required": [
+                    "clustering_mode",
+                ],
+                "type": "object",
+            },
+            {
+                # For 'sphere_parents' clustering mode
+                "additionalProperties": False,
+                "properties": {
+                    "clustering_mode": {
+                        "type": "string",
+                        "enum": ["sphere_parents"],
+                    },
+                    "clustering_distance": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "default": 100,
+                    },
+                    "max_path_clustering_distance": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                    },
+                },
+                "required": [
+                    "clustering_mode",
+                ],
+                "type": "object",
+            },
+            {
+                # For 'barcode' clustering mode
+                "additionalProperties": False,
+                "properties": {
+                    "clustering_mode": {
+                        "type": "string",
+                        "enum": ["barcode"],
+                    },
+                },
+                "required": [
+                    "clustering_mode",
+                ],
+                "type": "object",
+            },
+            {
+                # For 'brain_regions' clustering mode
+                "additionalProperties": False,
+                "properties": {
+                    "clustering_mode": {
+                        "type": "string",
+                        "enum": ["brain_regions"],
+                    },
+                    "wm_unnesting": {
+                        "type": "boolean",
+                        "default": True,
+                    },
+                },
+                "required": [
+                    "clustering_mode",
+                ],
+                "type": "object",
+            },
+        ],
+    },
+}
+_CLUSTERING_PARAM_SCHEMA_VALIDATOR = DefaultValidatingValidator(_CLUSTERING_PARAM_SCHEMA)
+
+
 class ClusterTerminals(luigi_tools.task.WorkflowTask):
     """Task to cluster the terminals."""
 
     terminals_path = luigi.OptionalPathParameter(
-        description="Path to the terminals CSV file.",
+        description=":str: Path to the terminals CSV file.",
         default=None,
         exists=True,
     )
-    clustering_distance = luigi.NumericalParameter(
-        description="The distance used to cluster the points.",
-        var_type=float,
-        default=100,
-        min_value=0,
-        max_value=sys.float_info.max,
-    )
-    max_path_clustering_distance = luigi.OptionalNumericalParameter(
-        description=(
-            "The maximum path distance used to cluster the points in 'sphere_parents' mode."
-        ),
-        var_type=float,
-        default=None,
-        min_value=0,
-        max_value=sys.float_info.max,
-    )
-    clustering_number = luigi.NumericalParameter(
-        description="The min number of points to define a cluster in 'sphere' mode.",
-        var_type=int,
-        default=20,
-        min_value=1,
-        max_value=sys.float_info.max,
-    )
-    clustering_mode = luigi.ChoiceParameter(
-        description="The method used to define a cluster.",
-        choices=["sphere", "sphere_parents", "barcode", "brain_regions"],
-        default="sphere",
-    )
-    wm_unnesting = luigi.BoolParameter(
-        description=(
-            "If set to True, the brain regions are unnested up to the ones present in the WMR."
-        ),
-        default=True,
-        parsing=luigi.BoolParameter.EXPLICIT_PARSING,
+    clustering_parameters = luigi.ListParameter(
+        description=":list: A JSON list of parameter sets used to compute the clusters.",
+        schema=_CLUSTERING_PARAM_SCHEMA_VALIDATOR,
     )
     plot_debug = luigi.BoolParameter(
         description=(
-            "If set to True, each group will create an interactive figure so it is possible to "
-            "check the clustering parameters."
+            ":bool: If set to True, each group will create an interactive figure so it is possible "
+            "to check the clustering parameters."
         ),
         default=False,
         parsing=luigi.BoolParameter.EXPLICIT_PARSING,
     )
     export_tuft_morphs = luigi.BoolParameter(
-        description=("If set to True, each tuft will be exported as a morphology."),
+        description=":bool: If set to True, each tuft will be exported as a morphology.",
         default=False,
         parsing=luigi.BoolParameter.EXPLICIT_PARSING,
     )
@@ -151,9 +209,14 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         # pylint: disable=too-many-locals
         # pylint: disable=too-many-statements
         self.config = Config()
+        clustering_parameters = luigi.freezing.recursively_unfreeze(self.clustering_parameters)
+        print("############################################################################")
+        print(clustering_parameters)
+        print("############################################################################")
 
         # Load terminals
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
+        terminals["config"] = None
 
         # Create output directories
         self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
@@ -170,7 +233,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
         all_terminal_points = []
         cluster_props = []
-        output_cols = ["morph_file", "axon_id", "terminal_id", "x", "y", "z"]
+        output_cols = ["morph_file", "axon_id", "terminal_id", "x", "y", "z", "config"]
 
         morph_paths = defaultdict(list)
 
@@ -180,6 +243,13 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
         all_terminal_points.extend(soma_centers[output_cols].to_records(index=False).tolist())
         terminals.drop(soma_centers.index, inplace=True)
         terminals["cluster_id"] = -1
+
+        clustering_funcs = {
+            "sphere": clusters_from_spheres,
+            "sphere_parents": clusters_from_sphere_parents,
+            "barcode": clusters_from_barcodes,
+            "brain_regions": clusters_from_brain_regions,
+        }
 
         for group_name, group in terminals.groupby("morph_file"):
             logger.debug("%s: %s points", group_name, len(group))
@@ -198,27 +268,25 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             # Run the clustering function on each axon
             for axon_id, axon in enumerate(axons):
 
-                clustering_func = {
-                    "sphere": clusters_from_spheres,
-                    "sphere_parents": clusters_from_sphere_parents,
-                    "barcode": clusters_from_barcodes,
-                    "brain_regions": clusters_from_brain_regions,
-                }
+                for config in clustering_parameters:
 
-                axon_group = group.loc[group["axon_id"] == axon_id]
-                (new_terminal_points, cluster_ids, _,) = clustering_func[self.clustering_mode](
-                    self,
-                    axon,
-                    axon_id,
-                    group_name,
-                    axon_group,
-                    output_cols,
-                    soma_center,
-                )
-                group.loc[axon_group.index, "cluster_id"] = cluster_ids
+                    axon_group = group.loc[group["axon_id"] == axon_id]
+                    (new_terminal_points, cluster_ids, _,) = clustering_funcs[
+                        config["clustering_mode"]
+                    ](
+                        self,
+                        config,
+                        axon,
+                        axon_id,
+                        group_name,
+                        axon_group,
+                        output_cols,
+                        soma_center,
+                    )
+                    group.loc[axon_group.index, "cluster_id"] = cluster_ids
 
-                # Add the cluster to the final points
-                all_terminal_points.extend(new_terminal_points)
+                    # Add the cluster to the final points
+                    all_terminal_points.extend(new_terminal_points)
 
             # Propagate cluster IDs
             terminals.loc[group.index, "cluster_id"] = group["cluster_id"]

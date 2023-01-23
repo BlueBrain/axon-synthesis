@@ -1,10 +1,13 @@
 """Some utils for clustering."""
 import logging
+from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
 
 import networkx as nx
 import numpy as np
+from jsonschema import Draft7Validator
+from jsonschema import validators
 from morphio import IterType
 from morphio import PointLevel
 from morphio.mut import Morphology as MorphIoMorphology
@@ -298,3 +301,79 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add):
                 for new_sec in sections_to_add[current_section.id]:
                     current_new_section.append_section(new_sec)
     return clustered_morph, trunk_morph
+
+
+def set_defaults(data, schema, level=0):
+    """Set default values according to the given schema."""
+    print("+" * (level + 1), data, schema)
+    if isinstance(data, (list, tuple)):
+        print("+" * (level + 1), "Processing list")
+        return [set_defaults(i, schema.get("items", {}), level + 1) for i in data]
+    if isinstance(data, Mapping):
+        print("+" * (level + 1), "Processing dict")
+        schema_props = schema.get("properties", {})
+        drop_if_empty = set()
+        for k, v in schema_props.items():
+            if k not in data:
+                obj_type = v.get("type", "")
+                if obj_type == "object":
+                    data[k] = v.get("default", {})
+                    drop_if_empty.add(k)
+                elif "default" in v:
+                    data[k] = v["default"]
+        new_data = {k: set_defaults(v, schema_props.get(k, {}), level + 1) for k, v in data.items()}
+        print(
+            "+" * (level + 1),
+            "Empty nodes",
+            {k: v for k, v in new_data.items() if k in drop_if_empty and len(v) <= 0},
+        )
+        new_data = {k: v for k, v in new_data.items() if k not in drop_if_empty or len(v) > 0}
+        print("+" * (level + 1), "Final data", new_data)
+        return new_data
+    return data
+
+
+def extend_validator_with_default(validator_class):
+    """Extend a validator to automatically set default values during validation."""
+    _NO_DEFAULT = object()
+    validate_properties = validator_class.VALIDATORS["properties"]
+
+    def set_defaults_and_validate(validator, properties, instance, schema):
+        drop_if_empty = set()
+        new_instance = deepcopy(instance)
+        for prop, subschema in properties.items():
+            if prop in new_instance:
+                continue
+            obj_type = subschema.get("type", "")
+            default_value = subschema.get("default", _NO_DEFAULT)
+            if default_value is not _NO_DEFAULT:
+                new_instance.setdefault(prop, default_value)
+            elif obj_type == "object":
+                new_instance.setdefault(prop, {})
+                drop_if_empty.add(prop)
+
+        is_valid = True
+        for error in validate_properties(
+            validator,
+            properties,
+            new_instance,
+            schema,
+        ):
+            is_valid = False
+            yield error
+
+        for prop in drop_if_empty:
+            instance_prop = new_instance[prop]
+            if isinstance(instance_prop, Mapping) and len(instance_prop) == 0:
+                del new_instance[prop]
+
+        if is_valid:
+            instance.update(new_instance)
+
+    return validators.extend(
+        validator_class,
+        {"properties": set_defaults_and_validate},
+    )
+
+
+DefaultValidatingValidator = extend_validator_with_default(Draft7Validator)

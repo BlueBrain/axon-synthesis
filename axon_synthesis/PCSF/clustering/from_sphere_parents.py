@@ -1,4 +1,5 @@
 """Clustering from sphere parents."""
+import json
 from collections import defaultdict
 
 import networkx as nx
@@ -25,13 +26,16 @@ def nodes_to_terminals_mapping(graph, source=None, shortest_paths=None):
     return node_to_terminals
 
 
-def compute_clusters(self, axon, axon_id, group_name, group, _, __):
+def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols, soma_center):
     """All parents up to the common ancestor must be inside the sphere to be merged."""
     # pylint: disable=too-many-branches
     # pylint: disable=too-many-locals
     # pylint: disable=too-many-statements
-    if self.max_path_clustering_distance is None:
-        self.max_path_clustering_distance = self.clustering_distance
+    # pylint: disable=unused-argument
+    clustering_distance = config["clustering_distance"]
+    max_path_clustering_distance = config.get("max_path_clustering_distance", clustering_distance)
+
+    config_str = json.dumps(config)
 
     # Get the complete morphology
     new_terminal_points = []
@@ -45,7 +49,7 @@ def compute_clusters(self, axon, axon_id, group_name, group, _, __):
     # Get the pairs of terminals closer to the given distance
     terminal_nodes = nodes.loc[terminal_ids, ["x", "y", "z"]]
     terminal_tree = KDTree(terminal_nodes.values)
-    terminal_pairs = terminal_tree.query_pairs(self.clustering_distance)
+    terminal_pairs = terminal_tree.query_pairs(clustering_distance)
 
     # Initialize cluster IDs
     cluster_ids = pd.Series(-1, index=nodes.index)
@@ -65,7 +69,7 @@ def compute_clusters(self, axon, axon_id, group_name, group, _, __):
         except KeyError:
             path = pair_paths[term_b][term_a]
 
-        if pdist(nodes.loc[path, ["x", "y", "z"]].values).max() > self.max_path_clustering_distance:
+        if pdist(nodes.loc[path, ["x", "y", "z"]].values).max() > max_path_clustering_distance:
             # Skip if a point on the path exceeds the clustering distance
             continue
 
@@ -159,6 +163,7 @@ def compute_clusters(self, axon, axon_id, group_name, group, _, __):
                     new_terminal_id if not is_root else 0,
                 ]
                 + terminals_with_current_ancestor[["x", "y", "z"]].mean().tolist()
+                + [config_str]
             )
             if not is_root:
                 group.loc[

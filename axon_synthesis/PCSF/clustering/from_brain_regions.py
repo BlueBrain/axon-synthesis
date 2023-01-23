@@ -1,4 +1,5 @@
 """Clustering from brain regions."""
+import json
 import logging
 from pathlib import Path
 
@@ -274,8 +275,11 @@ def _find_wm_first_nested_region(region_id, wm_regions, region_map):
     return region_id
 
 
-def compute_clusters(task, axon, axon_id, group_name, group, _, __):
+def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols, soma_center):
     """Gather points according to connected components in brain regions."""
+    # pylint: disable=unused-argument
+    config_str = json.dumps(config)
+
     nodes, edges, _ = neurite_to_graph(axon, keep_section_segments=True)
 
     nodes["is_intermediate_pt"] = (
@@ -324,7 +328,7 @@ def compute_clusters(task, axon, axon_id, group_name, group, _, __):
         args=(wm_regions, task.region_map),
     )
 
-    if task.wm_unnesting:
+    if config["wm_unnesting"]:
         brain_region_attr = "wm_brain_region"
     else:
         brain_region_attr = "brain_region"
@@ -402,6 +406,7 @@ def compute_clusters(task, axon, axon_id, group_name, group, _, __):
                 new_terminal_id if cluster_id != -1 else 0,
             ]
             + i[["x", "y", "z"]].mean().tolist()
+            + [config_str]
         )
         new_terminal_id += 1
 

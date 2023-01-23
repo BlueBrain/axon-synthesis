@@ -22,38 +22,32 @@ class TestRandomWalk:
             ]
         )
         length_stats = {
-            "norm": 0.25,
+            "norm": 0.05,
             "std": 0.01,
         }
-        angle_stats = {
-            "norm": 30,
-            "std": 10,
-        }
+        # angle_stats = {
+        #     "norm": 30,
+        #     "std": 10,
+        # }
         rng = np.random.default_rng(0)
 
         points, (latest_lengths, latest_directions) = post_process.random_walk(
             start_pt,
             intermediate_pts,
             length_stats,
-            angle_stats,
+            # angle_stats,
             history_path_length=None,
-            previous_history=None,
+            previous_history=[[length_stats["norm"]] * 10, [np.array([0, -1, 0])] * 10],
             global_target_coeff=0,
             target_coeff=2,
-            random_coeff=0,
-            history_coeff=1.5,
+            random_coeff=2,
+            history_coeff=2,
             rng=rng,
             debug=True,
         )
 
-        assert len(points) == 16
-        npt.assert_array_equal(points[0], [0, 0, 0])
-        npt.assert_array_equal(points[-1], [0, 2, 0])
-        npt.assert_array_almost_equal(points[-2], [-6.51903e-2, 1.96985, 0])
-        assert (points[:, 2] == 0).all()
-        assert len(latest_lengths) == 4
-        assert len(latest_directions) == 4
-
+        # ################################################################## #
+        # Plot before testing the results
         if interactive_plots:
             with use_matplotlib_backend("QtAgg"):
                 fig = plt.figure()
@@ -74,4 +68,15 @@ class TestRandomWalk:
                 for num, i in enumerate(intermediate_pts):
                     ax.text(i[0], i[1], i[2], "%s" % (str(num)), size=20, zorder=1, color="k")
                 ax.legend()
+                ax.set_xlim3d([-0.5, 1.5])
+                ax.set_ylim3d([-0.5, 1.5])
+                ax.set_zlim3d([-0.5, 1.5])
                 plt.show()
+        # ################################################################## #
+
+        assert len(points) == 93
+        npt.assert_array_equal(points[0], [0, 0, 0])
+        npt.assert_array_equal(points[-1], [0, 2, 0])
+        npt.assert_array_almost_equal(points[-2], [-1.3573e-2, 2.005857, 0.018934])
+        assert len(latest_lengths) == 5
+        assert len(latest_directions) == 5

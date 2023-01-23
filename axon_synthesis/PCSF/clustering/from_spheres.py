@@ -1,4 +1,5 @@
 """Clustering from spheres."""
+import json
 import logging
 
 import numpy as np
@@ -9,14 +10,17 @@ from scipy.spatial import KDTree
 logger = logging.getLogger(__name__)
 
 
-def compute_clusters(params, _, __, group_name, group, output_cols, ___):
+def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols, soma_center):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
+    # pylint: disable=unused-argument
     new_terminal_points = []
+
+    config_str = json.dumps(config)
 
     # Get the pairs of terminals closer to the given distance
     tree = KDTree(group[["x", "y", "z"]].values)
-    pairs = tree.query_pairs(params.clustering_distance)
+    pairs = tree.query_pairs(config["clustering_distance"])
 
     # Get the connected components
     adjacency_matrix = np.zeros((len(group), len(group)))
@@ -28,7 +32,7 @@ def compute_clusters(params, _, __, group_name, group, output_cols, ___):
 
     # Define clusters from these components
     cluster_labels, cluster_sizes = np.unique(labels, return_counts=True)
-    big_clusters = cluster_labels[cluster_sizes >= params.clustering_number]
+    big_clusters = cluster_labels[cluster_sizes >= config["clustering_number"]]
     group_with_label = group.reset_index()
     group_with_label["cluster_label"] = labels
     group_with_label["distance"] = -1.0
@@ -49,8 +53,8 @@ def compute_clusters(params, _, __, group_name, group, output_cols, ___):
         cluster_indices = indices[cluster_mask]
         cluster_distances = distances[cluster_mask]
         if (
-            np.count_nonzero(cluster_distances <= params.clustering_distance)
-            < params.clustering_number
+            np.count_nonzero(cluster_distances <= config["clustering_distance"])
+            < config["clustering_number"]
         ):
             continue
 
@@ -111,6 +115,7 @@ def compute_clusters(params, _, __, group_name, group, output_cols, ___):
                 new_terminal_id,
             ]
             + cluster_center.tolist()
+            + [config_str]
         )
         new_terminal_id += 1
         added_clusters.append(real_cluster_label)

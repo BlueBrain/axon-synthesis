@@ -65,14 +65,13 @@ def get_random_vector(
 
 def weights(lengths, history_path_length):
     """Compute the weights depending on the lengths."""
-    return np.exp(np.array(lengths) - history_path_length)
+    return np.exp(np.append(np.cumsum(lengths[:-1]) - history_path_length + lengths[0], 0))
 
 
 def history(latest_lengths, latest_directions, history_path_length):
     """Returns a combination of the segments history."""
     if not latest_directions:
         return np.zeros(3)
-
     weighted_history = np.dot(weights(latest_lengths, history_path_length), latest_directions)
 
     distance = np.linalg.norm(weighted_history)
@@ -96,7 +95,7 @@ def random_walk(
     starting_pt,
     intermediate_pts,
     length_stats,
-    angle_stats,
+    # angle_stats,
     previous_history=None,
     history_path_length=None,
     global_target_coeff=0,
@@ -110,8 +109,8 @@ def random_walk(
     # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     length_norm = length_stats["norm"]
     length_std = length_stats["std"]
-    angle_norm = angle_stats["norm"]
-    angle_std = angle_stats["std"]
+    # angle_norm = angle_stats["norm"]
+    # angle_std = angle_stats["std"]
 
     if history_path_length is None:
         history_path_length = 5.0 * length_norm
@@ -162,7 +161,7 @@ def random_walk(
 
     target_index = 0
     target = intermediate_pts[target_index]
-    next_target_index = min(nb_intermediate_pts - 1, target_index + 1)
+    next_target_index = min(nb_intermediate_pts - 1, 1)
 
     while global_target_dist >= length_norm:
         step_length = rng.normal(length_norm, length_std)
@@ -207,7 +206,6 @@ def random_walk(
 
         history_direction = history(latest_lengths, latest_directions, history_path_length)
         initial_phi, initial_theta = rotation.spherical_from_vector(latest_directions[-1])
-        # initial_phi, initial_theta = rotation.spherical_from_vector(target_direction)
 
         direction = -target_direction
         nb_rand = 0
@@ -229,13 +227,7 @@ def random_walk(
         while np.dot(direction, target_direction) < 0 and nb_rand < max_rand:
             if nb_rand > 0:
                 step_random_coeff = step_random_coeff / 2.0
-            random_direction = get_random_vector(
-                norm=angle_norm,
-                std=angle_std,
-                initial_theta=initial_theta,
-                initial_phi=initial_phi,
-                rng=rng,
-            )
+            random_direction = get_random_vector(rng=rng)
 
             direction = (non_random_direction + step_random_coeff * random_direction).astype(dtype)
 
@@ -269,48 +261,53 @@ def random_walk(
                     "next_target_index=%s\n\t"
                     "next_target_vec=%s\n\t"
                     "random_direction=%s\n\t"
+                    "(initial_phi, initial_theta)=%s\n\t"
                     "history_direction=%s\n\t"
                     "step_global_target_coeff=%s\n\t"
                     "step_target_coeff=%s\n\t"
                     "step_random_coeff=%s\n\t"
                     "step_history_coeff=%s\n\t"
                     "direction=%s\n\t"
+                    "(phi, theta)=%s\n\t"
                     "diff_direction=%s\n\t"
                     "diff_actual_target_direction=%s\n\t"
+                    "diff_last_direction=%s\n\t"
                     "current_pt=%s\n\t"
                 ),
                 global_target_dist,
-                global_target_direction,
+                rotation.spherical_from_vector(global_target_direction),
                 total_length,
                 step_length,
                 target_index,
                 target,
                 target_vec,
                 target_dist,
-                target_direction,
+                rotation.spherical_from_vector(target_direction),
                 current_target_coeff,
-                actual_target_direction,
+                rotation.spherical_from_vector(actual_target_direction),
                 composite_target_dist,
                 next_target_index,
                 next_target_vec,
-                random_direction,
-                history_direction,
+                rotation.spherical_from_vector(random_direction),
+                (initial_phi, initial_theta),
+                rotation.spherical_from_vector(history_direction),
                 step_global_target_coeff,
                 step_target_coeff,
                 step_random_coeff,
                 step_history_coeff,
                 direction,
+                rotation.spherical_from_vector(direction),
                 morphmath.angle_between_vectors(direction, target_direction),
                 morphmath.angle_between_vectors(direction, actual_target_direction),
+                morphmath.angle_between_vectors(direction, latest_directions[-1]),
                 current_pt,
             )
 
-        if target_dist >= min_target_dist or target_dist <= length_norm:  # + 10 * length_norm:
+        if target_dist >= min_target_dist or target_dist <= length_norm:
             if target_dist >= min_target_dist:
                 logger.debug("The random walk is going away from the target")
             if target_dist <= length_norm:
                 logger.debug("The random walk reached the target %s", target_index)
-            debug = True
             logger.debug(
                 "Changing target from %s to %s",
                 target_index,
@@ -438,10 +435,10 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
                         "norm": ref_trunk_props["mean_segment_lengths"],
                         "std": ref_trunk_props["std_segment_lengths"],
                     }
-                    angle_stats = {
-                        "norm": ref_trunk_props["mean_segment_meander_angles"],
-                        "std": ref_trunk_props["std_segment_meander_angles"],
-                    }
+                    # angle_stats = {
+                    #     "norm": ref_trunk_props["mean_segment_meander_angles"],
+                    #     "std": ref_trunk_props["std_segment_meander_angles"],
+                    # }
                     if i[0].parent:
                         parent_history = parent_histories[i[0].parent]
                     else:
@@ -451,7 +448,7 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
                         pts[0],
                         pts[1:],
                         length_stats,
-                        angle_stats,
+                        # angle_stats,
                         parent_history,
                         rng=rng,
                     )

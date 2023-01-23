@@ -16,5 +16,5 @@ def seed_param(desc=None):
         var_type=int,
         default=0,
         min_value=0,
-        max_value=int(np.iinfo(np.int).max),
+        max_value=int(np.iinfo(int).max),
     )

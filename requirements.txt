@@ -3,7 +3,7 @@ BluePyParallel
 dask[dataframe, distributed]
 data-validation-framework>=0.3.1
 gitpython
-luigi
+luigi>=3.2.0
 luigi-tools
 matplotlib
 morph-tool

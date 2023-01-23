@@ -1,4 +1,5 @@
 """Clustering from barcodes."""
+# import json
 from collections import defaultdict
 
 import numpy as np
@@ -64,7 +65,7 @@ def barcode_mins(barcode, nb_bins=100, threshold=0.1):
     return min_indices, min_positions, bin_centers, der1, der2
 
 
-def compute_clusters(self, _, __, group_name, group, output_cols, soma_center):
+def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols, soma_center):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
     # pylint: disable=unused-argument
@@ -72,6 +73,8 @@ def compute_clusters(self, _, __, group_name, group, output_cols, soma_center):
     # pylint: disable=unreachable
     # pylint: disable=unused-variable
     new_terminal_points = []
+
+    # config_str = json.dumps(config)
 
     # Get the complete morphology
     morph = load_morphology(group_name)
@@ -81,9 +84,9 @@ def compute_clusters(self, _, __, group_name, group, output_cols, soma_center):
     origin = neuron.soma.get_center()
     nb_bins = 100
 
-    for axon in neuron.axon:
+    for neuron_axon in neuron.axon:
         barcode, bars_to_points = tree_to_property_barcode(
-            axon,
+            neuron_axon,
             # lambda tree: tree.get_point_path_distances(),
             lambda tree: tree.get_point_radial_distances(point=origin),
         )
@@ -94,7 +97,7 @@ def compute_clusters(self, _, __, group_name, group, output_cols, soma_center):
         )
 
         # Plot
-        if self.plot_debug:
+        if task.plot_debug:
             fig, (ax_barcode, ax_hist, ax_der) = plt.subplots(1, 3, figsize=(12, 9))
 
             # Plot barcode
