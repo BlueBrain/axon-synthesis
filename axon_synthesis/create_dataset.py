@@ -171,13 +171,18 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
 
         # Export the fractions
         with self.output()["wm_fractions"].pathlib_path.open("w", encoding="utf-8") as f:
-            json.dump(wm_fractions, f)
+            json.dump(wm_fractions, f, indent=4, sort_keys=True)
 
         # Export the interaction strengths
         with self.output()["wm_interaction_strengths"].pathlib_path.open(
             "w", encoding="utf-8"
         ) as f:
-            json.dump({k: v.to_dict("index") for k, v in wm_interaction_strengths.items()}, f)
+            json.dump(
+                {k: v.to_dict("index") for k, v in wm_interaction_strengths.items()},
+                f,
+                indent=4,
+                sort_keys=True,
+            )
 
     def output(self):
         return {
@@ -191,9 +196,9 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
             "wm_projection_targets": WMROutputLocalTarget(
                 "white_matter_projection_targets.csv", create_parent=True
             ),
-            "wm_fractions": WMROutputLocalTarget("white_matter_fractions.csv", create_parent=True),
+            "wm_fractions": WMROutputLocalTarget("white_matter_fractions.json", create_parent=True),
             "wm_targets": WMROutputLocalTarget("white_matter_targets.csv", create_parent=True),
             "wm_interaction_strengths": WMROutputLocalTarget(
-                "white_matter_interaction_strengths.csv", create_parent=True
+                "white_matter_interaction_strengths.json", create_parent=True
             ),
         }

@@ -7,5 +7,5 @@
     "commitUrl": "https://bbpgitlab.epfl.ch/neuromath/AxonSynthesis/-/commit/{id}",
     "issueUrl": "https://bbpgitlab.epfl.ch/neuromath/AxonSynthesis/issues/{id}",
     "mergeUrl": "https://bbpgitlab.epfl.ch/neuromath/AxonSynthesis/merge-requests/{id}",
-    "compareUrl": "https://bbpgitlab.epfl.ch/neuromath/AxonSynthesis/compare/{from}...{to}",
+    "compareUrl": "https://bbpgitlab.epfl.ch/neuromath/AxonSynthesis/compare/{from}...{to}"
 }
