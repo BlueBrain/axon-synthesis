@@ -33,7 +33,6 @@ class ExtractTerminals(luigi_tools.task.WorkflowTask):
 
         pts = []
         for morph_path in morph_dir.iterdir():
-
             morph = load_morphology(morph_path)
 
             # Add soma center as terminal

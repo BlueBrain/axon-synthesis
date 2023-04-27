@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Union
 
+import numpy as np
 import pandas as pd
 import voxcell
 import yaml
@@ -67,6 +68,7 @@ def get_atlas_region_id(region_map, pop_row, col_name, second_col_name=None):
 def process(
     wm_recipe: dict,
     region_map: voxcell.region_map.RegionMap,
+    brain_regions: voxcell.voxel_data.VoxelData,
     subregion_uppercase: bool,
     subregion_remove_prefix: bool,
     sub_region_separator: str,
@@ -95,7 +97,7 @@ def process(
     wm_populations["region_acronym"] = wm_populations["atlas_region"].apply(lambda row: row["name"])
     wm_populations_sub = (
         wm_populations["atlas_region"]
-        .apply(lambda row: pd.Series(row.get("subregions", [])))
+        .apply(lambda row: pd.Series(row.get("subregions", []), dtype=object))
         .stack()
         .dropna()
         .rename("sub_region")
@@ -174,6 +176,52 @@ def process(
         for k, v in wm_interaction_mat.items()
     }
 
+    # Compute the volume of each region
+    region_ids, region_counts = np.unique(brain_regions.raw, return_counts=True)
+    region_data = pd.DataFrame({"atlas_region_id": region_ids, "count": region_counts})
+    region_data = region_data.merge(
+        wm_populations[["atlas_region_id"]], on="atlas_region_id", how="outer"
+    )
+    region_data["nb_voxels"] = region_data["atlas_region_id"].apply(
+        lambda row: region_counts[
+            np.argwhere(
+                np.isin(
+                    region_ids,
+                    list(region_map.find(row, attr="id", with_descendants=True)),
+                )
+            )
+        ].sum()
+    )
+    region_data.loc[region_data["atlas_region_id"] == 0, "nb_voxels"] += region_data.loc[
+        region_data["atlas_region_id"] == 0, "count"
+    ]
+    region_data["volume"] = region_data["nb_voxels"] * brain_regions.voxel_volume
+    region_data.drop(columns=["count"], inplace=True)
+
+    wm_populations = wm_populations.merge(region_data, on="atlas_region_id", how="left")
+
+    # Get layer_profiles
+    logger.debug("Extracting layer profiles from white matter recipe")
+    wm_layer_profiles = pd.DataFrame.from_records(wm_recipe["layer_profiles"])
+    layer_profiles = (
+        wm_layer_profiles["relative_densities"]
+        .apply(pd.Series)
+        .stack()
+        .rename("layer_profile")
+        .reset_index(level=1)
+        .rename(columns={"level_1": "layer_profile_num"})
+    )
+    wm_layer_profiles = wm_layer_profiles.join(layer_profiles).set_index(
+        "layer_profile_num", append=True
+    )
+    wm_layer_profiles["layers"] = wm_layer_profiles["layer_profile"].apply(
+        lambda row: row.get("layers", None)
+    )
+    wm_layer_profiles["value"] = wm_layer_profiles["layer_profile"].apply(
+        lambda row: row.get("value", None)
+    )
+    wm_layer_profiles.drop(columns=["relative_densities", "layer_profile"], inplace=True)
+
     return (
         wm_populations,
         wm_projections,
@@ -181,6 +229,8 @@ def process(
         wm_fractions,
         wm_interaction_strengths,
         wm_projection_targets,
+        wm_layer_profiles,
+        region_data,
     )
 
 

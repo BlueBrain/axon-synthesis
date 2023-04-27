@@ -73,7 +73,6 @@ def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols
         real_cluster_label,
         real_cluster,
     ) in enumerate(real_clusters):
-
         # Let at least 4 points in the graph
         points_not_clustered = group_with_label.loc[
             ~group_with_label["cluster_label"].isin(

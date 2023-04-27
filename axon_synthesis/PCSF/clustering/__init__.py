@@ -267,13 +267,13 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Run the clustering function on each axon
             for axon_id, axon in enumerate(axons):
-
                 for config in clustering_parameters:
-
                     axon_group = group.loc[group["axon_id"] == axon_id]
-                    (new_terminal_points, cluster_ids, _,) = clustering_funcs[
-                        config["clustering_mode"]
-                    ](
+                    (
+                        new_terminal_points,
+                        cluster_ids,
+                        _,
+                    ) = clustering_funcs[config["clustering_mode"]](
                         self,
                         config,
                         axon,
@@ -353,7 +353,6 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
             # Plot the clusters
             if self.plot_debug:
-
                 plot_clusters(
                     morph,
                     clustered_morph,

@@ -193,7 +193,6 @@ def plot_score_matrix(
 
     # Plot statistics
     with PdfPages(output_path) as pdf:
-
         # Compute subplot ratios and figure size
         height_ratios = [7, (1 + n_scores)]
         fig_width = size
@@ -445,9 +444,7 @@ class PlotStatistics(luigi_tools.task.WorkflowTask):
             statistics = json.load(f)
 
         with PdfPages(self.output().pathlib_path / "input_statistics.pdf") as pdf:
-
             for key, values in statistics.items():
-
                 fig = plt.figure()
                 ax = fig.gca()
 

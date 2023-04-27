@@ -18,8 +18,8 @@ def test_create_inputs(out_dir, luigi_cfg):
     assert (out_dir / "clustering" / "clustered_terminals.csv").exists()
     for i in range(1, 4):
         assert (out_dir / "clustering" / "morphologies" / f"morph_000{i}.asc").exists()
-    assert (out_dir / "white_matter_recipe" / "white_matter_fractions.csv").exists()
-    assert (out_dir / "white_matter_recipe" / "white_matter_interaction_strengths.csv").exists()
+    assert (out_dir / "white_matter_recipe" / "white_matter_fractions.json").exists()
+    assert (out_dir / "white_matter_recipe" / "white_matter_interaction_strengths.json").exists()
     assert (out_dir / "white_matter_recipe" / "white_matter_population.csv").exists()
     assert (out_dir / "white_matter_recipe" / "white_matter_projections.csv").exists()
     assert (out_dir / "white_matter_recipe" / "white_matter_projection_targets.csv").exists()

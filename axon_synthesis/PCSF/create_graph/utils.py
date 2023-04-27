@@ -94,7 +94,11 @@ def add_random_points(all_pts, min_random_point_distance, bbox_buffer, seed):
                 ]
             )
             if np.isinf(
-                tree.query(xyz, distance_upper_bound=min_random_point_distance, k=2,)[
+                tree.query(
+                    xyz,
+                    distance_upper_bound=min_random_point_distance,
+                    k=2,
+                )[
                     0
                 ][1]
             ) and (

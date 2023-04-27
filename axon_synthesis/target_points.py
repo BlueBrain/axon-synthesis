@@ -198,6 +198,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
 
         # Compute connections (find regions and pick random coordinates in these regions)
         targets = []
+        pops = set(self.wm_populations["pop_raw_name"])
         for _, row in source_pop.iterrows():
             term_id = 1
             row_targets = []
@@ -222,6 +223,13 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             logger.debug("Targets found: %s", row_targets)
 
             for target in row_targets:
+                if target["population"] not in pops:
+                    logger.debug(
+                        "The population %s does not exist in the populations and is thus skipped",
+                        target["population"],
+                    )
+                    # TODO: Is this possible?
+                    continue
                 logger.debug(
                     "Potential populations:\n%s",
                     self.wm_populations.loc[

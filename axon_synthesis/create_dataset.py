@@ -123,7 +123,7 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
         config = Config()
 
         # Get atlas data
-        _, _, region_map = load_atlas(
+        _, brain_regions, region_map = load_atlas(
             str(config.atlas_path),
             config.atlas_region_filename,
             config.atlas_hierarchy_filename,
@@ -140,9 +140,12 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
             wm_fractions,
             wm_interaction_strengths,
             projection_targets,
+            wm_layer_profiles,
+            region_data,
         ) = process_wmr(
             wm_recipe,
             region_map,
+            brain_regions,
             self.subregion_uppercase,
             self.subregion_remove_prefix,
             self.sub_region_separator,
@@ -184,6 +187,13 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
                 sort_keys=True,
             )
 
+        # Export the layer profiles
+        layer_profiles = cols_to_json(wm_layer_profiles, ["layers"])
+        layer_profiles.to_csv(self.output()["wm_layer_profiles"].path, index=False)
+
+        # Export the region data
+        region_data.to_csv(self.output()["region_data"].path, index=False)
+
     def output(self):
         return {
             "WMR": WMROutputLocalTarget(Config().white_matter_file),
@@ -201,4 +211,6 @@ class FetchWhiteMatterRecipe(luigi_tools.task.WorkflowTask):
             "wm_interaction_strengths": WMROutputLocalTarget(
                 "white_matter_interaction_strengths.json", create_parent=True
             ),
+            "wm_layer_profiles": WMROutputLocalTarget("layer_profiles.csv", create_parent=True),
+            "region_data": WMROutputLocalTarget("region_data.csv", create_parent=True),
         }
