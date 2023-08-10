@@ -2,7 +2,6 @@
 import json
 import logging
 import sys
-from ast import literal_eval
 from collections import defaultdict
 from pathlib import Path
 
@@ -115,13 +114,6 @@ def load_WMR_data(
         dtype={"morph_file": str},
     )
     target_properties[["x", "y", "z"]] = target_properties[["x", "y", "z"]].round(6)
-    target_properties.loc[
-        ~target_properties["target_properties"].isnull(), "target_properties"
-    ] = target_properties.loc[
-        ~target_properties["target_properties"].isnull(), "target_properties"
-    ].apply(
-        literal_eval
-    )
 
     # Add target properties to the tuft roots
     all_tuft_roots = all_tuft_roots.merge(
@@ -163,7 +155,9 @@ def load_WMR_data(
 
     pop_numbers = pd.merge(
         source_populations,
-        pop_neuron_numbers[["pop_raw_name", "atlas_region_volume", "pop_neuron_numbers"]],
+        pop_neuron_numbers[
+            ["pop_raw_name", "atlas_region_id", "atlas_region_volume", "pop_neuron_numbers"]
+        ],
         on="pop_raw_name",
         how="left",
     )
@@ -208,9 +202,9 @@ def compute_cluster_properties(
     )
 
     # Compute cluster size from white matter recipe
-    source = source_populations.loc[source_populations["morph_file"] == morph_file, "source"].iloc[
-        0
-    ]
+    source = source_populations.loc[
+        source_populations["morph_file"] == morph_file, "source_population_name"
+    ].iloc[0]
     target_region_volume, atlas_region_id, N_pot = pop_numbers.loc[
         pop_numbers["morph_file"] == morph_file,
         [
@@ -220,9 +214,9 @@ def compute_cluster_properties(
         ],
     ].iloc[0]
     atlas_region_id = int(atlas_region_id)
-    fraction = wm_fractions[source][tuft_root["target_properties"]["projection_name"]]
+    fraction = wm_fractions[source][tuft_root["target_projection_name"]]
     N_act = N_pot * fraction
-    strength = tuft_root["target_properties"]["density"]
+    strength = tuft_root["target_density"]
     N_tot = target_region_volume * strength
     n_syn_per = N_tot / N_act
     l_mean = n_syn_per / bouton_density
@@ -362,7 +356,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     "Skip section %s with point %s since no tuft root was found near "
                     "this location (the point %s is the closest with %s distance). This probably "
                     "just means that this section is an intermediate section but if all sections "
-                    "there is an issue."
+                    "are skipped then there is an issue."
                 ),
                 sec.id,
                 last_pt,

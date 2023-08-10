@@ -87,8 +87,8 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
             )
         # ################################################################################### #
 
-        for row in input_morph_paths.iterrows():
-            morph_file = Path(row["steiner_morph_file"])
+        for path in input_morph_paths["steiner_morph_file"].to_list():
+            morph_file = Path(path)
             morph_name = morph_file.name
 
             gen_morph = load_morphology(morph_file)
@@ -102,10 +102,15 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
 
             # Export the solution
             input_data_type = Config().input_data_type
+            left_title = "New morphology"
             if input_data_type == "biological_morphologies":
-                fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
+                fig = make_subplots(
+                    cols=2,
+                    specs=[[{"is_3d": True}, {"is_3d": True}]],
+                    subplot_titles=[left_title, "Raw morphology"],
+                )
             else:
-                fig = make_subplots(cols=1, specs=[[{"is_3d": True}]])
+                fig = make_subplots(cols=1, specs=[[{"is_3d": True}]], subplot_titles=[left_title])
             if self.plot_fiber_tracts:
                 fig.add_trace(
                     fiber_tract_trace,
@@ -138,6 +143,8 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
                     rows=[1] * len(bio_fig),
                     cols=[2] * len(bio_fig),
                 )
+
+            fig.update_scenes({"aspectmode": "data"})
 
             fig_path = str((self.output().pathlib_path / morph_name).with_suffix(".html"))
             fig.write_html(fig_path)

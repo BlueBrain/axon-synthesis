@@ -499,5 +499,7 @@ def plot(region_component_subgraphs, region_acronyms, filepath):
 
     fig.add_trace(edge_trace, row=1, col=1)
 
+    fig.update_scenes({"aspectmode": "data"})
+
     # Export figure
     fig.write_html(filepath)

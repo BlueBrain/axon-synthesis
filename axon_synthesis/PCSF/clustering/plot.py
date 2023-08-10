@@ -106,6 +106,8 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
         )
         fig.add_trace(cluster_trace, row=1, col=2)
 
+        fig.update_scenes({"aspectmode": "data"})
+
         # Export figure
         fig.write_html(str(output_path))
 

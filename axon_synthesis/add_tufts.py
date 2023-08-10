@@ -31,32 +31,42 @@ from axon_synthesis.utils import append_section_recursive
 logger = logging.getLogger(__name__)
 
 
-def plot_tuft(morph, morph_name, output_path, morph_file=None):
+def plot_tuft(morph, morph_name, output_path, morph_file=None, morph_title=None):
     """Plot the given morphology.
 
     If `morph_file` is not None then the given morphology is also plotted for comparison.
     """
     fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
     fig_data = [fig_builder.get_figure()["data"]]
+    left_title = "Morphology with tufts"
 
     if morph_file is not None:
+        if morph_title is None:
+            morph_title = "Simplified raw morphology"
         raw_morph = load_morphology(morph_file)
         raw_morph = Morphology(resampling.resample_linear_density(raw_morph, 0.005))
 
         raw_builder = NeuronBuilder(raw_morph, "3d", line_width=4, title=f"{morph_name}")
 
-        fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
+        fig = make_subplots(
+            cols=2,
+            specs=[[{"type": "scene"}, {"type": "scene"}]],
+            subplot_titles=[left_title, morph_title],
+        )
         fig_data.append(raw_builder.get_figure()["data"])
     else:
-        fig = make_subplots(cols=1, specs=[[{"is_3d": True}]])
+        fig = make_subplots(cols=1, specs=[[{"type": "scene"}]], subplot_titles=[left_title])
 
     for col_num, data in enumerate(fig_data):
         fig.add_traces(data, rows=[1] * len(data), cols=[col_num + 1] * len(data))
 
+    fig.update_scenes({"aspectmode": "data"})
+
     # Export figure
     fig.write_html(output_path)
 
-    add_camera_sync(output_path)
+    if morph_file is not None:
+        add_camera_sync(output_path)
     logger.info("Exported figure to %s", output_path)
 
 
@@ -122,16 +132,27 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             all_props = ref_terminal_props.to_dict("records")
             for props in all_props:
                 counter = 0
+                found_section = None
                 for tuft_root_props in tuft_roots:
                     if (
                         props["common_ancestor_coords"]
                         != tuft_root_props[1]["common_ancestor_coords"]
                     ):
                         counter += 1
+                    else:
+                        found_section = tuft_root_props
+                        break
                 if counter == len(tuft_roots):
                     logger.warning("No section could be found for the following tuft: %s", props)
+                else:
+                    logger.debug(
+                        "A section could be found for the following tuft: %s => %s",
+                        props,
+                        found_section,
+                    )
 
     def run(self):
+        # pylint: disable=too-many-statements
         config = Config()
         # input_dir = (
         #     self.input_dir
@@ -188,7 +209,7 @@ class AddTufts(luigi_tools.task.WorkflowTask):
                 np.array(ref_terminal_props["common_ancestor_coords"].to_list(), dtype=np.float32)
             )
             for section in morph.iter():
-                for i in tree.query_ball_point(section.points[-1], 1e-6):
+                for i in tree.query_ball_point(section.points[-1], 1e-4):
                     tuft_roots.append((section, ref_terminal_props.iloc[i]))
 
             self.check_props(tuft_roots, ref_terminal_props)
@@ -240,14 +261,19 @@ class AddTufts(luigi_tools.task.WorkflowTask):
                 morph.write(morph_path)
 
             if self.plot_debug:
+                plot_kwargs = {}
+                if config.input_data_type == "biological_morphologies":
+                    plot_kwargs["morph_file"] = morph_file
+                else:
+                    plot_kwargs["morph_file"] = steiner_morph_file
+                    plot_kwargs["morph_title"] = "Simplified Steiner morphology"
+
                 plot_tuft(
                     morph,
                     morph_name,
                     self.output()["figures"].pathlib_path
                     / f"{Path(morph_name).with_suffix('').name}.html",
-                    morph_file=morph_file
-                    if config.input_data_type == "biological_morphologies"
-                    else None,
+                    **plot_kwargs,
                 )
 
     def output(self):

@@ -1,6 +1,7 @@
 """Post-process the Steiner solutions."""
 import json
 import logging
+from itertools import chain
 from pathlib import Path
 
 import luigi
@@ -511,11 +512,15 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
                 )
                 fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
 
-                fig = make_subplots(cols=2, specs=[[{"is_3d": True}, {"is_3d": True}]])
-                for col_num, data in enumerate(
-                    [fig_builder.get_figure()["data"], steiner_builder.get_figure()["data"]]
-                ):
-                    fig.add_traces(data, rows=[1] * len(data), cols=[col_num + 1] * len(data))
+                fig = make_subplots(
+                    cols=2,
+                    specs=[[{"type": "scene"}, {"type": "scene"}]],
+                    subplot_titles=["Post-processed morphology", "Raw Steiner morphology"],
+                )
+                all_data = [fig_builder.get_figure()["data"], steiner_builder.get_figure()["data"]]
+                fig.add_traces(list(chain(*all_data)), rows=[1, 1, 1, 1], cols=[1, 1, 2, 2])
+
+                fig.update_scenes({"aspectmode": "data"})
 
                 # Export figure
                 filepath = str(

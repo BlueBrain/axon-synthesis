@@ -161,6 +161,10 @@ def reduce_clusters(
 
         kept_path = kept_path.union(cluster_common_path)
 
+        # TODO: The graph node IDs should be mapped to section IDs, currently it only workds for the
+        # first neurite because the graph node IDs correspond to the section IDs of the first
+        # neurite
+
         # Create a morphology for the current tuft
         tuft_morph, tuft_ancestor = create_tuft_morphology(
             morph,

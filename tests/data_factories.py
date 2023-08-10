@@ -56,7 +56,17 @@ def generate_small_O1(atlas_dir):
             ],
         }
     )
+
+    def recursive_atlas_id(data):
+        if "id" in data:
+            data["atlas_id"] = data["id"]
+        if "children" in data:
+            for i in data["children"]:
+                recursive_atlas_id(i)
+
+    recursive_atlas_id(region_map)
+
     with open(str(atlas_dir / "hierarchy.json"), "w") as f:
-        json.dump(region_map, f, indent=4)
+        json.dump(region_map, f, indent=4, sort_keys=True)
 
     return atlas_dir

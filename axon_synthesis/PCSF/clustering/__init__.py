@@ -189,7 +189,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
 
     def load_WMR(self):
         """Get the white matter recipe data."""
-        (
+        (  # pylint: disable=unbalanced-dict-unpacking
             self.wm_populations,
             self.wm_projections,
             self.wm_targets,
@@ -203,7 +203,7 @@ class ClusterTerminals(luigi_tools.task.WorkflowTask):
             self.input()["WMR"]["wm_projection_targets"].pathlib_path,
             self.input()["WMR"]["wm_fractions"].pathlib_path,
             self.input()["WMR"]["wm_interaction_strengths"].pathlib_path,
-        )
+        ).values()
 
     def run(self):
         # pylint: disable=too-many-locals
