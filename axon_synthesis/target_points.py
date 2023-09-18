@@ -34,7 +34,9 @@ def remove_invalid_points(target_df, min_target_points):
 
         for k, v in nb_targets.loc[nb_targets < min_target_points].to_dict().items():
             coords = (
-                target_df.loc[target_df["morph_file"] == k, ["x", "y", "z"]]
+                target_df.loc[
+                    (target_df[["morph_file", "axon_id"]] == k).any(axis=1), ["x", "y", "z"]
+                ]
                 .values.flatten()
                 .tolist()
             )
