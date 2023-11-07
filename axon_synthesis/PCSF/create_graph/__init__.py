@@ -65,7 +65,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
     )
     orientation_penalty_exponent = luigi.NumericalParameter(
         description="The exponent used for the orientation penalty.",
-        var_type=int,
+        var_type=float,
         default=0.1,
         min_value=0,
         max_value=sys.float_info.max,

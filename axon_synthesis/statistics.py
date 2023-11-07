@@ -457,7 +457,7 @@ class PlotStatistics(luigi_tools.task.WorkflowTask):
                 plt.close(fig)
 
     def output(self):
-        return StatisticsOutputLocalTarget(self.output_dir, create=True)
+        return StatisticsOutputLocalTarget(self.output_dir, create_parent=True)
 
 
 class CompareStatistics(luigi_tools.task.WorkflowTask):
