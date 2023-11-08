@@ -4,12 +4,14 @@ import luigi_tools
 from axon_synthesis.add_tufts import AddTufts
 from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 from axon_synthesis.create_dataset import RepairDataset
-from axon_synthesis.PCSF.clustering import ClusterTerminals
 from axon_synthesis.PCSF.create_graph import CreateGraph
 from axon_synthesis.PCSF.plot_steiner import PlotSolutions
 from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
+from axon_synthesis.pop_neuron_numbers import PickPopulationNeuronNumbers
+from axon_synthesis.prepare_atlas import PrepareAtlas
 from axon_synthesis.statistics import CompareStatistics
 from axon_synthesis.statistics import PlotStatistics
+from axon_synthesis.trunk_properties import LongRangeTrunkProperties
 
 
 class DiscoverRawData(luigi_tools.task.WorkflowWrapperTask):
@@ -31,8 +33,10 @@ class CreateInputs(luigi_tools.task.WorkflowWrapperTask):
 
     def requires(self):
         return {
-            "clusters": ClusterTerminals(),
+            "atlas": PrepareAtlas(),
+            "trunk_properties": LongRangeTrunkProperties(),
             "WMR": FetchWhiteMatterRecipe(),
+            "pop_neuron_numbers": PickPopulationNeuronNumbers(),
         }
 
 
