@@ -21,18 +21,20 @@ from axon_synthesis.utils import fill_diag
 LOGGER = logging.getLogger(__name__)
 
 
-def fetch(url, output_path, file_path="white_matter_FULL_RECIPE_v1p20.yaml", version=None):
+def fetch(
+    url, output_path, file_path="white_matter_FULL_RECIPE_v1p20.yaml", version_reference=None
+):
     """Fetch the White Natter Recipe file from an internal repository."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory() as tmpdir:
         dest = Path(tmpdir) / "tmp_repo"
         Repo.clone_from(url, dest)
-        if version is not None:
+        if version_reference is not None:
             r = Repo(dest)
-            r.git.checkout(version)
+            r.git.checkout(version_reference)
         shutil.copy(dest / file_path, output_path)
-    if version is None:
-        version = "latest"
+    if version_reference is None:
+        version_reference = "latest"
     LOGGER.info(
         (
             "Fetched the White Matter Recipe using the '%s' file from the '%s' repository at "
@@ -40,7 +42,7 @@ def fetch(url, output_path, file_path="white_matter_FULL_RECIPE_v1p20.yaml", ver
         ),
         file_path,
         url,
-        version,
+        version_reference,
         output_path,
     )
 

@@ -5,11 +5,41 @@ from pathlib import Path
 
 import click
 from click_option_group import optgroup
+from configobj import ConfigObj
 
-# import axon_synthesis.example
 from axon_synthesis import input_creation
 from axon_synthesis.utils import setup_logger
 from axon_synthesis.white_matter_recipe import fetch
+
+
+def configure(ctx, param, filename):
+    """Set parameter default values according to a given configuration file."""
+    # pylint: disable=unused-argument
+    if filename is None:
+        return
+
+    # Load the config file
+    cfg = ConfigObj(filename)
+
+    # Get current default values
+    defaults = cfg.dict()
+
+    def format_value(data, name):
+        return {f"{name}_{key}": value for key, value in data.items()}
+
+    for key, value in defaults.items():
+        if isinstance(value, dict):
+            to_add = {}
+            to_remove = []
+            for subkey, subvalue in value.items():
+                if isinstance(subvalue, dict):
+                    to_add.update(format_value(subvalue, subkey))
+                    to_remove.append(subkey)
+            value.update(to_add)
+            for i in to_remove:
+                del value[i]
+
+    ctx.default_map = defaults
 
 
 class ListParam(click.ParamType):
@@ -76,12 +106,22 @@ seed_option = click.option(
 @click.group()
 @click.version_option()
 @click.option(
+    "-c",
+    "--config",
+    type=click.Path(dir_okay=False, exists=True),
+    callback=configure,
+    is_eager=True,
+    expose_value=False,
+    help="Read option defaults from the specified INI file.",
+    show_default=True,
+)
+@click.option(
     "--log-level",
     help="The logger level.",
     type=click.Choice(["debug", "info", "warning", "error", "critical"]),
     default="info",
 )
-def main(**kwargs):
+def main(*args, **kwargs):
     """A tool for axon-synthesis management."""
     setup_logger(kwargs.pop("log_level", "info"))
 
@@ -115,9 +155,6 @@ def main(**kwargs):
     help="The path to the destination file",
 )
 def fetch_white_matter_recipe(**kwargs):
-    version = kwargs.pop("version_reference", None)
-    if version is not None:
-        kwargs["version"] = version
     fetch(**kwargs)
 
 
@@ -134,51 +171,44 @@ def fetch_white_matter_recipe(**kwargs):
     help="Path to the folder containing the input morphologies",
 )
 @atlas_options
-@click.option(
-    "-o",
-    "--output-dir",
-    type=click.Path(path_type=Path),
-    required=True,
-    help="Output directory",
-)
 @optgroup.group(
     "White Matter Recipe parameters",
     help="Parameters used to load and process the White Matter Recipe file",
 )
 @optgroup.option(
-    "--WMR-path",
+    "--wmr-path",
     type=click.Path(exists=True, dir_okay=False),
     required=True,
     help="Path to the White Matter Recipe file",
 )
 @optgroup.option(
-    "--WMR-subregion-uppercase",
+    "--wmr-subregion-uppercase",
     is_flag=True,
     default=False,
     help="",
 )
 @optgroup.option(
-    "--WMR-subregion-keep-prefix",
+    "--wmr-subregion-keep-prefix",
     "wmr_subregion_remove_prefix",
     flag_value=True,
     default=True,
     help="",
 )
 @optgroup.option(
-    "--WMR-subregion-remove-prefix",
+    "--wmr-subregion-remove-prefix",
     "wmr_subregion_remove_prefix",
     flag_value=False,
     help="",
 )
 @optgroup.option(
-    "--WMR-sub-region-separator",
+    "--wmr-sub-region-separator",
     type=str,
     default="",
     help="",
 )
 @click.option(
     "--clustering-parameters",
-    type=str,
+    type=ListParam(),
     required=True,
     help="Parameters used for the clustering algorithm",
 )
@@ -192,7 +222,13 @@ def fetch_white_matter_recipe(**kwargs):
         "micrometer)."
     ),
 )
-# @seed_option
+@click.option(
+    "-o",
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    required=True,
+    help="Output directory",
+)
 def create_inputs(**kwargs):
     input_creation.create_inputs(**kwargs)
 
