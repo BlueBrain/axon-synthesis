@@ -11,6 +11,27 @@ import pandas as pd
 from neurom import NeuriteType
 
 
+def setup_logger(level="info", prefix="", suffix=""):
+    """Setup application logger."""
+    levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+    logging.basicConfig(
+        format=prefix + "%(asctime)s - %(name)s - %(levelname)s - %(message)s" + suffix,
+        datefmt="%Y-%m-%dT%H:%M:%S",
+        level=levels[level],
+    )
+
+    if levels[level] >= logging.INFO:  # pragma: no cover
+        logging.getLogger("distributed").level = max(
+            logging.getLogger("distributed").level, logging.WARNING
+        )
+
+
 def fill_diag(mat, val=1):
     """Fill the diagonal of the given matrix."""
     np.fill_diagonal(mat, val)

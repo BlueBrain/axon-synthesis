@@ -1,11 +1,12 @@
 {
     "output": "CHANGELOG.md",
     "template": ".auto-changelog-template.hbs",
+    "tagPrefix": "axon-synthesis-v",
     "commitLimit": false,
     "backfillLimit": false,
-    "ignoreCommitPattern": "Release [0-9]+\\.[0-9]+\\.[0-9]+|Update CHANGELOG.*|.*\\[skip-changelog\\].*|\\[pre-commit.ci\\]",
-    "commitUrl": "https://bbpgitlab.epfl.ch/neuromath/AxonSynthesis/-/commit/{id}",
-    "issueUrl": "https://bbpgitlab.epfl.ch/neuromath/AxonSynthesis/issues/{id}",
-    "mergeUrl": "https://bbpgitlab.epfl.ch/neuromath/AxonSynthesis/merge-requests/{id}",
-    "compareUrl": "https://bbpgitlab.epfl.ch/neuromath/AxonSynthesis/compare/{from}...{to}"
+    "ignoreCommitPattern": "^Release:? [0-9]+\\.[0-9]+\\.[0-9]+$|^Update CHANGELOG.*|.*\\[skip-changelog\\].*|^\\[pre-commit.ci\\]|^\\(dependabot\\) .*",
+    "commitUrl": "https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/commit/{id}",
+    "issueUrl": "https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/issues/{id}",
+    "mergeUrl": "https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/merge_requests/{id}",
+    "compareUrl": "https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/compare/{from}...{to}"
 }

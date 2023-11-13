@@ -1,4 +1,4 @@
-# AxonSynthesis
+# Axon Synthesis
 
 A package to synthesize artificial axons
 

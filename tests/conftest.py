@@ -1,4 +1,4 @@
-"""Prepare fixtures for the tests of the AxonSynthesis package."""
+"""Configuration for the pytest test suite."""
 import logging
 import shutil
 from configparser import ConfigParser

@@ -1,0 +1,27 @@
+# Changes here will be overwritten by Copier
+
+_commit: 0.1.52
+_src_path: git@bbpgitlab.epfl.ch:neuromath/python-template.git
+author_email: bbp-ou-cells@groupes.epfl.ch
+author_name: bbp-ou-cells
+copyright_license: BBP-internal-confidential
+copyright_year: '2023'
+distribution_name: axon-synthesis
+download_url: https://bbpgitlab.epfl.ch/neuromath/axon-synthesis
+init_git: true
+maintainer: ''
+package_name: axon_synthesis
+project_description: A package to synthesize artificial axons
+project_name: Axon Synthesis
+project_url: https://bbpteam.epfl.ch/documentation/projects/axon-synthesis
+repository_name: axon-synthesis
+repository_namespace: neuromath
+repository_provider: gitlab
+setup_codeql: false
+ssh_url: git@bbpgitlab.epfl.ch:neuromath/axon-synthesis.git
+team_name: neuromath
+tracker_url: https://bbpteam.epfl.ch/project/issues/projects/CELLS/issues
+use_pyproject_toml: true
+version: 0.1.0.dev0
+
+# End of Copier answers

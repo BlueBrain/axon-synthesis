@@ -275,7 +275,21 @@ def _find_wm_first_nested_region(region_id, wm_regions, region_map):
     return region_id
 
 
-def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols, soma_center):
+def compute_clusters(
+    atlas,
+    wmr,
+    config,
+    axon,
+    axon_id,
+    group_name,
+    group,
+    # output_cols,
+    nb_workers,
+    tuft_morphologies_path,
+    figure_path,
+    debug=False,
+    **kwargs,
+):
     """Gather points according to connected components in brain regions."""
     # pylint: disable=unused-argument
     config_str = json.dumps(config)
@@ -296,7 +310,7 @@ def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols
     edges = edges.join(nodes.add_prefix("target_"), on="target")
 
     # Cut edges according to brain regions
-    new_nodes, new_edges = cut_edges(edges, nodes, task.brain_regions, task.nb_workers, group_name)
+    new_nodes, new_edges = cut_edges(edges, nodes, atlas.brain_regions, nb_workers, group_name)
 
     # Normalize node indices
     new_nodes.sort_values(["section_id", "sub_segment_num"], inplace=True)
@@ -321,11 +335,11 @@ def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols
     new_nodes.drop(columns=["new_index", "old_index"], inplace=True)
 
     # Normalize nested brain regions
-    wm_regions = np.sort(task.wm_populations["atlas_region_id"].unique())
+    wm_regions = np.sort(wmr.populations["atlas_region_id"].unique())
 
     new_edges["wm_brain_region"] = new_edges["brain_region"].apply(
         _find_wm_first_nested_region,
-        args=(wm_regions, task.region_map),
+        args=(wm_regions, atlas.region_map),
     )
 
     if config["wm_unnesting"]:
@@ -361,7 +375,7 @@ def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols
     }
 
     region_acronyms = {
-        brain_region: task.region_map.get(brain_region, attr="acronym")
+        brain_region: atlas.region_map.get(brain_region, attr="acronym")
         for brain_region in region_components
         if brain_region != 0
     }
@@ -410,20 +424,15 @@ def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols
         )
         new_terminal_id += 1
 
-    if task.plot_debug:
+    if debug:
         plot(
             region_component_subgraphs,
             region_acronyms,
-            str(
-                task.output()["figures"].pathlib_path
-                / f"{Path(group_name).with_suffix('').name}_region_clusters.html"
-            ),
+            str(figure_path / f"{Path(group_name).with_suffix('').name}_region_clusters.html"),
         )
 
-    if task.export_tuft_morphs:
         tuft_brain_region_path = (
-            task.output()["tuft_morphologies"].pathlib_path
-            / f"{Path(group_name).with_suffix('').name}_{axon_id}.csv"
+            tuft_morphologies_path / f"{Path(group_name).with_suffix('').name}_{axon_id}.csv"
         )
         logger.debug("Export tuft brain regions to %s", tuft_brain_region_path)
         group_nodes["region_acronym"] = group_nodes["wm_brain_region"].map(region_acronyms)

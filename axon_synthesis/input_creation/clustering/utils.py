@@ -262,7 +262,7 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add):
     )
     trunk_morph = Morphology(
         deepcopy(morph),
-        name=f"Clustered {Path(group_name).with_suffix('').name}",
+        name=f"Clustered trunk {Path(group_name).with_suffix('').name}",
     )
 
     for axon, new_axon, trunk_axon in zip(

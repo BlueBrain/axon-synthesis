@@ -1,5 +1,9 @@
 [MESSAGES CONTROL]
-disable=fixme,invalid-name,len-as-condition,no-else-return
+disable=
+	fixme,
+	invalid-name,
+	len-as-condition,
+	no-else-return
 
 [FORMAT]
 # Regexp for a line that is allowed to be longer than the limit.
@@ -43,11 +47,8 @@ ignore-comments=yes
 ignore-docstrings=yes
 
 [TYPECHECK]
-# List of packages which should be loaded and inspected to properly find their attributes
-extension-pkg-whitelist=pcst_fast,scipy
-
 # List of classes names for which member attributes should not be checked
 # (useful for classes with attributes dynamically set).
 
 # as of numpy 1.8.0, name resolution seems to be a problem. Ignore lookups in numpy
-ignored-classes=numpy,list
+# ignored-classes=numpy,list

@@ -1,0 +1,2 @@
+               Blue Brain Project Internal License
+   Copyright 2023 Blue Brain Project, EPFL, all rights reserved

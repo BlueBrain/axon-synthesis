@@ -1,4 +1,4 @@
-"""Tests for the AxonSynthesis package."""
+"""Tests suite for the axon-synthesis package."""
 from pathlib import Path
 
 TEST_ROOT = Path(__file__).parent

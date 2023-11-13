@@ -1,4 +1,7 @@
-"""AxonSynthesis package."""
+"""axon-synthesis package.
+
+A package to synthesize artificial axons
+"""
 import importlib.metadata
 
 import luigi
@@ -18,3 +21,11 @@ def seed_param(desc=None):
         min_value=0,
         max_value=int(np.iinfo(int).max),
     )
+
+
+def create_inputs():
+    pass
+
+
+def synthesis():
+    pass

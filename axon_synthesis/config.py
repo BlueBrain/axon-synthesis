@@ -15,21 +15,21 @@ class Config(luigi.task.Config):
         choices=["biological_morphologies", "white_matter"],
         default="biological_morphologies",
     )
-    atlas_path = luigi.parameter.OptionalPathParameter(
-        description="Atlas path", exists=True, default=None
-    )
-    atlas_region_filename = luigi.Parameter(
-        description="Atlas regions file.",
-        default="brain_regions",
-    )
-    atlas_flatmap_filename = luigi.OptionalParameter(
-        description="Atlas flatmap file.",
-        default=None,
-    )
-    atlas_hierarchy_filename = luigi.Parameter(
-        description="Atlas hierarchy file.",
-        default="hierarchy.json",
-    )
+    # atlas_path = luigi.parameter.OptionalPathParameter(
+    #     description="Atlas path", exists=True, default=None
+    # )
+    # atlas_region_filename = luigi.Parameter(
+    #     description="Atlas regions file.",
+    #     default="brain_regions",
+    # )
+    # atlas_flatmap_filename = luigi.OptionalParameter(
+    #     description="Atlas flatmap file.",
+    #     default=None,
+    # )
+    # atlas_hierarchy_filename = luigi.Parameter(
+    #     description="Atlas hierarchy file.",
+    #     default="hierarchy.json",
+    # )
     white_matter_file = luigi.parameter.OptionalPathParameter(
         description="White matter file", default=None
     )

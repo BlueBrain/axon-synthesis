@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from morphio import IterType
-from neurom import load_morphology
 from scipy import stats
 from tmd.io.io import load_neuron_from_morphio
 from tmd.Topology.analysis import barcode_bin_centers
@@ -65,7 +64,9 @@ def barcode_mins(barcode, nb_bins=100, threshold=0.1):
     return min_indices, min_positions, bin_centers, der1, der2
 
 
-def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols, soma_center):
+def compute_clusters(
+    config, morph, axon, axon_id, group_name, group, output_cols, debug=False, **kwargs
+):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
     # pylint: disable=unused-argument
@@ -77,7 +78,8 @@ def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols
     # config_str = json.dumps(config)
 
     # Get the complete morphology
-    morph = load_morphology(group_name)
+    # morph = load_morphology(group_name)
+    soma_center = morph.soma.center
     # axons = [i for i in neuron.neurites if i.type == NeuriteType.axon]
 
     neuron = load_neuron_from_morphio(group_name)
@@ -97,7 +99,7 @@ def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols
         )
 
         # Plot
-        if task.plot_debug:
+        if debug:
             fig, (ax_barcode, ax_hist, ax_der) = plt.subplots(1, 3, figsize=(12, 9))
 
             # Plot barcode

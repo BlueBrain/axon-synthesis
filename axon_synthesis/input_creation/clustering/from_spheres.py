@@ -10,7 +10,7 @@ from scipy.spatial import KDTree
 logger = logging.getLogger(__name__)
 
 
-def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols, soma_center):
+def compute_clusters(config, axon_id, group_name, group, output_cols, **kwargs):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
     # pylint: disable=unused-argument

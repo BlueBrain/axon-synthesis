@@ -7,7 +7,7 @@ import pandas as pd
 from scipy.spatial import KDTree
 from scipy.spatial.distance import pdist
 
-from axon_synthesis.PCSF.clustering.utils import common_path
+from axon_synthesis.input_creation.clustering.utils import common_path
 from axon_synthesis.utils import neurite_to_graph
 
 
@@ -26,12 +26,11 @@ def nodes_to_terminals_mapping(graph, source=None, shortest_paths=None):
     return node_to_terminals
 
 
-def compute_clusters(task, config, axon, axon_id, group_name, group, output_cols, soma_center):
+def compute_clusters(config, axon, axon_id, group_name, group, **kwargs):
     """All parents up to the common ancestor must be inside the sphere to be merged."""
     # pylint: disable=too-many-branches
     # pylint: disable=too-many-locals
     # pylint: disable=too-many-statements
-    # pylint: disable=unused-argument
     clustering_distance = config["clustering_distance"]
     max_path_clustering_distance = config.get("max_path_clustering_distance", clustering_distance)
 
