@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float, float, float]]:
     """Extract the terminal points from a morphology."""
     morph_name = Path(morph_path).name
+    morph_path_str = str(morph_path)
     morph = load_morphology(morph_path)
     pts = []
     axons = get_axons(morph)
@@ -29,7 +30,7 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
     for axon_id, axon in enumerate(axons):
         # Add root point
         pts.append(
-            [morph_name, axon_id, 0, axon.root_node.id] + axon.root_node.points[0][:3].tolist()
+            [morph_path_str, axon_id, 0, axon.root_node.id] + axon.root_node.points[0][:3].tolist()
         )
 
         # Add terminal points
@@ -38,7 +39,7 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
             if not section.children:
                 pts.append(
                     tuple(
-                        [morph_path, axon_id, terminal_id, section.id]
+                        [morph_path_str, axon_id, terminal_id, section.id]
                         + section.points[-1][:3].tolist()
                     )
                 )

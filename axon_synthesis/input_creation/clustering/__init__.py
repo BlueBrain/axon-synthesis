@@ -224,6 +224,7 @@ def cluster_morphologies(
                     "axon": axon,
                     "axon_id": axon_id,
                     "group_name": group_name,
+                    "group": group,
                     "axon_group": axon_group,
                     "nodes": nodes,
                     "edges": edges,

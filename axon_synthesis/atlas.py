@@ -106,7 +106,8 @@ class AtlasHelper:
 
     def compute_region_masks(self, output_path: FileType):
         """Compute all region masks."""
-        Path(output_path).mkdir(parents=True, exist_ok=True)
+        LOGGER.info("Computing brain region masks")
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
         region_map_df = self.region_map.as_dataframe()
         region_map_df = (
@@ -189,4 +190,4 @@ class AtlasHelper:
                 coords = np.argwhere(mask)
                 f.create_dataset(str(atlas_id), data=coords, compression="gzip", compression_opts=9)
 
-        LOGGER.info("Masks written in %s", output_path)
+        LOGGER.info("Masks exported to %s", output_path)

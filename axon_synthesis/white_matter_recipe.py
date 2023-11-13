@@ -94,14 +94,16 @@ def get_atlas_region_id(region_map, pop_row, col_name, second_col_name=None):
 class WhiteMatterRecipe:
     """Class to store the White Matter Recipe data."""
 
-    populations_filename = "wm_populations.csv"
-    projections_filename = "wm_projections.csv"
-    targets_filename = "wm_targets.csv"
-    fractions_filename = "wm_fractions.json"
-    interaction_strengths_filename = "wm_interaction_strengths.json"
-    projection_targets_filename = "wm_projection_targets.csv"
-    layer_profiles_filename = "wm_layer_profiles.csv"
-    region_data_filename = "region_data.csv"
+    filename = {
+        "populations": "populations.csv",
+        "projections": "projections.csv",
+        "targets": "targets.csv",
+        "fractions": "fractions.json",
+        "interaction_strengths": "interaction_strengths.json",
+        "projection_targets": "projection_targets.csv",
+        "layer_profiles": "layer_profiles.csv",
+        "region_data": "region_data.csv",
+    }
 
     def __init__(
         self,
@@ -129,31 +131,31 @@ class WhiteMatterRecipe:
 
         # Export the population DataFrame
         populations = cols_to_json(self.populations, ["atlas_region", "filters"])
-        populations.to_csv(path / self.populations_filename, index=False)
+        populations.to_csv(path / self.filename["populations"], index=False)
 
         # Export the projection DataFrame
         projections = cols_to_json(
             self.projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
         )
-        projections.to_csv(path / self.projections_filename, index=False)
+        projections.to_csv(path / self.filename["projections"], index=False)
 
         # Export the targets DataFrame
         targets = cols_to_json(self.targets, ["target"])
-        targets.to_csv(path / self.targets_filename, index=False)
+        targets.to_csv(path / self.filename["targets"], index=False)
 
         # Export the projection DataFrame
         projection_targets = cols_to_json(
             self.projection_targets,
             ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
         )
-        projection_targets.to_csv(path / self.projection_targets_filename, index=False)
+        projection_targets.to_csv(path / self.filename["projection_targets"], index=False)
 
         # Export the fractions
-        with (path / self.fractions_filename).open("w", encoding="utf-8") as f:
+        with (path / self.filename["fractions"]).open("w", encoding="utf-8") as f:
             json.dump(self.fractions, f, indent=4, sort_keys=True)
 
         # Export the interaction strengths
-        with (path / self.interaction_strengths_filename).open("w", encoding="utf-8") as f:
+        with (path / self.filename["interaction_strengths"]).open("w", encoding="utf-8") as f:
             json.dump(
                 {k: v.to_dict("index") for k, v in self.interaction_strengths.items()},
                 f,
@@ -163,41 +165,41 @@ class WhiteMatterRecipe:
 
         # Export the layer profiles
         layer_profiles = cols_to_json(self.layer_profiles, ["layers"])
-        layer_profiles.to_csv(path / self.layer_profiles_filename, index=False)
+        layer_profiles.to_csv(path / self.filename["layer_profiles"], index=False)
 
         # Export the region data
-        self.region_data.to_csv(path / self.region_data_filename, index=False)
+        self.region_data.to_csv(path / self.filename["region_data"], index=False)
 
     @classmethod
     def load(cls, path):
         """Load the white matter recipe data."""
-        populations = pd.read_csv(path / cls.populations_filename)
+        populations = pd.read_csv(path / cls.filename["populations"])
         populations = cols_from_json(populations, ["atlas_region", "filters"])
 
-        projections = pd.read_csv(path / cls.projections_filename)
+        projections = pd.read_csv(path / cls.filename["projections"])
         projections = cols_from_json(
             projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
         )
 
-        targets = pd.read_csv(path / cls.targets_filename)
+        targets = pd.read_csv(path / cls.filename["targets"])
         targets = cols_from_json(targets, ["target"])
 
-        with (path / cls.fractions_filename).open("r", encoding="utf-8") as f:
+        with (path / cls.filename["fractions"]).open("r", encoding="utf-8") as f:
             fractions = json.load(f)
 
-        with (path / cls.interaction_strengths_filename).open("r", encoding="utf-8") as f:
+        with (path / cls.filename["interaction_strengths"]).open("r", encoding="utf-8") as f:
             interaction_strengths = json.load(f)
 
-        projection_targets = pd.read_csv(path / cls.projection_targets_filename)
+        projection_targets = pd.read_csv(path / cls.filename["projection_targets"])
         projection_targets = cols_from_json(
             projection_targets,
             ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
         )
 
-        layer_profiles = pd.read_csv(path / cls.layer_profiles_filename)
+        layer_profiles = pd.read_csv(path / cls.filename["layer_profiles"])
         layer_profiles = cols_from_json(layer_profiles, ["layers"])
 
-        region_data = pd.read_csv(path / cls.region_data_filename)
+        region_data = pd.read_csv(path / cls.filename["region_data"])
 
         return cls(
             populations,
@@ -221,7 +223,7 @@ class WhiteMatterRecipe:
     ):
         """Process the white matter recipe."""
         # pylint: disable=too-many-statements
-        LOGGER.inf("Loading and processing the white matter recipe YAML file")
+        LOGGER.info("Loading and processing the white matter recipe YAML file '%s'", path)
         region_map = atlas.region_map
         brain_regions = atlas.brain_regions
         wmr = load(path)
@@ -308,7 +310,7 @@ class WhiteMatterRecipe:
                 )
             ].sum()
         )
-        region_data["volume"] = region_data["nb_voxels"] * brain_regions.voxel_volume
+        region_data["atlas_region_volume"] = region_data["nb_voxels"] * brain_regions.voxel_volume
         region_data.drop(columns=["count"], inplace=True)
 
         # Join region data to population
@@ -327,7 +329,9 @@ class WhiteMatterRecipe:
             suffixes=("", "_total"),
         )
         wm_populations["sub_region_volume_frac"] = (
-            (pop_frac["volume"] / pop_frac["volume_total"]).fillna(1).clip(0, 1)
+            (pop_frac["atlas_region_volume"] / pop_frac["atlas_region_volume_total"])
+            .fillna(1)
+            .clip(0, 1)
         )
 
         # Get layer_profiles
@@ -581,7 +585,7 @@ class WhiteMatterRecipe:
         #             "formatted_subregion",
         #             "subregion_acronym",
         #             "atlas_region_id",
-        #             "volume",
+        #             "atlas_region_volume",
         #             "sub_region_volume_frac",
         #         ]
         #     ],
