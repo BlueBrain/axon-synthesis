@@ -9,11 +9,10 @@ from axon_synthesis.utils import disable_loggers
 from axon_synthesis.utils import use_matplotlib_backend
 
 
+@disable_loggers("matplotlib.font_manager", "PIL.PngImagePlugin")
 def plot_triangulation(edges_df, from_coord_cols, to_coord_cols, tri, all_points, pts):
     """Plot the given triangulation for debugging purpose."""
-    with disable_loggers("matplotlib.font_manager", "PIL.PngImagePlugin"), use_matplotlib_backend(
-        "TkAgg"
-    ):
+    with use_matplotlib_backend("TkAgg"):
         # Prepare data for plot
         mask_from = (edges_df[from_coord_cols] < pts.min(axis=0)).any(axis=1) | (
             edges_df[from_coord_cols] > pts.max(axis=0)

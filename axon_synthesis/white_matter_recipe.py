@@ -22,7 +22,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 def fetch(
-    url, output_path, file_path="white_matter_FULL_RECIPE_v1p20.yaml", version_reference=None
+    url,
+    output_path,
+    file_path="white_matter_FULL_RECIPE_v1p20.yaml",
+    version_reference=None,
 ):
     """Fetch the White Natter Recipe file from an internal repository."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -126,6 +129,7 @@ class WhiteMatterRecipe:
         self.region_data = region_data
 
     def save(self, path):
+        """Save the White Matter Recipe into the given directory."""
         path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
 
@@ -172,7 +176,7 @@ class WhiteMatterRecipe:
 
     @classmethod
     def load(cls, path):
-        """Load the white matter recipe data."""
+        """Load the White Matter Recipe from the given directory."""
         populations = pd.read_csv(path / cls.filename["populations"])
         populations = cols_from_json(populations, ["atlas_region", "filters"])
 

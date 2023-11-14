@@ -2,14 +2,10 @@
 import logging
 from pathlib import Path
 
-# import luigi
-# import luigi_tools
 import pandas as pd
-
-# from data_validation_framework.target import TaggedOutputLocalTarget
+from morph_tool.utils import is_morphology
 from neurom import load_morphology
 
-# from axon_synthesis.create_dataset import RepairDataset
 from axon_synthesis.typing import FileType
 from axon_synthesis.utils import get_axons
 
@@ -54,6 +50,8 @@ def process_morphologies(morph_dir: FileType) -> pd.DataFrame:
     all_pts = []
     for morph_path in morph_dir.iterdir():
         # TODO: Parallelize this loop
+        if not is_morphology(morph_path):
+            continue
         all_pts.extend(process_morph(morph_path))
 
     dataset = pd.DataFrame(

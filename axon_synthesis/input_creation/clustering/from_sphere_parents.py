@@ -31,8 +31,8 @@ def compute_clusters(config, axon, axon_id, group_name, group, **kwargs):
     # pylint: disable=too-many-branches
     # pylint: disable=too-many-locals
     # pylint: disable=too-many-statements
-    clustering_distance = config["clustering_distance"]
-    max_path_clustering_distance = config.get("max_path_clustering_distance", clustering_distance)
+    sphere_radius = config["sphere_radius"]
+    max_path_distance = config.get("max_path_distance", sphere_radius)
 
     config_str = json.dumps(config)
 
@@ -48,7 +48,7 @@ def compute_clusters(config, axon, axon_id, group_name, group, **kwargs):
     # Get the pairs of terminals closer to the given distance
     terminal_nodes = nodes.loc[terminal_ids, ["x", "y", "z"]]
     terminal_tree = KDTree(terminal_nodes.values)
-    terminal_pairs = terminal_tree.query_pairs(clustering_distance)
+    terminal_pairs = terminal_tree.query_pairs(sphere_radius)
 
     # Initialize cluster IDs
     cluster_ids = pd.Series(-1, index=nodes.index)
@@ -68,7 +68,7 @@ def compute_clusters(config, axon, axon_id, group_name, group, **kwargs):
         except KeyError:
             path = pair_paths[term_b][term_a]
 
-        if pdist(nodes.loc[path, ["x", "y", "z"]].values).max() > max_path_clustering_distance:
+        if pdist(nodes.loc[path, ["x", "y", "z"]].values).max() > max_path_distance:
             # Skip if a point on the path exceeds the clustering distance
             continue
 

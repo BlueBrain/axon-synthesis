@@ -75,7 +75,9 @@ def segment_angles(neurite, reference=None):
     return res
 
 
-def compute_trunk_properties(trunk_morph: Morphology, morph_name: str) -> list[tuple]:
+def compute_trunk_properties(
+    trunk_morph: Morphology, morph_name: str, axon_id: str, config_name: str
+) -> list[tuple]:
     """Compute the properties of the trunk morphologies listed in the given DataFrame."""
     # Load morph paths
     logger.info("Extracting trunk properties from %s", trunk_morph.name)
@@ -98,7 +100,8 @@ def compute_trunk_properties(trunk_morph: Morphology, morph_name: str) -> list[t
         long_range_trunk_props.append(
             (
                 morph_name,
-                num,
+                config_name,
+                axon_id,
                 json.dumps(np.array(trunk_stats["raw_segment_lengths"]).tolist()),
                 trunk_stats["mean_segment_lengths"],
                 trunk_stats["std_segment_lengths"],

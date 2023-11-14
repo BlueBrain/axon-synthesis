@@ -20,7 +20,7 @@ def compute_clusters(config, axon_id, group_name, group, output_cols, **kwargs):
 
     # Get the pairs of terminals closer to the given distance
     tree = KDTree(group[["x", "y", "z"]].values)
-    pairs = tree.query_pairs(config["clustering_distance"])
+    pairs = tree.query_pairs(config["sphere_radius"])
 
     # Get the connected components
     adjacency_matrix = np.zeros((len(group), len(group)))
@@ -32,7 +32,7 @@ def compute_clusters(config, axon_id, group_name, group, output_cols, **kwargs):
 
     # Define clusters from these components
     cluster_labels, cluster_sizes = np.unique(labels, return_counts=True)
-    big_clusters = cluster_labels[cluster_sizes >= config["clustering_number"]]
+    big_clusters = cluster_labels[cluster_sizes >= config["min_size"]]
     group_with_label = group.reset_index()
     group_with_label["cluster_label"] = labels
     group_with_label["distance"] = -1.0
@@ -43,7 +43,7 @@ def compute_clusters(config, axon_id, group_name, group, output_cols, **kwargs):
     # Check clusters
     real_clusters = []
     for cluster_label, cluster in clusters:
-        # Check that the potential cluster is a real one (at least 'clustering_number'
+        # Check that the potential cluster is a real one (at least 'min_size'
         # points must be close to the center)
         distances, indices = tree.query(
             cluster[["x", "y", "z"]].mean().values,
@@ -52,10 +52,7 @@ def compute_clusters(config, axon_id, group_name, group, output_cols, **kwargs):
         cluster_mask = np.isin(indices, cluster.index)
         cluster_indices = indices[cluster_mask]
         cluster_distances = distances[cluster_mask]
-        if (
-            np.count_nonzero(cluster_distances <= config["clustering_distance"])
-            < config["clustering_number"]
-        ):
+        if np.count_nonzero(cluster_distances <= config["sphere_radius"]) < config["min_size"]:
             continue
 
         # Mark the cluster as a real one

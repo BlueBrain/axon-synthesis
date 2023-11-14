@@ -138,8 +138,11 @@ def reduce_clusters(
     cluster_props,
     shortest_paths,
     export_tuft_morph_dir=None,
+    config_name: str = None,
 ):
     """Reduce clusters to one section from their common ancestors to their centers."""
+    if not config_name:
+        config_name = ""
     kept_path = set()
     for (axon_id, cluster_id), cluster in group.groupby(["axon_id", "cluster_id"]):
         # Skip the root cluster
@@ -195,6 +198,7 @@ def reduce_clusters(
             morph_paths["tufts"].append(
                 (
                     group_name,
+                    config_name,
                     axon_id,
                     cluster_id,
                     export_morph(
@@ -202,7 +206,7 @@ def reduce_clusters(
                         group_name,
                         tuft_morph,
                         "tuft",
-                        f"_{axon_id}_{cluster_id}",
+                        f"_{config_name}_{axon_id}_{cluster_id}",
                     ),
                 )
             )
@@ -219,6 +223,7 @@ def reduce_clusters(
         cluster_props.append(
             (
                 group_name,
+                config_name,
                 axon_id,
                 cluster_id,
                 cluster_center.tolist(),
@@ -254,15 +259,17 @@ def reduce_clusters(
     return kept_path
 
 
-def create_clustered_morphology(morph, group_name, kept_path, sections_to_add):
+def create_clustered_morphology(morph, group_name, kept_path, sections_to_add, suffix=None):
     """Create a new morphology with the kept path and add new sections to cluster centers."""
+    if not suffix:
+        suffix = ""
     clustered_morph = Morphology(
         deepcopy(morph),
-        name=f"Clustered {Path(group_name).with_suffix('').name}",
+        name=f"Clustered {Path(group_name).with_suffix('').name}{suffix}",
     )
     trunk_morph = Morphology(
         deepcopy(morph),
-        name=f"Clustered trunk {Path(group_name).with_suffix('').name}",
+        name=f"Clustered trunk {Path(group_name).with_suffix('').name}{suffix}",
     )
 
     for axon, new_axon, trunk_axon in zip(
@@ -305,36 +312,6 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add):
                 for new_sec in sections_to_add[current_section.id]:
                     current_new_section.append_section(new_sec)
     return clustered_morph, trunk_morph
-
-
-def set_defaults(data, schema, level=0):
-    """Set default values according to the given schema."""
-    print("+" * (level + 1), data, schema)
-    if isinstance(data, (list, tuple)):
-        print("+" * (level + 1), "Processing list")
-        return [set_defaults(i, schema.get("items", {}), level + 1) for i in data]
-    if isinstance(data, Mapping):
-        print("+" * (level + 1), "Processing dict")
-        schema_props = schema.get("properties", {})
-        drop_if_empty = set()
-        for k, v in schema_props.items():
-            if k not in data:
-                obj_type = v.get("type", "")
-                if obj_type == "object":
-                    data[k] = v.get("default", {})
-                    drop_if_empty.add(k)
-                elif "default" in v:
-                    data[k] = v["default"]
-        new_data = {k: set_defaults(v, schema_props.get(k, {}), level + 1) for k, v in data.items()}
-        print(
-            "+" * (level + 1),
-            "Empty nodes",
-            {k: v for k, v in new_data.items() if k in drop_if_empty and len(v) <= 0},
-        )
-        new_data = {k: v for k, v in new_data.items() if k not in drop_if_empty or len(v) > 0}
-        print("+" * (level + 1), "Final data", new_data)
-        return new_data
-    return data
 
 
 def extend_validator_with_default(validator_class):

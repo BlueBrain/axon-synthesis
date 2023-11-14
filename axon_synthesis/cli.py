@@ -1,6 +1,9 @@
 """Command Line Interface for the axon_synthesis package."""
 import functools
 import json
+import logging
+import os
+import sys
 from pathlib import Path
 
 import click
@@ -40,6 +43,13 @@ def configure(ctx, param, filename):
                 del value[i]
 
     ctx.default_map = defaults
+
+
+class GlobalConfig:
+    """Class to store global configuration."""
+
+    def __init__(self, debug=False):
+        self.debug = debug
 
 
 class ListParam(click.ParamType):
@@ -112,18 +122,35 @@ seed_option = click.option(
     callback=configure,
     is_eager=True,
     expose_value=False,
-    help="Read option defaults from the specified INI file.",
     show_default=True,
+    help="Read option defaults from the specified CFG file.",
 )
 @click.option(
     "--log-level",
-    help="The logger level.",
     type=click.Choice(["debug", "info", "warning", "error", "critical"]),
     default="info",
+    help="The logger level.",
 )
-def main(*args, **kwargs):
+@click.option(
+    "-d",
+    "--debug",
+    is_flag=True,
+    default=False,
+    help="Trigger the debug mode.",
+)
+@click.pass_context
+def main(ctx, *args, **kwargs):
     """A tool for axon-synthesis management."""
-    setup_logger(kwargs.pop("log_level", "info"))
+    debug = kwargs.get("debug", False)
+    log_level = kwargs.get("log_level", "info")
+    if kwargs.get("debug", False):
+        log_level = "debug"
+    ctx.ensure_object(GlobalConfig)
+    ctx.obj.debug = debug
+    setup_logger(log_level)
+    LOGGER = logging.getLogger()
+    LOGGER.info("Running the following command: %s", " ".join(sys.argv))
+    LOGGER.info("From the following folder: %s", os.getcwd())
 
 
 @main.command(short_help="Fetch the White Matter Recipe file from a given repository")
@@ -155,6 +182,7 @@ def main(*args, **kwargs):
     help="The path to the destination file",
 )
 def fetch_white_matter_recipe(**kwargs):
+    """Command to fetch the White Matter Recipe from a git repository."""
     fetch(**kwargs)
 
 
@@ -229,7 +257,10 @@ def fetch_white_matter_recipe(**kwargs):
     required=True,
     help="Output directory",
 )
-def create_inputs(**kwargs):
+@click.pass_obj
+def create_inputs(global_config, **kwargs):
+    """The command to create inputs."""
+    kwargs["debug"] = global_config.debug
     input_creation.create_inputs(**kwargs)
 
 
@@ -258,7 +289,7 @@ def create_inputs(**kwargs):
 # output_dataset = input_terminals.csv
 
 # [ClusterTerminals]
-# clustering_parameters = [{"clustering_mode": "sphere_parents", "clustering_distance": 500, "max_path_clustering_distance": 1500}, {"clustering_mode": "sphere_parents", "clustering_distance": 300, "max_path_clustering_distance": 1000}, {"clustering_mode": "sphere_parents", "clustering_distance": 100, "max_path_clustering_distance": 300}]
+# clustering_parameters = [{"method": "sphere_parents", "sphere_radius": 500, "max_path_distance": 1500}, {"method": "sphere_parents", "sphere_radius": 300, "max_path_distance": 1000}, {"method": "sphere_parents", "sphere_radius": 100, "max_path_distance": 300}]
 # plot_debug = True
 
 
@@ -310,4 +341,5 @@ def create_inputs(**kwargs):
 
 
 if __name__ == "__main__":  # pragma: no cover
+    """The main entry point."""
     main()
