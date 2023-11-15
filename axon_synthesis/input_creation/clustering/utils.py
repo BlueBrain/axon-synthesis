@@ -130,9 +130,10 @@ def reduce_clusters(
     group,
     group_name,
     morph,
-    axons,
+    axon,
+    axon_id,
     cluster_df,
-    directed_graphes,
+    directed_graph,
     sections_to_add,
     morph_paths,
     cluster_props,
@@ -144,16 +145,17 @@ def reduce_clusters(
     if not config_name:
         config_name = ""
     kept_path = set()
-    for (axon_id, cluster_id), cluster in group.groupby(["axon_id", "cluster_id"]):
+    group = group.dropna(subset="cluster_id").astype({"cluster_id": int})
+    for cluster_id, cluster in group.groupby("cluster_id"):
         # Skip the root cluster
         if (cluster.cluster_id == 0).any():
             continue
 
         # Compute the common ancestor of the nodes
         cluster_common_path = common_path(
-            directed_graphes[axon_id],
+            directed_graph,
             cluster["section_id"].tolist(),
-            shortest_paths=shortest_paths[axon_id],
+            shortest_paths=shortest_paths,
         )
         if len(cluster) == 1 and len(cluster_common_path) > 2:
             common_ancestor_shift = -2
@@ -174,12 +176,12 @@ def reduce_clusters(
             set(cluster["section_id"]),
             common_ancestor,
             cluster_common_path[:common_ancestor_shift],
-            shortest_paths[axon_id],
+            shortest_paths,
         )
 
         # Compute cluster center
         cluster_center = cluster_df.loc[
-            (cluster_df["axon_id"] == axon_id) & (cluster_df["terminal_id"] == cluster_id),
+            cluster_df["terminal_id"] == cluster_id,
             ["x", "y", "z"],
         ].values[0]
 
@@ -215,9 +217,7 @@ def reduce_clusters(
         path_distance = sum(
             section_length(i.points) for i in common_section.iter(IterType.upstream)
         )
-        radial_distance = np.linalg.norm(
-            axons[axon_id].points[0, COLS.XYZ] - common_section.points[-1]
-        )
+        radial_distance = np.linalg.norm(axon.points[0, COLS.XYZ] - common_section.points[-1])
         path_length = sum(section_length(i.points) for i in common_section.iter())
 
         cluster_props.append(
@@ -248,8 +248,7 @@ def reduce_clusters(
                 [
                     common_section.points[-1],
                     cluster_df.loc[
-                        (cluster_df["axon_id"] == cluster["axon_id"].iloc[0])
-                        & (cluster_df["terminal_id"] == cluster_id),
+                        (cluster_df["terminal_id"] == cluster_id),
                         ["x", "y", "z"],
                     ].values[0],
                 ],

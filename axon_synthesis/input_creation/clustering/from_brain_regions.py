@@ -1,5 +1,4 @@
 """Clustering from brain regions."""
-import json
 import logging
 from pathlib import Path
 
@@ -104,12 +103,14 @@ def cut_edges(edges, nodes, brain_regions, nb_workers, group_name):
 
     logger.debug("%s: Computed brain regions for %s segments", group_name, len(edges))
 
-    cut_edge_mask = all_brain_regions["brain_regions"].apply(len) >= 2
+    nb_intersected_regions = all_brain_regions["brain_regions"].apply(len)
+    cut_edge_mask = nb_intersected_regions >= 2
+    one_region_mask = nb_intersected_regions == 1
 
     # Set brain regions to not cut edges
-    edges["brain_region"] = 0
-    edges.loc[~cut_edge_mask, "brain_region"] = all_brain_regions.loc[
-        ~cut_edge_mask, "brain_regions"
+    edges["brain_region"] = -1
+    edges.loc[one_region_mask, "brain_region"] = all_brain_regions.loc[
+        one_region_mask, "brain_regions"
     ].apply(lambda x: x[0])
 
     # Select edges that have to be cut
@@ -264,7 +265,7 @@ def cut_edges(edges, nodes, brain_regions, nb_workers, group_name):
 
 def _find_wm_first_nested_region(region_id, wm_regions, region_map):
     """Find the first nested region ID that is available in the white matter recipe."""
-    if region_id in wm_regions or region_id == 0:
+    if region_id in wm_regions or region_id <= 0:
         return region_id
 
     ids = region_map.get(region_id, attr="id", with_ascendants=True)
@@ -279,11 +280,11 @@ def compute_clusters(
     atlas,
     wmr,
     config,
+    config_str,
     axon,
     axon_id,
     group_name,
     group,
-    # output_cols,
     nb_workers,
     tuft_morphologies_path,
     figure_path,
@@ -291,9 +292,6 @@ def compute_clusters(
     **kwargs,
 ):
     """Gather points according to connected components in brain regions."""
-    # pylint: disable=unused-argument
-    config_str = json.dumps(config)
-
     nodes, edges, _ = neurite_to_graph(axon, keep_section_segments=True)
 
     nodes["is_intermediate_pt"] = (
@@ -377,7 +375,7 @@ def compute_clusters(
     region_acronyms = {
         brain_region: atlas.region_map.get(brain_region, attr="acronym")
         for brain_region in region_components
-        if brain_region != 0
+        if brain_region > 0
     }
 
     # Create a cluster ID for each component
@@ -418,6 +416,7 @@ def compute_clusters(
                 group_name,
                 axon_id,
                 new_terminal_id if cluster_id != -1 else 0,
+                len(i),
             ]
             + i[["x", "y", "z"]].mean().tolist()
             + [config_str]

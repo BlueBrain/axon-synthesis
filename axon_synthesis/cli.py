@@ -132,9 +132,8 @@ seed_option = click.option(
     help="The logger level.",
 )
 @click.option(
-    "-d",
-    "--debug",
-    is_flag=True,
+    "-d/-nd",
+    "--debug/--no-debug",
     default=False,
     help="Trigger the debug mode.",
 )

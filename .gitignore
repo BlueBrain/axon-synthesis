@@ -1,6 +1,7 @@
 # data
 .eggs
 .idea
+*.log
 *.png
 *.pdf
 *.pyc
@@ -38,6 +39,12 @@ reports
 
 # examples
 examples/.ipynb_checkpoints
+examples/*.yaml
+examples/inputs
+examples/morphologies/out_*
+examples/morphologies/*_release
+examples/morphologies/raw_morphologies
+examples/morphologies/dataset.csv
 
 # Node
 node_modules

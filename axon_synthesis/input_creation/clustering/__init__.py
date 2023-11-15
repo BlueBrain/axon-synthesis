@@ -114,23 +114,6 @@ CLUSTERING_PARAM_SCHEMA = {
                 "type": "object",
             },
             {
-                # For 'barcode' clustering mode
-                "additionalProperties": False,
-                "properties": {
-                    "name": {
-                        "type": "string",
-                    },
-                    "method": {
-                        "type": "string",
-                        "enum": ["barcode"],
-                    },
-                },
-                "required": [
-                    "method",
-                ],
-                "type": "object",
-            },
-            {
                 # For 'brain_regions' clustering mode
                 "additionalProperties": False,
                 "properties": {
@@ -151,6 +134,23 @@ CLUSTERING_PARAM_SCHEMA = {
                 ],
                 "type": "object",
             },
+            {
+                # For 'barcode' clustering mode
+                "additionalProperties": False,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                    },
+                    "method": {
+                        "type": "string",
+                        "enum": ["barcode"],
+                    },
+                },
+                "required": [
+                    "method",
+                ],
+                "type": "object",
+            },
         ],
     },
 }
@@ -161,17 +161,23 @@ def cluster_morphologies(
     atlas: AtlasHelper,
     wmr: WhiteMatterRecipe,
     morph_dir: FileType,
-    params: list,
+    clustering_parameters: list,
     output_path: FileType,
     debug: bool = False,
     nb_workers: int = 1,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Compute the cluster of all morphologies of the given directory."""
-    CLUSTERING_PARAM_SCHEMA_VALIDATOR.validate(params)
-    for num_config, config in enumerate(params):
+    CLUSTERING_PARAM_SCHEMA_VALIDATOR.validate(clustering_parameters)
+    for num_config, config in enumerate(clustering_parameters):
         if "name" not in config:
             config["name"] = str(num_config)
-    LOGGER.info("Clustering morphologies using the following configuration: %s", params)
+    if len(clustering_parameters) != len(set([i["name"] for i in clustering_parameters])):
+        raise ValueError(
+            "The 'clustering_parameters' must contain elements with unique 'name' entries."
+        )
+    LOGGER.info(
+        "Clustering morphologies using the following configuration: %s", clustering_parameters
+    )
 
     output_path = Path(output_path)
 
@@ -189,7 +195,7 @@ def cluster_morphologies(
                 "method": i["method"],
                 "params": dict(filter(lambda pair: pair[0] not in ["name", "method"], i.items())),
             }
-            for i in params
+            for i in clustering_parameters
         ]
     ).set_index("name")
     cols_to_json(config_df, ["params"]).to_csv(output_path / CLUSTERING_CONFIGURATIONS_FILENAME)
@@ -215,7 +221,7 @@ def cluster_morphologies(
     cluster_props = []
     trunk_props = []
     morph_paths = defaultdict(list)
-    output_cols = ["morph_file", "axon_id", "terminal_id", "x", "y", "z", "config"]
+    output_cols = ["morph_file", "axon_id", "terminal_id", "cluster_size", "x", "y", "z", "config"]
 
     clustering_funcs = {
         "sphere": clusters_from_spheres,
@@ -234,31 +240,38 @@ def cluster_morphologies(
         # Get the list of axons of the morphology
         axons = get_axons(morph)
 
-        directed_graphes = {}
-        shortest_paths = {}
-
         # Run the clustering function on each axon
         for axon_id, axon in enumerate(axons):
             # Create a graph for each axon and compute the shortest paths from the soma to all
             # terminals
+            if len(axon.points) < 5:
+                LOGGER.warning(
+                    "The axon %s of %s is skipped because it has only %s points while we need at "
+                    "least 5 points are needed",
+                    axon_id,
+                    group_name,
+                    len(axon.points),
+                )
+                continue
             nodes, edges, directed_graph = neurite_to_graph(axon)
-            directed_graphes[axon_id] = directed_graph
-            shortest_paths[axon_id] = nx.single_source_shortest_path(directed_graph, -1)
+            shortest_paths = nx.single_source_shortest_path(directed_graph, -1)
 
-            for config in params:
+            for config in clustering_parameters:
+                axon_group = group.loc[group["axon_id"] == axon_id].copy(deep=True)
                 config_name = str(config["name"])
+                config_str = json.dumps(config)
+                axon_group["config"] = config_str
                 suffix = f"_{config_name}_{axon_id}"
-                axon_group = group.loc[group["axon_id"] == axon_id]
                 clustering_kwargs = {
                     "atlas": atlas,
                     "wmr": wmr,
                     "config": config,
+                    "config_str": config_str,
                     "morph": morph,
                     "axon": axon,
                     "axon_id": axon_id,
                     "group_name": group_name,
-                    "group": group,
-                    "axon_group": axon_group,
+                    "group": axon_group,
                     "nodes": nodes,
                     "edges": edges,
                     "directed_graph": directed_graph,
@@ -277,27 +290,33 @@ def cluster_morphologies(
                 ) = clustering_funcs[
                     config["method"]
                 ](**clustering_kwargs)
-                group.loc[axon_group.index, "cluster_id"] = cluster_ids
 
                 # Add the cluster to the final points
                 all_terminal_points.extend(new_terminal_points)
 
                 # Propagate cluster IDs
-                terminals.loc[group.index, "cluster_id"] = group["cluster_id"]
+                axon_group["cluster_id"] = cluster_ids
+                # terminals.loc[axon_group.index, "cluster_id"] = axon_group["cluster_id"]
 
-                LOGGER.info("%s: %s points after merge", group_name, len(new_terminal_points))
+                LOGGER.info(
+                    "%s (axon %s): %s points after merge",
+                    group_name,
+                    axon_id,
+                    len(new_terminal_points),
+                )
 
                 cluster_df = pd.DataFrame(new_terminal_points, columns=output_cols)
 
                 # Reduce clusters to one section
                 sections_to_add = defaultdict(list)
                 kept_path = reduce_clusters(
-                    group,
+                    axon_group,
                     group_name,
                     morph,
-                    axons,
+                    axon,
+                    axon_id,
                     cluster_df,
-                    directed_graphes,
+                    directed_graph,
                     sections_to_add,
                     morph_paths,
                     cluster_props,
@@ -349,7 +368,7 @@ def cluster_morphologies(
                     plot_clusters(
                         morph,
                         clustered_morph,
-                        group,
+                        axon_group,
                         group_name,
                         cluster_df,
                         figure_path / f"{Path(group_name).with_suffix('').name}{suffix}.html",
@@ -408,13 +427,16 @@ def cluster_morphologies(
 
     # Export the terminals
     new_terminals = pd.DataFrame(all_terminal_points, columns=output_cols)
-    new_terminals = pd.merge(
-        new_terminals,
-        terminals.groupby(["morph_file", "axon_id", "cluster_id"]).size().rename("cluster_size"),
-        left_on=["morph_file", "axon_id", "terminal_id"],
-        right_on=["morph_file", "axon_id", "cluster_id"],
-        how="left",
-    )
+    # TODO: Check if some terminals are missing here and if can remove the merge below
+    # new_terminals = pd.merge(
+    #     new_terminals,
+    #     terminals.groupby(
+    #         ["morph_file", "axon_id", "cluster_id", "config"]
+    #     ).size().rename("cluster_size"),
+    #     left_on=["morph_file", "axon_id", "terminal_id"],
+    #     right_on=["morph_file", "axon_id", "cluster_id"],
+    #     how="left",
+    # )
     new_terminals["cluster_size"] = new_terminals["cluster_size"].fillna(1).astype(int)
     new_terminals.sort_values(["morph_file", "axon_id", "terminal_id"], inplace=True)
     new_terminals.to_csv(clustered_terminals_path, index=False)

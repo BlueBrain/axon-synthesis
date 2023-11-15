@@ -1,5 +1,4 @@
 """Clustering from sphere parents."""
-import json
 from collections import defaultdict
 
 import networkx as nx
@@ -26,15 +25,13 @@ def nodes_to_terminals_mapping(graph, source=None, shortest_paths=None):
     return node_to_terminals
 
 
-def compute_clusters(config, axon, axon_id, group_name, group, **kwargs):
+def compute_clusters(config, config_str, axon, axon_id, group_name, group, **kwargs):
     """All parents up to the common ancestor must be inside the sphere to be merged."""
     # pylint: disable=too-many-branches
     # pylint: disable=too-many-locals
     # pylint: disable=too-many-statements
     sphere_radius = config["sphere_radius"]
     max_path_distance = config.get("max_path_distance", sphere_radius)
-
-    config_str = json.dumps(config)
 
     # Get the complete morphology
     new_terminal_points = []
@@ -160,6 +157,7 @@ def compute_clusters(config, axon, axon_id, group_name, group, **kwargs):
                     group_name,
                     axon_id,
                     new_terminal_id if not is_root else 0,
+                    len(terminals_with_current_ancestor),
                 ]
                 + terminals_with_current_ancestor[["x", "y", "z"]].mean().tolist()
                 + [config_str]
