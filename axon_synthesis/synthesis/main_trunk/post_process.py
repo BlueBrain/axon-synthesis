@@ -21,9 +21,9 @@ from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 from scipy.spatial import KDTree
 
-from axon_synthesis import seed_param
+# from axon_synthesis import seed_param
 from axon_synthesis.create_tuft_props import CreateTuftTerminalProperties
-from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
+from axon_synthesis.main_trunk.steiner_morphologies import SteinerMorphologies
 from axon_synthesis.trunk_properties import LongRangeTrunkProperties
 from axon_synthesis.utils import add_camera_sync
 
@@ -37,7 +37,12 @@ class PostProcessingOutputLocalTarget(TaggedOutputLocalTarget):
 
 
 def get_random_vector(
-    D=1.0, norm=None, std=None, initial_theta=None, initial_phi=None, rng=np.random
+    D=1.0,
+    norm=None,
+    std=None,
+    initial_theta=None,
+    initial_phi=None,
+    rng=np.random,
 ):
     """Return 3-d coordinates of a new random point.
 
@@ -345,7 +350,8 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
         default=None,
         exists=True,
     )
-    seed = seed_param("The seed used by the random number generator for jittering.")
+    # seed = seed_param("The seed used by the random number generator for jittering.")
+    seed = 0
     plot_debug = luigi.BoolParameter(
         description=(
             "If set to True, each group will create an interactive figure so it is possible to "
@@ -372,7 +378,8 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
         with self.input()["terminal_properties"].open() as f:
             cluster_props_df = pd.DataFrame.from_records(json.load(f))
         trunk_props_df = pd.read_csv(
-            self.input()["trunk_properties"].path, dtype={"morph_file": str}
+            self.input()["trunk_properties"].path,
+            dtype={"morph_file": str},
         )
         steiner_morphs = pd.read_csv(self.input()["steiner_solutions"]["morphology_paths"].path)
         steiner_morphs["post_processed_morph_file"] = None
@@ -396,7 +403,7 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
                     "Ref statistics of the trunk: %s",
                     ref_trunk_props.drop(
                         ["morph_file", "axon_id"]
-                        + [row for row in ref_trunk_props.index if row.startswith("raw_")]
+                        + [row for row in ref_trunk_props.index if row.startswith("raw_")],
                     ).to_dict(),
                 )
 
@@ -406,7 +413,7 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
                         "neurite": {
                             "segment_lengths": {"modes": ["mean", "std"]},
                             "segment_meander_angles": {"modes": ["mean", "std"]},
-                        }
+                        },
                     },
                 )["axon"]
                 logger.debug("Current statistics of the trunk: %s", trunk_stats)
@@ -456,7 +463,9 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
                     parent_histories[i[-1]] = last_history
 
                     path_lengths = np.insert(
-                        np.cumsum(np.linalg.norm(pts[1:] - pts[:-1], axis=1)), 0, 0
+                        np.cumsum(np.linalg.norm(pts[1:] - pts[:-1], axis=1)),
+                        0,
+                        0,
                     )
                     new_path_lengths = np.insert(
                         np.cumsum(np.linalg.norm(resampled_pts[1:] - resampled_pts[:-1], axis=1)),
@@ -488,7 +497,7 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
                         "neurite": {
                             "segment_lengths": {"modes": ["mean", "std"]},
                             "segment_meander_angles": {"modes": ["mean", "std"]},
-                        }
+                        },
                     },
                 )["axon"]
                 logger.debug("New statistics of the trunk: %s", trunk_stats)
@@ -508,7 +517,10 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
                 steiner_morph = Morphology(resampling.resample_linear_density(steiner_morph, 0.005))
 
                 steiner_builder = NeuronBuilder(
-                    steiner_morph, "3d", line_width=4, title=f"{morph_name}"
+                    steiner_morph,
+                    "3d",
+                    line_width=4,
+                    title=f"{morph_name}",
                 )
                 fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
 
@@ -525,7 +537,7 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
                 # Export figure
                 filepath = str(
                     self.output()["figures"].pathlib_path
-                    / f"{Path(morph_name).with_suffix('').name}.html"
+                    / f"{Path(morph_name).with_suffix('').name}.html",
                 )
                 fig.write_html(filepath)
 
@@ -539,6 +551,7 @@ class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
             "figures": PostProcessingOutputLocalTarget("figures", create_parent=True),
             "morphologies": PostProcessingOutputLocalTarget("morphologies", create_parent=True),
             "morphology_paths": PostProcessingOutputLocalTarget(
-                "steiner_morph_paths.csv", create_parent=True
+                "steiner_morph_paths.csv",
+                create_parent=True,
             ),
         }

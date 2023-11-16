@@ -20,11 +20,11 @@ from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 from scipy.spatial import KDTree
 
-from axon_synthesis import seed_param
+# from axon_synthesis import seed_param
 from axon_synthesis.config import Config
 from axon_synthesis.create_tuft_props import CreateTuftTerminalProperties
-from axon_synthesis.PCSF.post_process import PostProcessSteinerMorphologies
-from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
+from axon_synthesis.main_trunk.post_process import PostProcessSteinerMorphologies
+from axon_synthesis.main_trunk.steiner_morphologies import SteinerMorphologies
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import append_section_recursive
 
@@ -100,7 +100,8 @@ class AddTufts(luigi_tools.task.WorkflowTask):
         default="tuft_distributions.json",
         exists=True,
     )
-    seed = seed_param()
+    # seed = seed_param()
+    seed = 0
     use_smooth_trunks = luigi.BoolParameter(
         description=("If set to True, the Steiner solutions are smoothed before adding the tufts."),
         default=False,
@@ -187,7 +188,9 @@ class AddTufts(luigi_tools.task.WorkflowTask):
                 dtype={"morph_file": str},
             )
             cluster_props_df["steiner_morph_file"] = pd.merge(
-                cluster_props_df, post_processed_paths, on="morph_file"
+                cluster_props_df,
+                post_processed_paths,
+                on="morph_file",
             )["post_processed_morph_file"]
 
         for group_name, group in cluster_props_df.groupby("steiner_morph_file"):
@@ -206,7 +209,7 @@ class AddTufts(luigi_tools.task.WorkflowTask):
             # the coordinates)
             tuft_roots = []
             tree = KDTree(
-                np.array(ref_terminal_props["common_ancestor_coords"].to_list(), dtype=np.float32)
+                np.array(ref_terminal_props["common_ancestor_coords"].to_list(), dtype=np.float32),
             )
             for section in morph.iter():
                 for i in tree.query_ball_point(section.points[-1], 1e-4):
@@ -219,14 +222,14 @@ class AddTufts(luigi_tools.task.WorkflowTask):
                 # Create specific parameters
                 params = deepcopy(input_parameters)
                 params["basal_dendrite"]["orientation"]["values"]["orientations"] = [
-                    tuft_props["cluster_orientation"]
+                    tuft_props["cluster_orientation"],
                 ]
                 logger.debug("Cluster_orientation: %s", tuft_props["cluster_orientation"])
 
                 # Create specific distributions
                 distrib = deepcopy(input_distributions)
                 distrib["basal_dendrite"]["persistence_diagram"] = [
-                    tuft_props["new_cluster_barcode"]
+                    tuft_props["new_cluster_barcode"],
                 ]
                 logger.debug("Cluster_barcode: %s", tuft_props["new_cluster_barcode"])
 

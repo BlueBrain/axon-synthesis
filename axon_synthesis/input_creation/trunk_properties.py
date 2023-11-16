@@ -41,12 +41,12 @@ def angle_between_vectors(p1, p2):
     return np.arccos(np.clip(dot, -1.0, 1.0))
 
 
-def vector(p1, p2):
+def vector(p1: np.ndarray, p2: np.ndarray):
     """Compute vector between two 3D points.
 
     Args:
-        p1, p2: indexable objects with
-        indices 0, 1, 2 corresponding to 3D cartesian coordinates.
+        p1: the first point of the vector
+        p2: the second point of the vector
 
     Returns:
         3-vector from p1 - p2
@@ -56,14 +56,10 @@ def vector(p1, p2):
 
 def section_segment_angles(section, reference=None):
     """Angles between the segments of a section and a reference vector."""
-    if reference is not None:
-        ref = np.array(reference)
-    else:
-        ref = np.array([0, 1, 0])
+    ref = np.array(reference) if reference is not None else np.array([0, 1, 0])
 
     seg_vectors = vector(section.points[1:], section.points[:-1])
-    directions = angle_between_vectors(seg_vectors, ref)
-    return directions
+    return angle_between_vectors(seg_vectors, ref)
 
 
 @features.feature(shape=(...,), namespace=features.NameSpace.NEURITE)
@@ -71,12 +67,14 @@ def segment_angles(neurite, reference=None):
     """Compute the angles between segments of the sections of a neurite."""
     # pylint: disable=protected-access
     func = partial(section_segment_angles, reference=reference)
-    res = features.neurite._map_segments(func, neurite)
-    return res
+    return features.neurite._map_segments(func, neurite)
 
 
 def compute_trunk_properties(
-    trunk_morph: Morphology, morph_name: str, axon_id: str, config_name: str
+    trunk_morph: Morphology,
+    morph_name: str,
+    axon_id: str,
+    config_name: str,
 ) -> list[tuple]:
     """Compute the properties of the trunk morphologies listed in the given DataFrame."""
     # Load morph paths
@@ -94,7 +92,7 @@ def compute_trunk_properties(
                     "segment_meander_angles": {"modes": ["raw", "mean", "std"]},
                     "segment_angles": {"modes": ["raw"]},
                     "segment_path_lengths": {"modes": ["raw"]},
-                }
+                },
             },
         )["axon"]
         long_range_trunk_props.append(
@@ -110,7 +108,7 @@ def compute_trunk_properties(
                 trunk_stats["std_segment_meander_angles"],
                 json.dumps(np.array(trunk_stats["raw_segment_angles"]).tolist()),
                 json.dumps(np.array(trunk_stats["raw_segment_path_lengths"]).tolist()),
-            )
+            ),
         )
 
     return long_range_trunk_props

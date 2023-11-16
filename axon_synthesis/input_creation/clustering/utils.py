@@ -8,6 +8,7 @@ import networkx as nx
 import numpy as np
 from jsonschema import Draft7Validator
 from jsonschema import validators
+from jsonschema.protocols import Validator
 from morphio import IterType
 from morphio import PointLevel
 from morphio.mut import Morphology as MorphIoMorphology
@@ -18,6 +19,8 @@ from neurom.morphmath import section_length
 from tmd.io.conversion import convert_morphio_trees
 from tmd.Topology.methods import tree_to_property_barcode
 from tmd.Topology.persistent_properties import PersistentAngles
+
+from axon_synthesis.typing import FileType
 
 logger = logging.getLogger(__name__)
 
@@ -39,21 +42,24 @@ def common_path(graph, nodes, source=None, shortest_paths=None):
     .. warning:: The graph must have only one component.
     """
     if not isinstance(graph, nx.DiGraph) and source is None and shortest_paths is None:
-        raise ValueError(
+        msg = (
             "Either the source or the pre-computed shortest paths must be provided when using "
             "an undirected graph."
         )
+        raise ValueError(msg)
 
     if shortest_paths is None:
         if isinstance(graph, nx.DiGraph):
             try:
                 sources = [k for k, v in graph.in_degree if v == 0]
                 if len(sources) > 1:
-                    raise RuntimeError("Several roots found in the directed graph.")
+                    msg = "Several roots found in the directed graph."
+                    raise RuntimeError(msg)
                 source = sources[0]
-            except IndexError:
+            except IndexError as exc:
                 # pylint: disable=raise-missing-from
-                raise RuntimeError("Could not find the root of the directed graph.")
+                msg = "Could not find the root of the directed graph."
+                raise RuntimeError(msg) from exc
         shortest_paths = nx.single_source_shortest_path(graph, source)
 
     # Compute the common ancestor
@@ -61,13 +67,16 @@ def common_path(graph, nodes, source=None, shortest_paths=None):
     for i in nodes[1:]:
         common_nodes.intersection_update(set(shortest_paths[i]))
     common_nodes = list(common_nodes)
-    shortest_common_path = [i for i in shortest_paths[nodes[0]] if i in common_nodes]
 
-    return shortest_common_path
+    return [i for i in shortest_paths[nodes[0]] if i in common_nodes]
 
 
 def create_tuft_morphology(
-    morph, tuft_section_ids, common_ancestor, cluster_common_path, shortest_paths
+    morph,
+    tuft_section_ids,
+    common_ancestor,
+    cluster_common_path,
+    shortest_paths,
 ):
     """Create a new morphology containing only the given tuft."""
     tuft_morph = Morphology(morph)
@@ -75,12 +84,12 @@ def create_tuft_morphology(
         if i.type != NeuriteType.axon:
             tuft_morph.delete_section(i)
 
-    tuft_sections = set(
+    tuft_sections = {
         j
         for terminal_id, path in shortest_paths.items()
         if terminal_id in tuft_section_ids
         for j in path
-    ).difference(cluster_common_path)
+    }.difference(cluster_common_path)
 
     tuft_ancestor = tuft_morph.section(common_ancestor)
 
@@ -116,7 +125,7 @@ def resize_root_section(tuft_morph, tuft_orientation, root_section_idx=0):
         [
             new_root_section.points[-1] - tuft_orientation,
             new_root_section.points[-1],
-        ]
+        ],
     )
     new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
 
@@ -138,8 +147,8 @@ def reduce_clusters(
     morph_paths,
     cluster_props,
     shortest_paths,
-    export_tuft_morph_dir=None,
-    config_name: str = None,
+    export_tuft_morph_dir: FileType | None = None,
+    config_name: str | None = None,
 ):
     """Reduce clusters to one section from their common ancestors to their centers."""
     if not config_name:
@@ -157,10 +166,7 @@ def reduce_clusters(
             cluster["section_id"].tolist(),
             shortest_paths=shortest_paths,
         )
-        if len(cluster) == 1 and len(cluster_common_path) > 2:
-            common_ancestor_shift = -2
-        else:
-            common_ancestor_shift = -1
+        common_ancestor_shift = -2 if len(cluster) == 1 and len(cluster_common_path) > 2 else -1
         common_ancestor = cluster_common_path[common_ancestor_shift]
         common_section = morph.section(common_ancestor)
 
@@ -183,7 +189,7 @@ def reduce_clusters(
         cluster_center = cluster_df.loc[
             cluster_df["terminal_id"] == cluster_id,
             ["x", "y", "z"],
-        ].values[0]
+        ].to_numpy()[0]
 
         # Compute tuft orientation
         tuft_orientation = cluster_center - tuft_ancestor.points[-1]
@@ -210,7 +216,7 @@ def reduce_clusters(
                         "tuft",
                         f"_{config_name}_{axon_id}_{cluster_id}",
                     ),
-                )
+                ),
             )
 
         # Add tuft category data
@@ -235,7 +241,7 @@ def reduce_clusters(
                 len(cluster),
                 tuft_orientation.tolist(),
                 np.array(tuft_barcode).tolist(),
-            )
+            ),
         )
 
         # Continue if the cluster has only one node
@@ -250,10 +256,10 @@ def reduce_clusters(
                     cluster_df.loc[
                         (cluster_df["terminal_id"] == cluster_id),
                         ["x", "y", "z"],
-                    ].values[0],
+                    ].to_numpy()[0],
                 ],
                 [0, 0],
-            )
+            ),
         )
     return kept_path
 
@@ -272,7 +278,9 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add, s
     )
 
     for axon, new_axon, trunk_axon in zip(
-        morph.neurites, clustered_morph.neurites, trunk_morph.neurites
+        morph.neurites,
+        clustered_morph.neurites,
+        trunk_morph.neurites,
     ):
         if axon.type != NeuriteType.axon:
             continue
@@ -281,7 +289,9 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add, s
         new_root = new_axon.root_node
         new_trunk_root = trunk_axon.root_node
 
-        assert np.array_equal(root.points, new_root.points), "The axons were messed up!"
+        if not np.array_equal(root.points, new_root.points):
+            msg = "The axons were messed up!"
+            raise RuntimeError(msg)
 
         for sec in new_root.children:
             clustered_morph.delete_section(sec.morphio_section)
@@ -304,7 +314,7 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add, s
                             child,
                             current_new_section.append_section(new_section),
                             current_trunk_section.append_section(new_section),
-                        )
+                        ),
                     )
 
             if current_section.id in sections_to_add:
@@ -313,9 +323,9 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add, s
     return clustered_morph, trunk_morph
 
 
-def extend_validator_with_default(validator_class):
+def extend_validator_with_default(validator_class) -> Validator:
     """Extend a validator to automatically set default values during validation."""
-    _NO_DEFAULT = object()
+    _no_default = object()
     validate_properties = validator_class.VALIDATORS["properties"]
 
     def set_defaults_and_validate(validator, properties, instance, schema):
@@ -325,8 +335,8 @@ def extend_validator_with_default(validator_class):
             if prop in new_instance:
                 continue
             obj_type = subschema.get("type", "")
-            default_value = subschema.get("default", _NO_DEFAULT)
-            if default_value is not _NO_DEFAULT:
+            default_value = subschema.get("default", _no_default)
+            if default_value is not _no_default:
                 new_instance.setdefault(prop, default_value)
             elif obj_type == "object":
                 new_instance.setdefault(prop, {})

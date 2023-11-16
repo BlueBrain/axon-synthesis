@@ -13,8 +13,8 @@ from morphio import SectionType
 from morphio.mut import Morphology as MutableMorphology
 from neurom.core import Morphology
 
-from axon_synthesis.PCSF.create_graph import CreateGraph
-from axon_synthesis.PCSF.steiner_tree import SteinerTree
+from axon_synthesis.main_trunk.create_graph import CreateGraph
+from axon_synthesis.main_trunk.steiner_tree import SteinerTree
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
 
         group_names = node_groups.groups.keys()
         assert set(group_names) == set(
-            edge_groups.groups.keys()
+            edge_groups.groups.keys(),
         ), "The nodes and edges have different 'morph_file' entries"
 
         # Create an empty column for future file locations
@@ -76,7 +76,8 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
             # Load the biological neuron
             morph = MutableMorphology()
             morph.soma.points = soma_centers.loc[
-                soma_centers["morph_file"] == group_name, ["x", "y", "z"]
+                soma_centers["morph_file"] == group_name,
+                ["x", "y", "z"],
             ].values
             morph.soma.diameters = [2]  # So the radius is 1
             morph = Morphology(morph)
@@ -88,7 +89,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
             root_point = np.array(roots[["x_from", "y_from", "z_from"]].values[0])
             root_section_vec = root_point - morph.soma.center
             root_section_point = morph.soma.center + root_section_vec / np.linalg.norm(
-                root_section_vec
+                root_section_vec,
             ) * max(1, min(morph.soma.radius, np.linalg.norm(root_section_vec) - 1))
             root_section = morph.append_root_section(
                 PointLevel(
@@ -116,7 +117,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                             SectionType.axon,
                         ),
                         row[1]["to"],
-                    )
+                    ),
                 )
 
             while active_sections:
@@ -139,7 +140,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                                 SectionType.axon,
                             ),
                             row[1]["to"],
-                        )
+                        ),
                     )
                 for row in in_solution_edges.loc[in_solution_edges["to"] == target].iterrows():
                     already_added.append(row[0])
@@ -156,7 +157,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
                                 SectionType.axon,
                             ),
                             row[1]["from"],
-                        )
+                        ),
                     )
 
             # At this point we do not merge consecutive sections that are not separated by a
@@ -166,7 +167,7 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
             # Export the morphology
             morph_name = Path(str(group_name)).name
             morph_path = str(
-                (self.output()["morphologies"].pathlib_path / morph_name).with_suffix(".asc")
+                (self.output()["morphologies"].pathlib_path / morph_name).with_suffix(".asc"),
             )
             morph.write(morph_path)
 
@@ -182,16 +183,19 @@ class SteinerMorphologies(luigi_tools.task.WorkflowTask):
 
         # Export the morph path DF
         pd.DataFrame(morph_paths, columns=["morph_file", "steiner_morph_file"]).to_csv(
-            self.output()["morphology_paths"].path, index=False
+            self.output()["morphology_paths"].path,
+            index=False,
         )
 
     def output(self):
         return {
             "nodes": TaggedOutputLocalTarget(
-                self.output_dir / "steiner_morph_nodes.csv", create_parent=True
+                self.output_dir / "steiner_morph_nodes.csv",
+                create_parent=True,
             ),
             "morphologies": TaggedOutputLocalTarget(self.output_dir, create_parent=True),
             "morphology_paths": TaggedOutputLocalTarget(
-                self.output_dir / "steiner_morph_paths.csv", create_parent=True
+                self.output_dir / "steiner_morph_paths.csv",
+                create_parent=True,
             ),
         }

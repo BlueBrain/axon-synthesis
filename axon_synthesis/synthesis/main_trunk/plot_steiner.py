@@ -16,8 +16,8 @@ from plotly_helper.neuron_viewer import NeuronBuilder
 from voxcell.nexus.voxelbrain import Atlas
 
 from axon_synthesis.config import Config
-from axon_synthesis.PCSF.clustering import ClusterTerminals
-from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
+from axon_synthesis.main_trunk.clustering import ClusterTerminals
+from axon_synthesis.main_trunk.steiner_morphologies import SteinerMorphologies
 from axon_synthesis.target_points import FindTargetPoints
 from axon_synthesis.utils import add_camera_sync
 
@@ -32,7 +32,8 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
         default=None,
     )
     output_dir = luigi.PathParameter(
-        description="Output folder for figures.", default="steiner_solutions"
+        description="Output folder for figures.",
+        default="steiner_solutions",
     )
     plot_fiber_tracts = luigi.BoolParameter(
         description=("If set to True, the fiber tracts will also be plotted."),

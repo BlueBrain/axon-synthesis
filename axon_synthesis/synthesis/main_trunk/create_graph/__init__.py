@@ -15,20 +15,20 @@ from scipy.spatial import KDTree
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
-from axon_synthesis.PCSF.clustering import ClusterTerminals
-from axon_synthesis.PCSF.create_graph.plot import plot_triangulation
-from axon_synthesis.PCSF.create_graph.utils import add_depth_penalty
-from axon_synthesis.PCSF.create_graph.utils import add_favored_reward
-from axon_synthesis.PCSF.create_graph.utils import add_intermediate_points
-from axon_synthesis.PCSF.create_graph.utils import add_orientation_penalty
-from axon_synthesis.PCSF.create_graph.utils import add_random_points
-from axon_synthesis.PCSF.create_graph.utils import add_terminal_penalty
-from axon_synthesis.PCSF.create_graph.utils import add_voronoi_points
-from axon_synthesis.PCSF.create_graph.utils import create_edges
-from axon_synthesis.PCSF.create_graph.utils import drop_close_points
-from axon_synthesis.PCSF.create_graph.utils import drop_outside_points
-from axon_synthesis.PCSF.create_graph.utils import get_region_points
-from axon_synthesis.PCSF.create_graph.utils import use_ancestors
+from axon_synthesis.main_trunk.clustering import ClusterTerminals
+from axon_synthesis.main_trunk.create_graph.plot import plot_triangulation
+from axon_synthesis.main_trunk.create_graph.utils import add_depth_penalty
+from axon_synthesis.main_trunk.create_graph.utils import add_favored_reward
+from axon_synthesis.main_trunk.create_graph.utils import add_intermediate_points
+from axon_synthesis.main_trunk.create_graph.utils import add_orientation_penalty
+from axon_synthesis.main_trunk.create_graph.utils import add_random_points
+from axon_synthesis.main_trunk.create_graph.utils import add_terminal_penalty
+from axon_synthesis.main_trunk.create_graph.utils import add_voronoi_points
+from axon_synthesis.main_trunk.create_graph.utils import create_edges
+from axon_synthesis.main_trunk.create_graph.utils import drop_close_points
+from axon_synthesis.main_trunk.create_graph.utils import drop_outside_points
+from axon_synthesis.main_trunk.create_graph.utils import get_region_points
+from axon_synthesis.main_trunk.create_graph.utils import use_ancestors
 from axon_synthesis.target_points import FindTargetPoints
 
 logger = logging.getLogger(__name__)
@@ -219,7 +219,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                 atlas_helper = AtlasHelper(atlas, self.layers_indices)
             if self.favored_regions:
                 favored_region_points = get_region_points(
-                    brain_regions, region_map, self.favored_regions
+                    brain_regions,
+                    region_map,
+                    self.favored_regions,
                 )
                 favored_region_tree = KDTree(favored_region_points)
 
@@ -227,7 +229,8 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             if self.terminals_path:
                 raise ValueError("Can not use ancestors when 'terminals_path' is not None")
             use_ancestors(
-                terminals, self.tuft_properties_path or self.input()["tuft_properties"].path
+                terminals,
+                self.tuft_properties_path or self.input()["tuft_properties"].path,
             )
 
         soma_centers = terminals.loc[terminals["axon_id"] == -1].copy()
@@ -248,13 +251,19 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
 
             # Add intermediate points
             inter_pts = add_intermediate_points(
-                pts, soma_center_coords, self.min_intermediate_distance, self.intermediate_number
+                pts,
+                soma_center_coords,
+                self.min_intermediate_distance,
+                self.intermediate_number,
             )
             all_pts = np.concatenate([pts] + [i[1] for i in inter_pts if i[0] > 0])
 
             # Add random points
             all_pts = add_random_points(
-                all_pts, self.min_random_point_distance, self.random_point_bbox_buffer, self.seed
+                all_pts,
+                self.min_random_point_distance,
+                self.random_point_bbox_buffer,
+                self.seed,
             )
 
             # Add Voronoï points
@@ -281,7 +290,10 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             # Create edges using the Delaunay triangulation of the union of the terminals,
             # intermediate and Voronoï points
             edges_df, tri = create_edges(
-                all_points_df[["x", "y", "z"]], from_coord_cols, to_coord_cols, group_name
+                all_points_df[["x", "y", "z"]],
+                from_coord_cols,
+                to_coord_cols,
+                group_name,
             )
 
             # Compute cumulative penalties
@@ -361,6 +373,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             "nodes": TaggedOutputLocalTarget(self.output_nodes, create_parent=True),
             "edges": TaggedOutputLocalTarget(self.output_edges, create_parent=True),
             "input_terminals": TaggedOutputLocalTarget(
-                "graph_input_terminals.csv", create_parent=True
+                "graph_input_terminals.csv",
+                create_parent=True,
             ),
         }

@@ -5,11 +5,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def compute(atlas, wmr, neuron_density, output_path=None):
+def compute(populations, neuron_density, output_path=None):
     """Compute the number of neurons in each brain region."""
-    populations = wmr.populations
-
-    # Compute the number of neurons in each population
     populations["pop_neuron_numbers"] = (
         populations["atlas_region_volume"] * neuron_density
     ).astype(int)

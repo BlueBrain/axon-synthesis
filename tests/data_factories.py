@@ -38,7 +38,7 @@ def generate_small_O1(atlas_dir):
     brain_regions.save_nrrd(str(atlas_dir / "brain_regions.nrrd"))
 
     # Update the brain region hierarchy
-    with open(str(atlas_dir / "hierarchy.json"), "r") as f:
+    with open(str(atlas_dir / "hierarchy.json")) as f:
         region_map = json.load(f)
     region_map["children"][0]["acronym"] = "mc0"
     region_map["children"].append(
@@ -54,7 +54,7 @@ def generate_small_O1(atlas_dir):
                 {"id": 60, "acronym": "mc1;2", "name": "hypercolumn 1, 2"},
                 {"id": 70, "acronym": "mc1;1", "name": "hypercolumn 1, 1"},
             ],
-        }
+        },
     )
 
     def recursive_atlas_id(data):

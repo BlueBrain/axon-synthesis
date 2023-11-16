@@ -26,10 +26,10 @@ from neurom.core.types import NeuriteType
 
 from axon_synthesis.add_tufts import AddTufts
 from axon_synthesis.create_dataset import RepairDataset
-from axon_synthesis.PCSF.clustering import ClusterTerminals
+from axon_synthesis.main_trunk.clustering import ClusterTerminals
 
-# from PCSF.clustering import ClusterTerminals
-# from PCSF.steiner_morphologies import SteinerMorphologies
+# from maint_trunk.clustering import ClusterTerminals
+# from maint_trunk.steiner_morphologies import SteinerMorphologies
 
 logger = logging.getLogger(__name__)
 
@@ -349,13 +349,13 @@ def population_statistics(pop, neurite_type=NeuriteType.axon):
         #     / np.array(section_term_radial_distances[-1])
         # ).tolist())
         local_bifurcation_angles.append(
-            to_stats(nm.get("local_bifurcation_angles", neuron, neurite_type=neurite_type))
+            to_stats(nm.get("local_bifurcation_angles", neuron, neurite_type=neurite_type)),
         )
         remote_bifurcation_angles.append(
-            to_stats(nm.get("remote_bifurcation_angles", neuron, neurite_type=neurite_type))
+            to_stats(nm.get("remote_bifurcation_angles", neuron, neurite_type=neurite_type)),
         )
         total_axon_length.append(
-            sum(nm.get("total_length_per_neurite", neuron, neurite_type=neurite_type))
+            sum(nm.get("total_length_per_neurite", neuron, neurite_type=neurite_type)),
         )
         radial_moments = {
             i: nm.get(

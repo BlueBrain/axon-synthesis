@@ -3,4 +3,3 @@
 
 def test_atlas(atlas):
     """Test the atlas."""
-    pass

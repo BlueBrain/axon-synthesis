@@ -25,8 +25,8 @@ def plot_triangulation(edges_df, from_coord_cols, to_coord_cols, tri, all_points
                 [
                     edges_df.loc[mask_from, "from"],
                     edges_df.loc[mask_to, "to"],
-                ]
-            )
+                ],
+            ),
         )
 
         masked_tri = tri.simplices[  # pylint: disable=no-member
@@ -45,7 +45,7 @@ def plot_triangulation(edges_df, from_coord_cols, to_coord_cols, tri, all_points
                             np.roll(masked_tri, -2, axis=1),
                         ),
                         axis=2,
-                    )
+                    ),
                 ),
             ),
             axis=0,

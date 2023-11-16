@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as npt
 
-from axon_synthesis.PCSF import post_process
+from axon_synthesis.main_trunk import post_process
 from axon_synthesis.utils import use_matplotlib_backend
 
 
@@ -19,7 +19,7 @@ class TestRandomWalk:
                 [1, 1, 0],
                 [0, 1, 0],
                 [0, 2, 0],
-            ]
+            ],
         )
         length_stats = {
             "norm": 0.05,

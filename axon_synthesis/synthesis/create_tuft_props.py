@@ -19,13 +19,13 @@ from neurom.morphmath import section_length
 from scipy.spatial import KDTree
 from voxcell import OrientationField
 
-from axon_synthesis import seed_param
+# from axon_synthesis import seed_param
 from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
 from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
-from axon_synthesis.PCSF.clustering import ClusterTerminals
-from axon_synthesis.PCSF.create_graph import CreateGraph
-from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
+from axon_synthesis.main_trunk.clustering import ClusterTerminals
+from axon_synthesis.main_trunk.create_graph import CreateGraph
+from axon_synthesis.main_trunk.steiner_morphologies import SteinerMorphologies
 from axon_synthesis.pop_neuron_numbers import PickPopulationNeuronNumbers
 from axon_synthesis.target_points import FindTargetPoints
 from axon_synthesis.utils import get_axons
@@ -54,7 +54,8 @@ def _exp(values, sigma, default_ind=None):
 
 def tree_region_lengths(tree, brain_regions):
     """Compute the length of the tree in each region it passes through."""
-    # TODO: Use geometry.voxel_intersection for this
+    # TODO: Use geometry.voxel_intersection for this because this naive implementation mays miss
+    # some brain region boundary crossing in some cases.
     lengths = defaultdict(int)
     voxel_dim = brain_regions.voxel_dimensions.min()
     for sec in tree.iter_sections():
@@ -81,7 +82,9 @@ def tree_region_lengths(tree, brain_regions):
         change_region_ind = np.append(change_region_ind, -1)
 
         for start, ind, end in zip(
-            change_region_ind[:-2], change_region_ind[1:-1], change_region_ind[2:]
+            change_region_ind[:-2],
+            change_region_ind[1:-1],
+            change_region_ind[2:],
         ):
             first_region = regions[ind]
             second_region = regions[ind + 1]
@@ -104,7 +107,6 @@ def load_WMR_data(
     source_populations_path,
 ):
     """Get the white matter recipe data."""
-
     # Get neuron numbers
     pop_neuron_numbers = pd.read_csv(population_numbers_path)
 
@@ -198,12 +200,13 @@ def compute_cluster_properties(
     terminal_data = {}
     terminal_data["path_distance"] = sum(section_length(i.points) for i in sec.iupstream())
     terminal_data["radial_distance"] = np.linalg.norm(
-        axon.points[0, COLS.XYZ] - sec.points[-1, COLS.XYZ]
+        axon.points[0, COLS.XYZ] - sec.points[-1, COLS.XYZ],
     )
 
     # Compute cluster size from white matter recipe
     source = source_populations.loc[
-        source_populations["morph_file"] == morph_file, "source_population_name"
+        source_populations["morph_file"] == morph_file,
+        "source_population_name",
     ].iloc[0]
     target_region_volume, atlas_region_id, N_pot = pop_numbers.loc[
         pop_numbers["morph_file"] == morph_file,
@@ -234,7 +237,7 @@ def compute_cluster_properties(
     # orientation is up so we take the 2nd row of the rotation matrix)
     # TODO: check that this formula is correct
     terminal_data["cluster_orientation"] = atlas_orientations.lookup(
-        sec.points[-1, COLS.XYZ]
+        sec.points[-1, COLS.XYZ],
     ).tolist()[0][1]
 
     # TODO: add a shift and a random deviation around this orientation?
@@ -297,7 +300,8 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         max_value=sys.float_info.max,
         left_op=luigi.parameter.operator.lt,
     )
-    seed = seed_param()
+    # seed = seed_param()
+    seed = 0
 
     # Attributes that are populated in the run() method
     rng = None
@@ -448,7 +452,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                         axon_terminals = cluster_props_df.loc[
                             (
                                 cluster_props_df["morph_file"].str.match(
-                                    f".*{steiner_morph_file.stem}\\.(asc|swc|h5)"
+                                    f".*{steiner_morph_file.stem}\\.(asc|swc|h5)",
                                 )
                             )
                             & (cluster_props_df["axon_id"] == axon_id)
@@ -496,7 +500,8 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                     )
 
                     cluster_props_df.at[
-                        terminal_index, "new_cluster_barcode"
+                        terminal_index,
+                        "new_cluster_barcode",
                     ] = cluster_props_df.at[chosen_index, "cluster_barcode"]
                     tuft_props.append(
                         [
@@ -511,7 +516,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                             # axon_terminal["cluster_size"],
                             axon_terminal["cluster_orientation"],
                             cluster_props_df.at[chosen_index, "cluster_barcode"],
-                        ]
+                        ],
                     )
 
         tuft_props_df = pd.DataFrame(

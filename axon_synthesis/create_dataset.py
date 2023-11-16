@@ -62,7 +62,7 @@ class RawDataset(luigi_tools.task.WorkflowWrapperTask):
 
     def output(self):
         return TaggedOutputLocalTarget(
-            self.input().pathlib_path.resolve().parent.parent / "Collect/data/"
+            self.input().pathlib_path.resolve().parent.parent / "Collect/data/",
         )
 
 

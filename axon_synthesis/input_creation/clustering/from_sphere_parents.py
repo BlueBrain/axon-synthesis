@@ -13,7 +13,8 @@ from axon_synthesis.utils import neurite_to_graph
 def nodes_to_terminals_mapping(graph, source=None, shortest_paths=None):
     """Map nodes to terminals."""
     if (source is None) == (shortest_paths is None):
-        raise ValueError("At least 'source' or 'shortest_paths' must be given but not both.")
+        msg = "At least 'source' or 'shortest_paths' must be given but not both."
+        raise ValueError(msg)
     if shortest_paths is None:
         shortest_paths = nx.single_source_shortest_path(graph, source)
     node_to_terminals = defaultdict(set)
@@ -102,12 +103,12 @@ def compute_clusters(config, config_str, axon, axon_id, group_name, group, **kwa
 
     # Reset cluster IDs to consecutive values
     nodes["cluster_id"] = cluster_ids.map(
-        {v: k for k, v in enumerate(sorted(cluster_ids.unique()), start=-1)}
+        {v: k for k, v in enumerate(sorted(cluster_ids.unique()), start=-1)},
     )
 
     # Groupy points by cluster IDs
     clusters = nodes.loc[nodes["is_terminal"]].groupby("cluster_id")
-    sorted_clusters = sorted(list(clusters), key=lambda x: x[1].size, reverse=True)
+    sorted_clusters = sorted(clusters, key=lambda x: x[1].size, reverse=True)
 
     new_terminal_id = 1
     paths_from_root = nx.single_source_shortest_path(graph, -1)
@@ -139,7 +140,8 @@ def compute_clusters(config, config_str, axon, axon_id, group_name, group, **kwa
             if common_ancestor_ind >= len(common_ancestors):
                 break
             sub_ancestors = edges.loc[
-                edges["source"] == common_ancestors[common_ancestor_ind], "target"
+                edges["source"] == common_ancestors[common_ancestor_ind],
+                "target",
             ].tolist()
             if sub_ancestors:
                 common_ancestors.pop(common_ancestor_ind)
@@ -158,9 +160,9 @@ def compute_clusters(config, config_str, axon, axon_id, group_name, group, **kwa
                     axon_id,
                     new_terminal_id if not is_root else 0,
                     len(terminals_with_current_ancestor),
-                ]
-                + terminals_with_current_ancestor[["x", "y", "z"]].mean().tolist()
-                + [config_str]
+                    *terminals_with_current_ancestor[["x", "y", "z"]].mean().tolist(),
+                    config_str,
+                ],
             )
             if not is_root:
                 group.loc[

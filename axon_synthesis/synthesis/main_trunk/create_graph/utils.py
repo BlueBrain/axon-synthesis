@@ -67,10 +67,10 @@ def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermed
                         np.linspace(0, x, int(num) + 2)[1:-1],
                         np.linspace(0, y, int(num) + 2)[1:-1],
                         np.linspace(0, z, int(num) + 2)[1:-1],
-                    ]
+                    ],
                 ).T
                 + ref_coords,
-            )
+            ),
         )
     return inter_pts
 
@@ -91,7 +91,7 @@ def add_random_points(all_pts, min_random_point_distance, bbox_buffer, seed):
                     rng.uniform(bbox[0, 0], bbox[1, 0]),
                     rng.uniform(bbox[0, 1], bbox[1, 1]),
                     rng.uniform(bbox[0, 2], bbox[1, 2]),
-                ]
+                ],
             )
             if np.isinf(
                 tree.query(
@@ -100,7 +100,7 @@ def add_random_points(all_pts, min_random_point_distance, bbox_buffer, seed):
                     k=2,
                 )[
                     0
-                ][1]
+                ][1],
             ) and (
                 len(new_pts) == 0
                 or np.linalg.norm(
@@ -179,7 +179,7 @@ def create_edges(all_points, from_coord_cols, to_coord_cols, group_name):
             1,
             np.vstack(
                 # pylint: disable=no-member
-                np.stack((tri.simplices, np.roll(tri.simplices, -1, axis=1)), axis=2)
+                np.stack((tri.simplices, np.roll(tri.simplices, -1, axis=1)), axis=2),
             ),
         ),
         axis=0,
@@ -190,7 +190,7 @@ def create_edges(all_points, from_coord_cols, to_coord_cols, group_name):
             "morph_file": group_name,
             "from": unique_edges[:, 0],
             "to": unique_edges[:, 1],
-        }
+        },
     )
 
     # Add coordinates and compute lengths
@@ -211,7 +211,7 @@ def add_terminal_penalty(edges_df, all_points_df):
 
     # Get terminal edges
     terminal_edges = edges_df[["from", "to"]].isin(
-        all_points_df.loc[all_points_df["is_terminal"], "id"].values
+        all_points_df.loc[all_points_df["is_terminal"], "id"].values,
     )
 
     # Add the penalty

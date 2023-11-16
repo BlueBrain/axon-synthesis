@@ -28,7 +28,8 @@ def setup_logger(level="info", prefix="", suffix=""):
 
     if levels[level] >= logging.INFO:  # pragma: no cover
         logging.getLogger("distributed").level = max(
-            logging.getLogger("distributed").level, logging.WARNING
+            logging.getLogger("distributed").level,
+            logging.WARNING,
         )
 
 
@@ -131,7 +132,8 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, keep_section_segments=False,
         last_pts[section.id] = last_pt
 
     nodes = pd.DataFrame(
-        graph_nodes, columns=["id", "x", "y", "z", "is_terminal", "section_id", "sub_segment_num"]
+        graph_nodes,
+        columns=["id", "x", "y", "z", "is_terminal", "section_id", "sub_segment_num"],
     )
     nodes.set_index("id", inplace=True)
 
@@ -173,7 +175,6 @@ def neurite_to_graph_old(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
 
 def append_section_recursive(source, target):
     """Append a target section to a source."""
-
     current_sections = [(source, target)]
 
     # Add kept sections
@@ -198,14 +199,12 @@ def append_section_recursive(source, target):
 
 @contextmanager
 def disable_loggers(*logger_names):
-    """
-    A context manager that will prevent any logging messages triggered during the body from being
+    """A context manager that will prevent any logging messages triggered during the body from being
     processed.
 
     Args:
         *logger_names (str): The names of the loggers to be disabled.
     """
-
     if not logger_names:
         loggers = [logging.root]
     else:
@@ -224,8 +223,7 @@ def disable_loggers(*logger_names):
 
 @contextmanager
 def use_matplotlib_backend(new_backend):
-    """
-    A context manager that will set a new temporary backend to matplotlib then restore the old one.
+    """A context manager to set a new temporary backend to matplotlib then restore the old one.
 
     Args:
         new_backend (str): The name of the backend to use in this context.
@@ -262,7 +260,7 @@ def get_region_ids(region_map, brain_region_names, with_descendants=True):
         else:
             new_ids.extend(list(region_map.find(i, attr="name", with_descendants=with_descendants)))
             new_ids.extend(
-                list(region_map.find(i, attr="acronym", with_descendants=with_descendants))
+                list(region_map.find(i, attr="acronym", with_descendants=with_descendants)),
             )
 
         if not new_ids:

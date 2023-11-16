@@ -9,7 +9,7 @@ from scipy.spatial import KDTree
 logger = logging.getLogger(__name__)
 
 
-def compute_clusters(config, config_str, axon, axon_id, group_name, group, output_cols, **kwargs):
+def compute_clusters(config, config_str, axon_id, group_name, group, output_cols, **kwargs):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
     new_terminal_points = []
@@ -35,7 +35,7 @@ def compute_clusters(config, config_str, axon, axon_id, group_name, group, outpu
     group_with_label["distance"] = -1.0
     group_with_label["config"] = config_str
     clusters = group_with_label.loc[group_with_label["cluster_id"].isin(big_clusters)].groupby(
-        "cluster_id"
+        "cluster_id",
     )
 
     # Check clusters
@@ -95,19 +95,19 @@ def compute_clusters(config, config_str, axon, axon_id, group_name, group, outpu
         else:
             actual_cluster = real_cluster
 
-        cluster_center = actual_cluster[["x", "y", "z"]].mean().values
+        cluster_center = actual_cluster[["x", "y", "z"]].mean().to_numpy()
 
         # Add the merged point
         first_element = actual_cluster.iloc[0]
         new_terminal_points.append(
             [
                 first_element["morph_file"],
-                first_element["axon_id"],
+                axon_id,
                 real_cluster_id,
                 len(actual_cluster),
             ]
             + cluster_center.tolist()
-            + [config_str]
+            + [config_str],
         )
         added_clusters.append(real_cluster_id)
 
@@ -115,11 +115,12 @@ def compute_clusters(config, config_str, axon, axon_id, group_name, group, outpu
     not_added_mask = ~group_with_label["cluster_id"].isin(added_clusters)
     group_with_label.loc[not_added_mask, "cluster_id"] = sorted(
         set(range(len(added_clusters) + len(group_with_label.loc[not_added_mask]))).difference(
-            added_clusters
-        )
+            added_clusters,
+        ),
     )
     group_with_label.loc[not_added_mask, "terminal_id"] = group_with_label.loc[
-        not_added_mask, "cluster_id"
+        not_added_mask,
+        "cluster_id",
     ]
     new_terminal_points.extend(group_with_label.loc[not_added_mask, output_cols].values.tolist())
 

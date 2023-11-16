@@ -163,6 +163,7 @@ def cluster_morphologies(
     morph_dir: FileType,
     clustering_parameters: list,
     output_path: FileType,
+    *,
     debug: bool = False,
     nb_workers: int = 1,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -171,12 +172,12 @@ def cluster_morphologies(
     for num_config, config in enumerate(clustering_parameters):
         if "name" not in config:
             config["name"] = str(num_config)
-    if len(clustering_parameters) != len(set([i["name"] for i in clustering_parameters])):
-        raise ValueError(
-            "The 'clustering_parameters' must contain elements with unique 'name' entries."
-        )
+    if len(clustering_parameters) != len({i["name"] for i in clustering_parameters}):
+        msg = "The 'clustering_parameters' must contain elements with unique 'name' entries."
+        raise ValueError(msg)
     LOGGER.info(
-        "Clustering morphologies using the following configuration: %s", clustering_parameters
+        "Clustering morphologies using the following configuration: %s",
+        clustering_parameters,
     )
 
     output_path = Path(output_path)
@@ -196,7 +197,7 @@ def cluster_morphologies(
                 "params": dict(filter(lambda pair: pair[0] not in ["name", "method"], i.items())),
             }
             for i in clustering_parameters
-        ]
+        ],
     ).set_index("name")
     cols_to_json(config_df, ["params"]).to_csv(output_path / CLUSTERING_CONFIGURATIONS_FILENAME)
 
@@ -327,12 +328,16 @@ def cluster_morphologies(
 
                 # Create the clustered morphology
                 clustered_morph, trunk_morph = create_clustered_morphology(
-                    morph, group_name, kept_path, sections_to_add, suffix=suffix
+                    morph,
+                    group_name,
+                    kept_path,
+                    sections_to_add,
+                    suffix=suffix,
                 )
 
                 # Compute trunk properties
                 trunk_props.extend(
-                    compute_trunk_properties(trunk_morph, group_name, axon_id, config_name)
+                    compute_trunk_properties(trunk_morph, group_name, axon_id, config_name),
                 )
 
                 # Export the trunk and clustered morphologies
@@ -347,7 +352,7 @@ def cluster_morphologies(
                             "clustered",
                             suffix=suffix,
                         ),
-                    )
+                    ),
                 )
                 morph_paths["trunks"].append(
                     (
@@ -360,7 +365,7 @@ def cluster_morphologies(
                             "trunk",
                             suffix=suffix,
                         ),
-                    )
+                    ),
                 )
 
                 # Plot the clusters
@@ -422,7 +427,8 @@ def cluster_morphologies(
     if debug:
         plot_cluster_properties(cluster_props_df, figure_path / TUFT_PROPS_PLOT_FILENAME)
         LOGGER.info(
-            "Exported figure of cluster properties to %s", figure_path / TUFT_PROPS_PLOT_FILENAME
+            "Exported figure of cluster properties to %s",
+            figure_path / TUFT_PROPS_PLOT_FILENAME,
         )
 
     # Export the terminals
@@ -444,7 +450,8 @@ def cluster_morphologies(
 
     # Export morphology paths
     clustered_morph_paths = pd.DataFrame(
-        morph_paths["clustered"], columns=["morph_file", "config_name", "morph_path"]
+        morph_paths["clustered"],
+        columns=["morph_file", "config_name", "morph_path"],
     )
     clustered_morph_paths.to_csv(output_path / CLUSTERED_MORPHOLOGIES_PATHS_FILENAME, index=False)
     LOGGER.info(
@@ -453,7 +460,8 @@ def cluster_morphologies(
     )
 
     trunk_morph_paths = pd.DataFrame(
-        morph_paths["trunks"], columns=["morph_file", "config_name", "morph_path"]
+        morph_paths["trunks"],
+        columns=["morph_file", "config_name", "morph_path"],
     )
     trunk_morph_paths.to_csv(output_path / TRUNK_MORPHOLOGIES_PATHS_FILENAME, index=False)
     if debug:
@@ -463,7 +471,8 @@ def cluster_morphologies(
         )
         tuft_morph_paths.to_csv(output_path / TUFT_MORPHOLOGIES_PATHS_FILENAME, index=False)
         LOGGER.info(
-            "Exported tuft morphologies paths to %s", output_path / TUFT_MORPHOLOGIES_PATHS_FILENAME
+            "Exported tuft morphologies paths to %s",
+            output_path / TUFT_MORPHOLOGIES_PATHS_FILENAME,
         )
     else:
         tuft_morph_paths = None

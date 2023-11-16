@@ -10,8 +10,8 @@ import plotly.graph_objects as go
 from bluepyparallel import evaluate
 from bluepyparallel import init_parallel_factory
 from plotly.subplots import make_subplots
+from voxcell.math_utils import voxel_intersection
 
-from axon_synthesis.geometry import voxel_intersection
 from axon_synthesis.utils import disable_loggers
 from axon_synthesis.utils import neurite_to_graph
 
@@ -43,7 +43,7 @@ def merge_similar_regions(regions, sub_segments):
     segment_couples = sub_segments[couple_idx]
 
     region_sub_segments = np.hstack(
-        [segment_couples[:, 0, [3, 4, 5]], segment_couples[:, 1, [3, 4, 5]]]
+        [segment_couples[:, 0, [3, 4, 5]], segment_couples[:, 1, [3, 4, 5]]],
     )
     # Fix first start point
     region_sub_segments[0, [0, 1, 2]] = segment_couples[0, 0, [0, 1, 2]]
@@ -67,7 +67,9 @@ def segment_region_ids(row, brain_regions):
     start_pt = [row["source_x"], row["source_y"], row["source_z"]]
     end_pt = [row["target_x"], row["target_y"], row["target_z"]]
     indices, sub_segments = voxel_intersection(
-        [start_pt, end_pt], brain_regions, return_sub_segments=True
+        [start_pt, end_pt],
+        brain_regions,
+        return_sub_segments=True,
     )
     regions = brain_regions.raw[tuple(indices.T.tolist())]
 
@@ -110,12 +112,13 @@ def cut_edges(edges, nodes, brain_regions, nb_workers, group_name):
     # Set brain regions to not cut edges
     edges["brain_region"] = -1
     edges.loc[one_region_mask, "brain_region"] = all_brain_regions.loc[
-        one_region_mask, "brain_regions"
+        one_region_mask,
+        "brain_regions",
     ].apply(lambda x: x[0])
 
     # Select edges that have to be cut
     edges_to_cut = edges.loc[cut_edge_mask].join(
-        all_brain_regions.loc[cut_edge_mask, ["brain_regions", "sub_segments"]]
+        all_brain_regions.loc[cut_edge_mask, ["brain_regions", "sub_segments"]],
     )
 
     # Split lists into rows
@@ -214,7 +217,8 @@ def cut_edges(edges, nodes, brain_regions, nb_workers, group_name):
             .tolist()
         )
         segment_sub_edges.loc[intermediate_sources.index, "source"] = segment_sub_edges.loc[
-            intermediate_targets.index, "target"
+            intermediate_targets.index,
+            "target",
         ].tolist()
 
         # Set source_is_terminal and target_is_terminal attributes to False (the intermediate
@@ -225,7 +229,7 @@ def cut_edges(edges, nodes, brain_regions, nb_workers, group_name):
         # Fix sub-segment numbers
         # TODO: Vectorize the for loop
         intermediate_target_nodes["idx_shift"] = intermediate_target_nodes.groupby(
-            "section_id"
+            "section_id",
         ).cumcount()
         intermediate_target_nodes["sub_segment_num"] += intermediate_target_nodes["idx_shift"]
         for i in intermediate_target_nodes.itertuples():
@@ -246,7 +250,7 @@ def cut_edges(edges, nodes, brain_regions, nb_workers, group_name):
                 intermediate_target_nodes[
                     [i for i in nodes.columns if i in intermediate_target_nodes.columns]
                 ],
-            ]
+            ],
         )
 
         new_edges = pd.concat(
@@ -263,7 +267,7 @@ def cut_edges(edges, nodes, brain_regions, nb_workers, group_name):
     return new_nodes, new_edges
 
 
-def _find_wm_first_nested_region(region_id, wm_regions, region_map):
+def _find_wm_first_nested_region(region_id, wm_regions, region_map) -> int:
     """Find the first nested region ID that is available in the white matter recipe."""
     if region_id in wm_regions or region_id <= 0:
         return region_id
@@ -288,6 +292,7 @@ def compute_clusters(
     nb_workers,
     tuft_morphologies_path,
     figure_path,
+    *,
     debug=False,
     **kwargs,
 ):
@@ -340,10 +345,7 @@ def compute_clusters(
         args=(wm_regions, atlas.region_map),
     )
 
-    if config["wm_unnesting"]:
-        brain_region_attr = "wm_brain_region"
-    else:
-        brain_region_attr = "brain_region"
+    brain_region_attr = "wm_brain_region" if config["wm_unnesting"] else "brain_region"
 
     # Create a graph from these new nodes and edges
     graph = nx.from_pandas_edgelist(new_edges, create_using=nx.Graph)
@@ -356,7 +358,7 @@ def compute_clusters(
     # Get subgraphs of each brain region
     region_sub_graphs = {
         brain_region: graph.edge_subgraph(
-            edges_component[["source", "target"]].to_records(index=False).tolist()
+            edges_component[["source", "target"]].to_records(index=False).tolist(),
         )
         for brain_region, edges_component in new_edges.groupby(brain_region_attr)
     }
@@ -399,8 +401,7 @@ def compute_clusters(
 
     cluster_id = 0
     # cluster_ids = {}
-    for region, components in region_components.items():  # pylint: disable=unused-variable
-        # acr = region_acronyms.get(region, "UNKNOWN")
+    for components in region_components.values():  # pylint: disable=unused-variable
         for component in components:
             group_nodes.loc[group_nodes["id"].isin(list(component)), "cluster_id"] = cluster_id
             cluster_id = group_nodes["cluster_id"].max() + 1
@@ -417,9 +418,9 @@ def compute_clusters(
                 axon_id,
                 new_terminal_id if cluster_id != -1 else 0,
                 len(i),
-            ]
-            + i[["x", "y", "z"]].mean().tolist()
-            + [config_str]
+                *i[["x", "y", "z"]].mean().tolist(),
+                config_str,
+            ],
         )
         new_terminal_id += 1
 
@@ -448,7 +449,8 @@ def plot(region_component_subgraphs, region_acronyms, filepath):
     """Plot the resulting nodes and edges."""
     total_num = sum(len(i) for i in region_component_subgraphs.values())
     all_colors = np.arange(total_num)
-    np.random.shuffle(all_colors)
+    rng = np.random.default_rng()
+    rng.shuffle(all_colors)
     all_colors = all_colors.tolist()
     x = []
     y = []
@@ -467,21 +469,21 @@ def plot(region_component_subgraphs, region_acronyms, filepath):
                         edge_data["source_x"],
                         edge_data["target_x"],
                         None,
-                    ]
+                    ],
                 )
                 y.extend(
                     [
                         edge_data["source_y"],
                         edge_data["target_y"],
                         None,
-                    ]
+                    ],
                 )
                 z.extend(
                     [
                         edge_data["source_z"],
                         edge_data["target_z"],
                         None,
-                    ]
+                    ],
                 )
                 color.extend([tmp, tmp, tmp])
                 acronym.extend([acr, acr, acr])

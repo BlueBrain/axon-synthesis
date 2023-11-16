@@ -58,7 +58,11 @@ include = ["axon_synthesis*"]
 
 [tool.black]
 line-length = 100
-target-version = "py310"
+target-version = [
+    "py310",
+    "py311",
+    "py312",
+]
 
 [tool.pydocstyle]
 # ignore the following:
@@ -97,11 +101,14 @@ ignore = [
     "ANN101",
     "ANN102",
     "B905",
+    "COM812",
     "ERA001",
     "EXE002",
     "FIX002",
+    "ISC001",
     "PD002",
     "PD013",
+    "PD015",
     "TD002",
     "TD003",
 ]

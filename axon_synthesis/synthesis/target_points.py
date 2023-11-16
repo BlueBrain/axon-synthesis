@@ -35,7 +35,8 @@ def remove_invalid_points(target_df, min_target_points):
         for k, v in nb_targets.loc[nb_targets < min_target_points].to_dict().items():
             coords = (
                 target_df.loc[
-                    (target_df[["morph_file", "axon_id"]] == k).any(axis=1), ["x", "y", "z"]
+                    (target_df[["morph_file", "axon_id"]] == k).any(axis=1),
+                    ["x", "y", "z"],
                 ]
                 .values.flatten()
                 .tolist()
@@ -64,7 +65,8 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         exists=True,
     )
     output_terminals = luigi.Parameter(
-        description="Output dataset file", default="target_terminals.csv"
+        description="Output dataset file",
+        default="target_terminals.csv",
     )
     output_source_populations = luigi.Parameter(
         description="Output source population dataset file",
@@ -142,7 +144,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             ~self.wm_projection_targets["target_region_atlas_id"].isnull()
         ]
         projection_targets = projection_targets.fillna(
-            {"target_subregion_atlas_id": projection_targets["target_region_atlas_id"]}
+            {"target_subregion_atlas_id": projection_targets["target_region_atlas_id"]},
         ).astype({"target_region_atlas_id": int, "target_subregion_atlas_id": int})
 
         # Choose one population for each source point
@@ -179,7 +181,9 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             .rename(columns={"level_0": "target_projection_name", "level_1": "pop_raw_name"})
         )
         all_targets = all_targets.merge(
-            projection_matrix, on=["pop_raw_name", "target_projection_name"], how="left"
+            projection_matrix,
+            on=["pop_raw_name", "target_projection_name"],
+            how="left",
         )
         target_probs = (
             all_targets["target_projection_strength"]
@@ -190,12 +194,12 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         selected_targets = all_targets.loc[target_projection_chooser <= target_probs]
         n_tries = 0
         while n_tries < 10 and not unique_source_points[["morph_file", "axon_id"]].sort_values(
-            ["morph_file", "axon_id"]
+            ["morph_file", "axon_id"],
         ).reset_index(drop=True).equals(
             selected_targets[["morph_file", "axon_id"]]
             .drop_duplicates()
             .sort_values(["morph_file", "axon_id"])
-            .reset_index(drop=True)
+            .reset_index(drop=True),
         ):
             n_tries += 1
             target_projection_chooser = rng.uniform(size=len(all_targets))
@@ -216,7 +220,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
 
         # Get source points
         source_points = pd.read_csv(
-            self.source_points or self.input()["source_points"]["terminals"].pathlib_path
+            self.source_points or self.input()["source_points"]["terminals"].pathlib_path,
         )
 
         # Get atlas data
@@ -242,7 +246,9 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
 
         # Find in which layer is each source point
         source_points["layer"] = get_layers(
-            atlas, brain_regions, source_points[["x", "y", "z"]].values
+            atlas,
+            brain_regions,
+            source_points[["x", "y", "z"]].values,
         )
 
         # Find population name of each source point
@@ -270,7 +276,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             columns={
                 "pop_raw_name": "source_population_name",
                 "target_population_name": "pop_raw_name",
-            }
+            },
         )
 
         # Export the source populations
@@ -281,7 +287,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         # Pick a random voxel in each region
         target_points["target_voxel_coords"] = target_points["target_subregion_atlas_id"].apply(
             # lambda row: rng.choice(brain_regions_mask_file[str(999)][:])
-            lambda row: rng.choice(brain_regions_mask_file[str(row)][:])
+            lambda row: rng.choice(brain_regions_mask_file[str(row)][:]),
         )
 
         # Compute coordinates of this voxel and add a random component up to the voxel size
@@ -295,12 +301,13 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
                         0.5 * np.abs(brain_regions.voxel_dimensions[i]),
                     )
                     for i in range(3)
-                ]
-            ).astype(np.float32)
+                ],
+            ).astype(np.float32),
         )
 
         target_points[["x", "y", "z"]] = pd.DataFrame(
-            target_points["target_point_coords"].to_list(), index=target_points.index
+            target_points["target_point_coords"].to_list(),
+            index=target_points.index,
         )
 
         # Build terminal IDs inside groups
@@ -359,7 +366,8 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         targets = {
             "terminals": TaggedOutputLocalTarget(self.output_terminals, create_parent=True),
             "source_populations": TaggedOutputLocalTarget(
-                self.output_source_populations, create_parent=True
+                self.output_source_populations,
+                create_parent=True,
             ),
         }
         # if self.debug_flatmap:

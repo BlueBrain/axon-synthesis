@@ -10,7 +10,7 @@ import pandas as pd
 import pcst_fast as pf
 from data_validation_framework.target import TaggedOutputLocalTarget
 
-from axon_synthesis.PCSF.create_graph import CreateGraph
+from axon_synthesis.main_trunk.create_graph import CreateGraph
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class SteinerTree(luigi_tools.task.WorkflowTask):
 
         group_names = node_groups.groups.keys()
         assert set(group_names) == set(
-            edge_groups.groups.keys()
+            edge_groups.groups.keys(),
         ), "The nodes and edges have different 'morph_file' entries"
 
         for group_name in group_names:

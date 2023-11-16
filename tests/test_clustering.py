@@ -2,14 +2,14 @@
 import numpy as np
 import pytest
 
-from axon_synthesis.PCSF import clustering
+from axon_synthesis.main_trunk import clustering
 
 
 class TestFromBrainRegion:
-    """Test functions from `axon_synthesis.PCSF.clustering.from_brain_regions`."""
+    """Test functions from `axon_synthesis.main_trunk.clustering.from_brain_regions`."""
 
     @pytest.mark.parametrize(
-        "regions,sub_segments,expected_regions,expected_sub_segments",
+        ("regions", "sub_segments", "expected_regions", "expected_sub_segments"),
         [
             pytest.param(
                 [1, 2],
@@ -110,10 +110,16 @@ class TestFromBrainRegion:
         ],
     )
     @pytest.mark.parametrize(
-        "reverse", [pytest.param(True, id="reversed"), pytest.param(False, id="regular")]
+        "reverse",
+        [pytest.param(True, id="reversed"), pytest.param(False, id="regular")],
     )
     def test_merge_similar_regions(
-        self, regions, sub_segments, expected_regions, expected_sub_segments, reverse
+        self,
+        regions,
+        sub_segments,
+        expected_regions,
+        expected_sub_segments,
+        reverse,
     ):
         """Test that consecutive regions are properly merged."""
         regions = np.array(regions)
@@ -131,7 +137,8 @@ class TestFromBrainRegion:
 
         # Call merge_similar_regions()
         res = clustering.from_brain_regions.merge_similar_regions(
-            regions.tolist(), sub_segments.tolist()
+            regions.tolist(),
+            sub_segments.tolist(),
         )
 
         # Handle empty case
@@ -192,7 +199,8 @@ class TestFromBrainRegion:
             res = clustering.from_brain_regions.segment_region_ids(seg, brain_regions)
             np.testing.assert_array_equal(res["brain_regions"], [2, 20])
             np.testing.assert_array_equal(
-                res["sub_segments"], [[-10, 0, 0, 0, 0, 0], [0, 0, 0, 10, 0, 0]]
+                res["sub_segments"],
+                [[-10, 0, 0, 0, 0, 0], [0, 0, 0, 10, 0, 0]],
             )
 
         def test_seg_in_two_regions_one_voxel_start(self, brain_regions):
@@ -210,7 +218,8 @@ class TestFromBrainRegion:
             res = clustering.from_brain_regions.segment_region_ids(seg, brain_regions)
             np.testing.assert_array_equal(res["brain_regions"], [2, 20])
             np.testing.assert_array_equal(
-                res["sub_segments"], [[-10, 0, 0, 0, 0, 0], [0, 0, 0, 500, 0, 0]]
+                res["sub_segments"],
+                [[-10, 0, 0, 0, 0, 0], [0, 0, 0, 500, 0, 0]],
             )
 
         def test_seg_in_two_regions_one_voxel_end(self, brain_regions):
@@ -228,7 +237,8 @@ class TestFromBrainRegion:
             res = clustering.from_brain_regions.segment_region_ids(seg, brain_regions)
             np.testing.assert_array_equal(res["brain_regions"], [2, 20])
             np.testing.assert_array_equal(
-                res["sub_segments"], [[-500, 0, 0, 0, 0, 0], [0, 0, 0, 10, 0, 0]]
+                res["sub_segments"],
+                [[-500, 0, 0, 0, 0, 0], [0, 0, 0, 10, 0, 0]],
             )
 
         def test_seg_in_two_regions_several_voxels(self, brain_regions):
@@ -246,5 +256,6 @@ class TestFromBrainRegion:
             res = clustering.from_brain_regions.segment_region_ids(seg, brain_regions)
             np.testing.assert_array_equal(res["brain_regions"], [2, 20])
             np.testing.assert_array_equal(
-                res["sub_segments"], [[-500, 0, 0, 0, 0, 0], [0, 0, 0, 500, 0, 0]]
+                res["sub_segments"],
+                [[-500, 0, 0, 0, 0, 0], [0, 0, 0, 500, 0, 0]],
             )

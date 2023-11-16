@@ -26,7 +26,7 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
     for axon_id, axon in enumerate(axons):
         # Add root point
         pts.append(
-            [morph_path_str, axon_id, 0, axon.root_node.id] + axon.root_node.points[0][:3].tolist()
+            [morph_path_str, axon_id, 0, axon.root_node.id, *axon.root_node.points[0][:3].tolist()],
         )
 
         # Add terminal points
@@ -34,10 +34,13 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
         for section in axon.iter_sections():
             if not section.children:
                 pts.append(
-                    tuple(
-                        [morph_path_str, axon_id, terminal_id, section.id]
-                        + section.points[-1][:3].tolist()
-                    )
+                    (
+                        morph_path_str,
+                        axon_id,
+                        terminal_id,
+                        section.id,
+                        *section.points[-1][:3].tolist(),
+                    ),
                 )
                 terminal_id += 1
 
@@ -54,7 +57,7 @@ def process_morphologies(morph_dir: FileType) -> pd.DataFrame:
             continue
         all_pts.extend(process_morph(morph_path))
 
-    dataset = pd.DataFrame(
+    return pd.DataFrame(
         all_pts,
         columns=[
             "morph_file",
@@ -66,7 +69,6 @@ def process_morphologies(morph_dir: FileType) -> pd.DataFrame:
             "z",
         ],
     )
-    return dataset
 
 
 # class ExtractTerminals(luigi_tools.task.WorkflowTask):

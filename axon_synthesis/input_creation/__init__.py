@@ -22,6 +22,7 @@ def create_inputs(
     neuron_density,
     clustering_parameters,
     output_dir,
+    *,
     nb_workers=1,
     debug=False,
 ):
@@ -65,8 +66,7 @@ def create_inputs(
     pop_neuron_numbers_file = output_dir / "neuron_density.csv"
     if not pop_neuron_numbers_file.exists():
         pop_neuron_numbers.compute(
-            atlas,
-            wmr,
+            wmr.populations,
             neuron_density,
             pop_neuron_numbers_file,
         )

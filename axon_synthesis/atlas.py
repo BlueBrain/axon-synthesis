@@ -22,7 +22,7 @@ from axon_synthesis.typing import LayerNamesType
 LOGGER = logging.getLogger(__name__)
 
 
-def _is_in(test_elements, brain_regions):
+def _is_in(test_elements: list, brain_regions: np.ndarray) -> np.ndarray:
     res = np.zeros_like(brain_regions, dtype=bool)
     for i in test_elements:
         res |= brain_regions == i
@@ -33,11 +33,11 @@ class AtlasHelper:
     """Atlas helper."""
 
     def __init__(
-        self,
+        self: Self,
         atlas: Atlas,
         brain_regions: VoxelData,
         region_map: RegionMap,
-        layers_names: LayerNamesType = None,
+        layer_names: LayerNamesType = None,
     ):
         """The AtlasHelper constructor.
 
@@ -50,7 +50,7 @@ class AtlasHelper:
         self.atlas = atlas
         self.brain_regions = brain_regions
         self.region_map = region_map
-        self.layers = layers_names if layers_names is not None else list(range(1, 7))
+        self.layers = layer_names if layer_names is not None else list(range(1, 7))
         self.top_layer = atlas.load_data(f"[PH]{self.layers[0]}")
 
         # TODO: Compute the depth for specific layers of each region (like in region-grower)
@@ -62,7 +62,7 @@ class AtlasHelper:
         atlas_path: FileType,
         atlas_region_filename: FileType,
         atlas_hierarchy_filename: FileType,
-        layers_names: LayerNamesType = None,
+        layer_names: LayerNamesType = None,
         # atlas_flatmap_filename: str = None,
     ) -> Self:
         """Read Atlas data from directory."""
@@ -97,7 +97,7 @@ class AtlasHelper:
         #     LOGGER.debug(f"Saving flatmap to: {self.output()['flatmap'].path}")
         #     flatmap.save_nrrd(self.output()["flatmap"].path, encoding="raw")
 
-        return cls(atlas, brain_regions, region_map, layers_names)
+        return cls(atlas, brain_regions, region_map, layer_names)
 
     @property
     def pia_coord(self) -> VoxelData:
@@ -152,7 +152,8 @@ class AtlasHelper:
             .apply(lambda row: tuple(set(row)))
         )
         region_map_df["self_and_descendants_atlas_ids"].fillna(
-            {i: tuple() for i in region_map_df.index}, inplace=True,
+            {i: () for i in region_map_df.index},
+            inplace=True,
         )
         region_map_df.sort_values("atlas_id", inplace=True)
 
@@ -160,7 +161,7 @@ class AtlasHelper:
         with h5py.File(output_path, "w") as f:
             for atlas_id, self_and_descendants_atlas_ids in (
                 region_map_df.loc[
-                    ~region_map_df["atlas_id"].isnull(),
+                    ~region_map_df["atlas_id"].isna(),
                     ["atlas_id", "self_and_descendants_atlas_ids"],
                 ]
                 .astype({"atlas_id": int})
@@ -173,7 +174,8 @@ class AtlasHelper:
                     raw_ids = sorted(
                         chain(
                             *region_map_df.loc[
-                                region_map_df["atlas_id"] == atlas_id, "self_and_descendants",
+                                region_map_df["atlas_id"] == atlas_id,
+                                "self_and_descendants",
                             ].tolist(),
                         ),
                     )

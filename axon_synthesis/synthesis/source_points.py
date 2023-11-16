@@ -19,7 +19,8 @@ class CreateSourcePoints(luigi_tools.task.WorkflowTask):
     """Task to create source points used for axon synthesis."""
 
     output_dataset = luigi.Parameter(
-        description="Output dataset file", default="source_terminals.csv"
+        description="Output dataset file",
+        default="source_terminals.csv",
     )
     nb_points = luigi.IntParameter(
         description="The number of random points generated.",
@@ -93,7 +94,7 @@ class CreateSourcePoints(luigi_tools.task.WorkflowTask):
                     size=self.nb_points,
                 )
                 for i in range(3)
-            ]
+            ],
         ).T
 
         dataset = pd.DataFrame(coords, columns=["x", "y", "z"])
@@ -104,7 +105,8 @@ class CreateSourcePoints(luigi_tools.task.WorkflowTask):
         dataset["section_id"] = -1
 
         dataset[["morph_file", "axon_id", "terminal_id", "section_id", "x", "y", "z"]].to_csv(
-            self.output()["terminals"].path, index=False
+            self.output()["terminals"].path,
+            index=False,
         )
 
     def output(self):

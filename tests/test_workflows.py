@@ -29,7 +29,7 @@ def test_create_inputs(out_dir, luigi_cfg):
     SharedData.create_inputs_path = out_dir
 
 
-@pytest.fixture
+@pytest.fixture()
 def create_inputs(out_dir):
     """Copy outputs from the CreateInputs workflows."""
 

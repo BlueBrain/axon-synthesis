@@ -50,7 +50,7 @@ def barcode_mins(barcode, nb_bins=100, threshold=0.1):
             {
                 "min_indices": mins,
                 "interval_idx": zero_interval_indices,
-            }
+            },
         ).groupby("interval_idx")
 
         # Get the median value
@@ -65,12 +65,20 @@ def barcode_mins(barcode, nb_bins=100, threshold=0.1):
 
 
 def compute_clusters(
-    config, morph, axon, axon_id, group_name, group, output_cols, debug=False, **kwargs
+    config_str,
+    morph,
+    axon,
+    axon_id,
+    group_name,
+    group,
+    output_cols,
+    debug=False,
+    **kwargs,
 ):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
     # pylint: disable=unused-argument
-    raise NotImplementedError
+    raise NotImplementedError("This mode is not implemented yet.")
     # pylint: disable=unreachable
     # pylint: disable=unused-variable
     new_terminal_points = []
@@ -83,7 +91,7 @@ def compute_clusters(
     # axons = [i for i in neuron.neurites if i.type == NeuriteType.axon]
 
     neuron = load_neuron_from_morphio(group_name)
-    origin = neuron.soma.get_center()
+    origin = morph.soma.center
     nb_bins = 100
 
     for neuron_axon in neuron.axon:
@@ -176,8 +184,8 @@ def compute_clusters(
             if not crossing_sections:
                 crossing_sections.add(min(terminal_parents.keys()))
 
-            raise NotImplementedError("This mode is not implemented yet.")
-            for sec in crossing_sections:
-                print(sec)
+            # raise NotImplementedError("This mode is not implemented yet.")
+            # for sec in crossing_sections:
+            #     print(sec)
 
     return new_terminal_points, cluster_ids, []

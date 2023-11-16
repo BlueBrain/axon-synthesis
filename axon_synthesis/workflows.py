@@ -4,9 +4,9 @@ import luigi_tools
 from axon_synthesis.add_tufts import AddTufts
 from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 from axon_synthesis.create_dataset import RepairDataset
-from axon_synthesis.PCSF.create_graph import CreateGraph
-from axon_synthesis.PCSF.plot_steiner import PlotSolutions
-from axon_synthesis.PCSF.steiner_morphologies import SteinerMorphologies
+from axon_synthesis.main_trunk.create_graph import CreateGraph
+from axon_synthesis.main_trunk.plot_steiner import PlotSolutions
+from axon_synthesis.main_trunk.steiner_morphologies import SteinerMorphologies
 from axon_synthesis.pop_neuron_numbers import PickPopulationNeuronNumbers
 from axon_synthesis.prepare_atlas import PrepareAtlas
 from axon_synthesis.statistics import CompareStatistics

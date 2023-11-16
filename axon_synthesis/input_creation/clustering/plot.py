@@ -23,7 +23,7 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
     )
     fig_builder = NeuronBuilder(plotted_morph, "3d", line_width=4, title=f"{plotted_morph.name}")
 
-    x, y, z = group[["x", "y", "z"]].values.T
+    x, y, z = group[["x", "y", "z"]].to_numpy().T
     node_trace = go.Scatter3d(
         x=x,
         y=y,
@@ -32,7 +32,7 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
         marker={"size": 3, "color": "black"},
         name="Morphology nodes",
     )
-    x, y, z = cluster_df[["x", "y", "z"]].values.T
+    x, y, z = cluster_df[["x", "y", "z"]].to_numpy().T
     cluster_trace = go.Scatter3d(
         x=x,
         y=y,

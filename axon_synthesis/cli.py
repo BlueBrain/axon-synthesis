@@ -2,8 +2,8 @@
 import functools
 import json
 import logging
-import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import click
@@ -15,9 +15,8 @@ from axon_synthesis.utils import setup_logger
 from axon_synthesis.white_matter_recipe import fetch
 
 
-def configure(ctx, param, filename):
+def configure(ctx: click.Context, _, filename: None | str):
     """Set parameter default values according to a given configuration file."""
-    # pylint: disable=unused-argument
     if filename is None:
         return
 
@@ -27,10 +26,10 @@ def configure(ctx, param, filename):
     # Get current default values
     defaults = cfg.dict()
 
-    def format_value(data, name):
+    def format_value(data: dict, name: str) -> str:
         return {f"{name}_{key}": value for key, value in data.items()}
 
-    for key, value in defaults.items():
+    for value in defaults.values():
         if isinstance(value, dict):
             to_add = {}
             to_remove = []
@@ -48,7 +47,8 @@ def configure(ctx, param, filename):
 class GlobalConfig:
     """Class to store global configuration."""
 
-    def __init__(self, debug=False):
+    def __init__(self, *, debug=False):
+        """The GlobalConfig constructor."""
         self.debug = debug
 
 
@@ -99,7 +99,7 @@ def atlas_options(func):
         ),
     )
     @functools.wraps(func)
-    def wrapper_atlas_options(*args, **kwargs):
+    def wrapper_atlas_options(*args, **kwargs) -> Callable:
         return func(*args, **kwargs)
 
     return wrapper_atlas_options
@@ -137,19 +137,24 @@ seed_option = click.option(
     default=False,
     help="Trigger the debug mode.",
 )
+@seed_option
 @click.pass_context
 def main(ctx, *args, **kwargs):
     """A tool for axon-synthesis management."""
     debug = kwargs.get("debug", False)
+    seed = kwargs.get("seed", None)
     log_level = kwargs.get("log_level", "info")
     if kwargs.get("debug", False):
         log_level = "debug"
+
     ctx.ensure_object(GlobalConfig)
     ctx.obj.debug = debug
+    ctx.obj.seed = seed
     setup_logger(log_level)
-    LOGGER = logging.getLogger()
-    LOGGER.info("Running the following command: %s", " ".join(sys.argv))
-    LOGGER.info("From the following folder: %s", os.getcwd())
+
+    logger = logging.getLogger()
+    logger.info("Running the following command: %s", " ".join(sys.argv))
+    logger.info("From the following folder: %s", Path.cwd())
 
 
 @main.command(short_help="Fetch the White Matter Recipe file from a given repository")
@@ -189,7 +194,7 @@ def fetch_white_matter_recipe(**kwargs):
     short_help=(
         "Generate all the parameters from the Atlas, the White Matter Recipe and the input "
         "morphologies"
-    )
+    ),
 )
 @click.option(
     "--morphology-path",
