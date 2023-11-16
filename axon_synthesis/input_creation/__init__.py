@@ -38,9 +38,7 @@ def create_inputs(
 
     # Process the White Matter Recipe
     wmr_dir = output_dir / "WhiteMatterRecipe"
-    if wmr_dir.exists() and all(
-        (wmr_dir / i).exists() for i in WhiteMatterRecipe.filename.values()
-    ):
+    if WhiteMatterRecipe.exists(wmr_dir):
         LOGGER.info("Loading the White Matter Recipe from '%s' since it already exists", wmr_dir)
         wmr = WhiteMatterRecipe.load(wmr_dir)
     else:

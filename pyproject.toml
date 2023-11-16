@@ -58,12 +58,7 @@ include = ["axon_synthesis*"]
 
 [tool.black]
 line-length = 100
-target-version = [
-    "py38",
-    "py39",
-    "py310",
-    "py311",
-]
+target-version = "py310"
 
 [tool.pydocstyle]
 # ignore the following:
@@ -84,3 +79,43 @@ testpaths = [
 ]
 filterwarnings = [
 ]
+
+[tool.ruff]
+line-length = 100  # Same as Black.
+target-version = "py310"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+# select = ["E4", "E7", "E9", "F"]
+select = ["ALL"]
+ignore = [
+    "ANN001",  # TODO: Fix and remove this one
+    "ANN201",  # TODO: Fix and remove this one
+    "ANN204",  # TODO: Fix and remove this one
+    "ANN002",
+    "ANN003",
+    "ANN101",
+    "ANN102",
+    "B905",
+    "ERA001",
+    "EXE002",
+    "FIX002",
+    "PD002",
+    "PD013",
+    "TD002",
+    "TD003",
+]
+
+[tool.ruff.lint.flake8-unused-arguments]
+ignore-variadic-names = true
+
+# [tool.ruff.lint.pylint]
+# max-args=12
+# max-branches = 12
+# max-statements=50
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.ruff.isort]
+force-single-line = true

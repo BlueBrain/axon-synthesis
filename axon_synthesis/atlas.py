@@ -58,7 +58,7 @@ class AtlasHelper:
 
     @classmethod
     def load(
-        cls,
+        cls: Self,
         atlas_path: FileType,
         atlas_region_filename: FileType,
         atlas_hierarchy_filename: FileType,
@@ -122,7 +122,7 @@ class AtlasHelper:
             .set_index("id")
         )
         region_map_df["self_and_descendants"] = region_map_df.index.to_series().apply(
-            lambda row: tuple(sorted(self.region_map.find(row, attr="id", with_descendants=True)))
+            lambda row: tuple(sorted(self.region_map.find(row, attr="id", with_descendants=True))),
         )
 
         self_and_descendants = (
@@ -142,7 +142,7 @@ class AtlasHelper:
             how="left",
         )
         atlas_id_mapping.dropna().astype(int).reset_index().groupby("id")["atlas_id"].apply(
-            lambda row: tuple(set(row))
+            lambda row: tuple(set(row)),
         )
         region_map_df["self_and_descendants_atlas_ids"] = (
             atlas_id_mapping.dropna()
@@ -152,7 +152,7 @@ class AtlasHelper:
             .apply(lambda row: tuple(set(row)))
         )
         region_map_df["self_and_descendants_atlas_ids"].fillna(
-            {i: tuple() for i in region_map_df.index}, inplace=True
+            {i: tuple() for i in region_map_df.index}, inplace=True,
         )
         region_map_df.sort_values("atlas_id", inplace=True)
 
@@ -173,9 +173,9 @@ class AtlasHelper:
                     raw_ids = sorted(
                         chain(
                             *region_map_df.loc[
-                                region_map_df["atlas_id"] == atlas_id, "self_and_descendants"
-                            ].tolist()
-                        )
+                                region_map_df["atlas_id"] == atlas_id, "self_and_descendants",
+                            ].tolist(),
+                        ),
                     )
                     mask = _is_in(raw_ids, self.brain_regions.raw)
                     LOGGER.warning(

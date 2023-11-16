@@ -87,7 +87,7 @@ def get_atlas_region_id(region_map, pop_row, col_name, second_col_name=None):
     if len(ids) > 1:
         raise ValueError(
             f"Found several IDs for the acronym '{acronym or new_acronym}' in the region "
-            f"map: {sorted(ids)}"
+            f"map: {sorted(ids)}",
         )
     if len(ids) == 0:
         raise ValueError(f"Could not find the acronym '{acronym or new_acronym}' in the region map")
@@ -128,6 +128,12 @@ class WhiteMatterRecipe:
         self.layer_profiles = layer_profiles
         self.region_data = region_data
 
+    @classmethod
+    def exists(cls, path):
+        """Check that the WMR exists in the given directory."""
+        wmr_dir = Path(path)
+        return wmr_dir.exists() and all((wmr_dir / i).exists() for i in cls.filename.values())
+
     def save(self, path):
         """Save the White Matter Recipe into the given directory."""
         path = Path(path)
@@ -139,7 +145,7 @@ class WhiteMatterRecipe:
 
         # Export the projection DataFrame
         projections = cols_to_json(
-            self.projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
+            self.projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"],
         )
         projections.to_csv(path / self.filename["projections"], index=False)
 
@@ -182,7 +188,7 @@ class WhiteMatterRecipe:
 
         projections = pd.read_csv(path / cls.filename["projections"])
         projections = cols_from_json(
-            projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"]
+            projections, ["mapping_coordinate_system", "targets", "atlas_region", "filters"],
         )
 
         targets = pd.read_csv(path / cls.filename["targets"])
@@ -249,13 +255,13 @@ class WhiteMatterRecipe:
             )
             wm_populations = wm_populations.join(wm_populations_sub, how="left")
             wm_populations["atlas_region_split"].fillna(
-                wm_populations["atlas_region"], inplace=True
+                wm_populations["atlas_region"], inplace=True,
             )
             wm_populations.drop(columns=["atlas_region"], inplace=True)
             wm_populations.rename(columns={"atlas_region_split": "atlas_region"}, inplace=True)
         wm_populations.rename(columns={"name": "pop_raw_name"}, inplace=True)
         wm_populations["region_acronym"] = wm_populations["atlas_region"].apply(
-            lambda row: row["name"]
+            lambda row: row["name"],
         )
         wm_populations_sub = (
             wm_populations["atlas_region"]
@@ -295,7 +301,7 @@ class WhiteMatterRecipe:
 
         # Get upper-level regions from the populations
         region_data = region_data.merge(
-            wm_populations[["atlas_region_id"]], on="atlas_region_id", how="outer"
+            wm_populations[["atlas_region_id"]], on="atlas_region_id", how="outer",
         )
         region_data.drop_duplicates(inplace=True)
 
@@ -310,9 +316,9 @@ class WhiteMatterRecipe:
                             region_map.get(i, "atlas_id")
                             for i in region_map.find(row, attr="atlas_id", with_descendants=True)
                         ],
-                    )
+                    ),
                 )
-            ].sum()
+            ].sum(),
         )
         region_data["atlas_region_volume"] = region_data["nb_voxels"] * brain_regions.voxel_volume
         region_data.drop(columns=["count"], inplace=True)
@@ -322,7 +328,7 @@ class WhiteMatterRecipe:
 
         # Compute volume fractions of sub-regions
         region_ids = wm_populations.apply(
-            lambda row: get_atlas_region_id(region_map, row, "region_acronym"), axis=1
+            lambda row: get_atlas_region_id(region_map, row, "region_acronym"), axis=1,
         ).rename("region_id")
         pop_frac = wm_populations.join(region_ids)
         pop_frac = pop_frac.merge(
@@ -350,13 +356,13 @@ class WhiteMatterRecipe:
             .rename(columns={"level_1": "layer_profile_num"})
         )
         wm_layer_profiles = wm_layer_profiles.join(layer_profiles).set_index(
-            "layer_profile_num", append=True
+            "layer_profile_num", append=True,
         )
         wm_layer_profiles["layers"] = wm_layer_profiles["layer_profile"].apply(
-            lambda row: row.get("layers", None)
+            lambda row: row.get("layers", None),
         )
         wm_layer_profiles["value"] = wm_layer_profiles["layer_profile"].apply(
-            lambda row: row.get("value", None)
+            lambda row: row.get("value", None),
         )
         wm_layer_profiles.drop(columns=["relative_densities", "layer_profile"], inplace=True)
         wm_layer_profiles = wm_layer_profiles.join(
@@ -365,7 +371,7 @@ class WhiteMatterRecipe:
             .stack()
             .rename("layer")
             .reset_index(level=2)
-            .rename(columns={"level_2": "layer_index"})
+            .rename(columns={"level_2": "layer_index"}),
         )
         wm_layer_profiles["formatted_layer"] = wm_layer_profiles["layer"].str.extract("l(.*)")
         wm_layer_profiles["formatted_layer"].fillna(wm_layer_profiles["layer"], inplace=True)
@@ -376,12 +382,12 @@ class WhiteMatterRecipe:
         if wm_projections["source"].duplicated().any():
             raise ValueError(
                 "Found several equal sources in the 'projections' entry: "
-                f"{sorted(wm_projections.loc[wm_projections['a'].duplicated(), 'a'].tolist())}"
+                f"{sorted(wm_projections.loc[wm_projections['a'].duplicated(), 'a'].tolist())}",
             )
 
         # Map projections
         wm_projections = wm_projections.merge(
-            wm_populations, left_on="source", right_on="pop_raw_name", how="left"
+            wm_populations, left_on="source", right_on="pop_raw_name", how="left",
         )
 
         wm_targets = (
@@ -394,19 +400,19 @@ class WhiteMatterRecipe:
         )
         wm_projection_targets = wm_projections.join(wm_targets).set_index("target_num", append=True)
         wm_projection_targets["target_population_name"] = wm_projection_targets["target"].apply(
-            lambda row: row["population"]
+            lambda row: row["population"],
         )
         wm_projection_targets["target_projection_name"] = wm_projection_targets["target"].apply(
-            lambda row: row["projection_name"]
+            lambda row: row["projection_name"],
         )
         wm_projection_targets["target_density"] = wm_projection_targets["target"].apply(
-            lambda row: row["density"]
+            lambda row: row["density"],
         )
         wm_projection_targets["topographical_mapping"] = wm_projection_targets["target"].apply(
-            lambda row: row["presynaptic_mapping"]
+            lambda row: row["presynaptic_mapping"],
         )
         wm_projection_targets["target_layer_profiles"] = wm_projection_targets["target"].apply(
-            lambda row: row["target_layer_profiles"]
+            lambda row: row["target_layer_profiles"],
         )
         wm_projection_targets.index.rename("proj_index", level=0, inplace=True)
 
@@ -451,7 +457,7 @@ class WhiteMatterRecipe:
             .sort_index()
         )
         wm_projection_targets["target_region"].fillna(
-            wm_projection_targets["target_population_name"], inplace=True
+            wm_projection_targets["target_population_name"], inplace=True,
         )
         wm_projection_targets = (
             wm_projection_targets.reset_index()
@@ -466,7 +472,7 @@ class WhiteMatterRecipe:
             .drop(columns=["acronym"])
         )
         wm_projection_targets = wm_projection_targets.merge(
-            sub_region_acronyms, left_on="target_region", right_index=True, how="left"
+            sub_region_acronyms, left_on="target_region", right_index=True, how="left",
         )
 
         selected_sub_region_acronyms = (
@@ -478,7 +484,7 @@ class WhiteMatterRecipe:
             .rename(columns={"level_2": "subregion_num"})
         )
         wm_projection_targets = wm_projection_targets.join(
-            selected_sub_region_acronyms, rsuffix="_target"
+            selected_sub_region_acronyms, rsuffix="_target",
         ).rename(columns={"subregion_acronym_target": "target_subregion_acronym"})
         wm_projection_targets = (
             wm_projection_targets.reset_index()
@@ -498,7 +504,7 @@ class WhiteMatterRecipe:
         # Drop target sub-regions that are not listed in the populations
         wm_projection_targets = wm_projection_targets.loc[
             wm_projection_targets["target_subregion_acronym"].isin(
-                wm_populations["subregion_acronym"].drop_duplicates()
+                wm_populations["subregion_acronym"].drop_duplicates(),
             )
         ]
 
@@ -513,14 +519,14 @@ class WhiteMatterRecipe:
             suffixes=("", "_target"),
         )
         wm_projection_targets["target_layer_profile_name"] = wm_projection_targets.apply(
-            lambda row: row["target_layer_profiles"][0].get("name"), axis=1
+            lambda row: row["target_layer_profiles"][0].get("name"), axis=1,
         )
         # wm_projection_targets.drop(columns=["targets", "target_layer_profiles"], inplace=True)
         wm_projection_targets = (
             wm_projection_targets.reset_index()
             .merge(
                 wm_layer_profiles[["name", "layer", "formatted_layer", "value"]].rename(
-                    columns={"value": "target_layer_profile_density"}
+                    columns={"value": "target_layer_profile_density"},
                 ),
                 left_on=["target_layer_profile_name", "sub_region_target"],
                 right_on=["name", "layer"],
@@ -536,7 +542,7 @@ class WhiteMatterRecipe:
 
         normalization_factor = (
             wm_projection_targets.groupby(
-                ["source", "sub_region", "target_projection_name", "target_region"]
+                ["source", "sub_region", "target_projection_name", "target_region"],
             )["target_layer_profile_prob"]
             .sum()
             .rename("target_layer_profile_norm_factor")
