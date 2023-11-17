@@ -2,6 +2,7 @@
 import json
 import logging
 from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
 
 import networkx as nx
@@ -30,189 +31,282 @@ from axon_synthesis.input_creation.clustering.utils import export_morph
 from axon_synthesis.input_creation.clustering.utils import reduce_clusters
 from axon_synthesis.input_creation.trunk_properties import compute_trunk_properties
 from axon_synthesis.typing import FileType
-from axon_synthesis.utils import cols_to_json
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import neurite_to_graph
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
 
 LOGGER = logging.getLogger(__name__)
 
-CLUSTERING_CONFIGURATIONS_FILENAME = "clustering_configurations.csv"
 
-FIGURE_DIRNAME = "figures"
+class Clustering:
+    """The class to store Clustering data."""
 
-CLUSTERED_MORPHOLOGIES = "clustered_morphologies"
-CLUSTERED_MORPHOLOGIES_FILENAME = "clustered_morphologies.csv"
-CLUSTERED_MORPHOLOGIES_PATHS_FILENAME = "clustered_morphologies_paths.csv"
-CLUSTERED_TERMINALS_FILENAME = "clustered_terminals.csv"
+    _filenames = {
+        "CLUSTERING_CONFIGURATIONS_FILENAME": "clustering_configurations.json",
+        "FIGURE_DIRNAME": "figures",
+        "CLUSTERED_MORPHOLOGIES_DIRNAME": "clustered_morphologies",
+        "CLUSTERED_MORPHOLOGIES_PATHS_FILENAME": "clustered_morphologies_paths.csv",
+        "CLUSTERED_TERMINALS_FILENAME": "clustered_terminals.csv",
+        "TRUNK_MORPHOLOGIES_DIRNAME": "trunk_morphologies",
+        "TRUNK_MORPHOLOGIES_PATHS_FILENAME": "trunk_morphologies_paths.csv",
+        "TRUNK_PROPS_FILENAME": "trunk_properties.json",
+        "TUFT_MORPHOLOGIES_DIRNAME": "tuft_morphologies",
+        "TUFT_MORPHOLOGIES_PATHS_FILENAME": "tuft_morphologies_paths.csv",
+        "TUFT_PROPS_FILENAME": "tuft_properties.json",
+        "TUFT_PROPS_PLOT_FILENAME": "tuft_properties.pdf",
+    }
 
-TRUNK_MORPHOLOGIES_DIRNAME = "trunk_morphologies"
-TRUNK_MORPHOLOGIES_PATHS_FILENAME = "trunk_morphologies_paths.csv"
-TRUNK_PROPS_FILENAME = "trunk_properties.json"
-
-TUFT_MORPHOLOGIES_DIRNAME = "tuft_morphologies"
-TUFT_MORPHOLOGIES_PATHS_FILENAME = "tuft_morphologies_paths.csv"
-TUFT_PROPS_FILENAME = "tuft_properties.json"
-TUFT_PROPS_PLOT_FILENAME = "tuft_properties.pdf"
-
-
-CLUSTERING_PARAM_SCHEMA = {
-    "type": "array",
-    "items": {
-        "oneOf": [
-            {
-                # For 'sphere' clustering mode
-                "additionalProperties": False,
-                "properties": {
-                    "name": {
-                        "type": "string",
+    PARAM_SCHEMA = {
+        "type": "object",
+        "patternProperties": {
+            ".*": {
+                "oneOf": [
+                    {
+                        # For 'sphere' clustering mode
+                        "additionalProperties": False,
+                        "properties": {
+                            "method": {
+                                "type": "string",
+                                "enum": ["sphere"],
+                            },
+                            "sphere_radius": {
+                                "type": "number",
+                                "exclusiveMinimum": 0,
+                                "default": 100,
+                            },
+                            "min_size": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "default": 10,
+                            },
+                        },
+                        "required": [
+                            "method",
+                        ],
+                        "type": "object",
                     },
-                    "method": {
-                        "type": "string",
-                        "enum": ["sphere"],
+                    {
+                        # For 'sphere_parents' clustering mode
+                        "additionalProperties": False,
+                        "properties": {
+                            "method": {
+                                "type": "string",
+                                "enum": ["sphere_parents"],
+                            },
+                            "sphere_radius": {
+                                "type": "number",
+                                "exclusiveMinimum": 0,
+                                "default": 100,
+                            },
+                            "max_path_distance": {
+                                "type": "number",
+                                "exclusiveMinimum": 0,
+                            },
+                        },
+                        "required": [
+                            "method",
+                        ],
+                        "type": "object",
                     },
-                    "sphere_radius": {
-                        "type": "number",
-                        "exclusiveMinimum": 0,
-                        "default": 100,
+                    {
+                        # For 'brain_regions' clustering mode
+                        "additionalProperties": False,
+                        "properties": {
+                            "method": {
+                                "type": "string",
+                                "enum": ["brain_regions"],
+                            },
+                            "wm_unnesting": {
+                                "type": "boolean",
+                                "default": True,
+                            },
+                        },
+                        "required": [
+                            "method",
+                        ],
+                        "type": "object",
                     },
-                    "min_size": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "default": 10,
+                    {
+                        # For 'barcode' clustering mode
+                        "additionalProperties": False,
+                        "properties": {
+                            "method": {
+                                "type": "string",
+                                "enum": ["barcode"],
+                            },
+                        },
+                        "required": [
+                            "method",
+                        ],
+                        "type": "object",
                     },
-                },
-                "required": [
-                    "method",
                 ],
-                "type": "object",
             },
-            {
-                # For 'sphere_parents' clustering mode
-                "additionalProperties": False,
-                "properties": {
-                    "name": {
-                        "type": "string",
-                    },
-                    "method": {
-                        "type": "string",
-                        "enum": ["sphere_parents"],
-                    },
-                    "sphere_radius": {
-                        "type": "number",
-                        "exclusiveMinimum": 0,
-                        "default": 100,
-                    },
-                    "max_path_distance": {
-                        "type": "number",
-                        "exclusiveMinimum": 0,
-                    },
-                },
-                "required": [
-                    "method",
-                ],
-                "type": "object",
-            },
-            {
-                # For 'brain_regions' clustering mode
-                "additionalProperties": False,
-                "properties": {
-                    "name": {
-                        "type": "string",
-                    },
-                    "method": {
-                        "type": "string",
-                        "enum": ["brain_regions"],
-                    },
-                    "wm_unnesting": {
-                        "type": "boolean",
-                        "default": True,
-                    },
-                },
-                "required": [
-                    "method",
-                ],
-                "type": "object",
-            },
-            {
-                # For 'barcode' clustering mode
-                "additionalProperties": False,
-                "properties": {
-                    "name": {
-                        "type": "string",
-                    },
-                    "method": {
-                        "type": "string",
-                        "enum": ["barcode"],
-                    },
-                },
-                "required": [
-                    "method",
-                ],
-                "type": "object",
-            },
-        ],
-    },
-}
-CLUSTERING_PARAM_SCHEMA_VALIDATOR = DefaultValidatingValidator(CLUSTERING_PARAM_SCHEMA)
+        },
+    }
+    PARAM_SCHEMA_VALIDATOR = DefaultValidatingValidator(PARAM_SCHEMA)
+
+    def __init__(self, path: FileType, parameters: dict):
+        """The Clustering constructor."""
+        self._path = Path(path)
+
+        parameters = deepcopy(parameters)
+        self.PARAM_SCHEMA_VALIDATOR.validate(parameters)
+        self._parameters = parameters
+
+        # Set attributes
+        for k, v in self:
+            setattr(self, k, v)
+
+        # Clustering results
+        self.clustered_terminals = None
+        self.cluster_props_df = None
+        self.clustered_morph_paths = None
+        self.trunk_morph_paths = None
+        self.tuft_morph_paths = None
+
+    @property
+    def path(self):
+        """Return the associated path."""
+        return self._path
+
+    def __iter__(self):
+        """Return a generator to the paths to the associated data files."""
+        for k, v in self.build_paths(self.path).items():
+            yield k, v
+
+    @classmethod
+    def build_paths(cls, path):
+        """Build the paths to the associated data files."""
+        path = Path(path)
+        return {k: path / v for k, v in cls._filenames.items()}
+
+    @property
+    def filenames(self):
+        """Return the paths to the associated data files."""
+        return list(self)
+
+    @property
+    def parameters(self):
+        """Return the parameters used for clustering."""
+        return self._parameters
+
+    def exists(self):
+        """Check if all the paths exist."""
+        return self.path.exists() and all(v.exists() for k, v in self)
+
+    def init(self):
+        """Initialize the associated directories."""
+        self.path.mkdir(parents=True, exist_ok=True)
+        for k, v in self:
+            if k.endswith("_DIRNAME"):
+                v.mkdir(parents=True, exist_ok=True)
+
+    def plot_cluster_properties(self):
+        """Plot cluster properties."""
+        if self.cluster_props_df is not None:
+            plot_cluster_properties(self.cluster_props_df, self.TUFT_PROPS_PLOT_FILENAME)
+            LOGGER.info(
+                "Exported figure of cluster properties to %s",
+                self.TUFT_PROPS_PLOT_FILENAME,
+            )
+        else:
+            LOGGER.warning(
+                "Can't export figure of cluster properties because they were not computed yet"
+            )
+
+    def save(self):
+        """Save the clustering data to the associated path."""
+        # Export long-range trunk properties
+        self.trunk_props_df.to_csv(self.TRUNK_PROPS_FILENAME, index=False)
+        LOGGER.info("Exported trunk properties to %s", self.TRUNK_PROPS_FILENAME)
+
+        # Export tuft properties
+        with self.TUFT_PROPS_FILENAME.open(mode="w") as f:
+            json.dump(self.cluster_props_df.to_dict("records"), f, indent=4)
+        LOGGER.info("Exported tuft properties to %s", self.TUFT_PROPS_FILENAME)
+
+        # Export the terminals
+        self.clustered_terminals.to_csv(self.CLUSTERED_TERMINALS_FILENAME, index=False)
+        LOGGER.info("Exported cluster terminals to %s", self.CLUSTERED_TERMINALS_FILENAME)
+
+        # Export morphology paths
+        self.clustered_morph_paths.to_csv(self.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME, index=False)
+        LOGGER.info(
+            "Exported clustered morphologies paths to %s",
+            self.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME,
+        )
+
+        # Export trunk morphology paths
+        self.trunk_morph_paths.to_csv(self.TRUNK_MORPHOLOGIES_PATHS_FILENAME, index=False)
+        LOGGER.info(
+            "Exported trunk morphologies paths to %s",
+            self.TRUNK_MORPHOLOGIES_PATHS_FILENAME,
+        )
+
+        if self.tuft_morph_paths is not None:
+            # Export trunk morphology paths
+            self.tuft_morph_paths.to_csv(self.TUFT_MORPHOLOGIES_PATHS_FILENAME, index=False)
+            LOGGER.info(
+                "Exported tuft morphologies paths to %s",
+                self.TUFT_MORPHOLOGIES_PATHS_FILENAME,
+            )
+
+        # Export the clustering configurations so they can can be retrieved afterwards
+        with self.CLUSTERING_CONFIGURATIONS_FILENAME.open(mode="w") as f:
+            json.dump(self.parameters, f, indent=4)
+        LOGGER.info("Exported tuft properties to %s", self.CLUSTERING_CONFIGURATIONS_FILENAME)
+
+    @classmethod
+    def load(cls, path):
+        """Load the clustering data from a given directory."""
+        path = Path(path)
+        paths = cls.build_paths(path)
+
+        # Import the clustering configurations
+        with paths["CLUSTERING_CONFIGURATIONS_FILENAME"].open() as f:
+            parameters = json.load(f)
+
+        # Create the object
+        obj = cls(path, parameters)
+
+        # Load data
+        obj.trunk_props_df = pd.read_csv(obj.TRUNK_PROPS_FILENAME)
+        with obj.TUFT_PROPS_FILENAME.open() as f:
+            obj.trunk_props_df = pd.read_json(f)
+        obj.clustered_terminals = pd.read_csv(obj.CLUSTERED_TERMINALS_FILENAME)
+        obj.clustered_morph_paths = pd.read_csv(obj.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME)
+        obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
+        if obj.TUFT_MORPHOLOGIES_PATHS_FILENAME.exists():
+            obj.tuft_morph_paths = pd.read_csv(obj.TUFT_MORPHOLOGIES_PATHS_FILENAME)
+
+        return obj
 
 
 def cluster_morphologies(
     atlas: AtlasHelper,
     wmr: WhiteMatterRecipe,
     morph_dir: FileType,
-    clustering_parameters: list,
+    clustering_parameters: dict,
     output_path: FileType,
     *,
     debug: bool = False,
     nb_workers: int = 1,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Compute the cluster of all morphologies of the given directory."""
-    CLUSTERING_PARAM_SCHEMA_VALIDATOR.validate(clustering_parameters)
-    for num_config, config in enumerate(clustering_parameters):
-        if "name" not in config:
-            config["name"] = str(num_config)
-    if len(clustering_parameters) != len({i["name"] for i in clustering_parameters}):
-        msg = "The 'clustering_parameters' must contain elements with unique 'name' entries."
-        raise ValueError(msg)
+    clustering = Clustering(output_path, clustering_parameters)
     LOGGER.info(
         "Clustering morphologies using the following configuration: %s",
-        clustering_parameters,
+        clustering.parameters,
     )
 
-    output_path = Path(output_path)
-
-    if output_path.exists():
+    if clustering.path.exists():
         LOGGER.warning(
             "The '%s' folder already exists, the new morpholgies will be added to it",
-            output_path,
+            clustering.path,
         )
 
-    # Export the clustering configurations so they can can be retrieved afterwards
-    config_df = pd.DataFrame(
-        [
-            {
-                "name": str(i["name"]),
-                "method": i["method"],
-                "params": dict(filter(lambda pair: pair[0] not in ["name", "method"], i.items())),
-            }
-            for i in clustering_parameters
-        ],
-    ).set_index("name")
-    cols_to_json(config_df, ["params"]).to_csv(output_path / CLUSTERING_CONFIGURATIONS_FILENAME)
-
-    clustered_terminals_path = output_path / CLUSTERED_TERMINALS_FILENAME
-    figure_path = output_path / FIGURE_DIRNAME
-    clustered_morphologies_path = output_path / CLUSTERED_MORPHOLOGIES
-    trunk_morphologies_path = output_path / TRUNK_MORPHOLOGIES_DIRNAME
-    tuft_morphologies_path = output_path / TUFT_MORPHOLOGIES_DIRNAME
-
-    output_path.mkdir(parents=True, exist_ok=True)
-    figure_path.mkdir(parents=True, exist_ok=True)
-    clustered_morphologies_path.mkdir(parents=True, exist_ok=True)
-    trunk_morphologies_path.mkdir(parents=True, exist_ok=True)
-    if debug:
-        tuft_morphologies_path.mkdir(parents=True, exist_ok=True)
+    clustering.init()
 
     terminals = extract_terminals.process_morphologies(morph_dir)
     terminals["config"] = None
@@ -222,7 +316,16 @@ def cluster_morphologies(
     cluster_props = []
     trunk_props = []
     morph_paths = defaultdict(list)
-    output_cols = ["morph_file", "axon_id", "terminal_id", "cluster_size", "x", "y", "z", "config"]
+    output_cols = [
+        "morph_file",
+        "config_name",
+        "axon_id",
+        "terminal_id",
+        "cluster_size",
+        "x",
+        "y",
+        "z",
+    ]
 
     clustering_funcs = {
         "sphere": clusters_from_spheres,
@@ -257,17 +360,15 @@ def cluster_morphologies(
             nodes, edges, directed_graph = neurite_to_graph(axon)
             shortest_paths = nx.single_source_shortest_path(directed_graph, -1)
 
-            for config in clustering_parameters:
+            for config_name, config in clustering.parameters.items():
                 axon_group = group.loc[group["axon_id"] == axon_id].copy(deep=True)
-                config_name = str(config["name"])
-                config_str = json.dumps(config)
-                axon_group["config"] = config_str
+                axon_group["config_name"] = config_name
                 suffix = f"_{config_name}_{axon_id}"
                 clustering_kwargs = {
                     "atlas": atlas,
                     "wmr": wmr,
                     "config": config,
-                    "config_str": config_str,
+                    "config_name": config_name,
                     "morph": morph,
                     "axon": axon,
                     "axon_id": axon_id,
@@ -277,10 +378,10 @@ def cluster_morphologies(
                     "edges": edges,
                     "directed_graph": directed_graph,
                     "output_cols": output_cols,
-                    "clustered_morphologies_path": clustered_morphologies_path,
-                    "trunk_morphologies_path": trunk_morphologies_path,
-                    "tuft_morphologies_path": tuft_morphologies_path,
-                    "figure_path": figure_path,
+                    "clustered_morphologies_path": clustering.CLUSTERED_MORPHOLOGIES_DIRNAME,
+                    "trunk_morphologies_path": clustering.TRUNK_MORPHOLOGIES_DIRNAME,
+                    "tuft_morphologies_path": clustering.TUFT_MORPHOLOGIES_DIRNAME,
+                    "figure_path": clustering.FIGURE_DIRNAME,
                     "nb_workers": nb_workers,
                     "debug": debug,
                 }
@@ -322,7 +423,7 @@ def cluster_morphologies(
                     morph_paths,
                     cluster_props,
                     shortest_paths,
-                    export_tuft_morph_dir=tuft_morphologies_path if debug else None,
+                    export_tuft_morph_dir=clustering.TUFT_MORPHOLOGIES_DIRNAME if debug else None,
                     config_name=config_name,
                 )
 
@@ -345,8 +446,9 @@ def cluster_morphologies(
                     (
                         group_name,
                         config_name,
+                        axon_id,
                         export_morph(
-                            clustered_morphologies_path,
+                            clustering.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME,
                             group_name,
                             clustered_morph,
                             "clustered",
@@ -358,8 +460,9 @@ def cluster_morphologies(
                     (
                         group_name,
                         config_name,
+                        axon_id,
                         export_morph(
-                            trunk_morphologies_path,
+                            clustering.TRUNK_MORPHOLOGIES_PATHS_FILENAME,
                             group_name,
                             trunk_morph,
                             "trunk",
@@ -376,11 +479,12 @@ def cluster_morphologies(
                         axon_group,
                         group_name,
                         cluster_df,
-                        figure_path / f"{Path(group_name).with_suffix('').name}{suffix}.html",
+                        clustering.FIGURE_DIRNAME
+                        / f"{Path(group_name).with_suffix('').name}{suffix}.html",
                     )
 
     # Export long-range trunk properties
-    trunk_props_df = pd.DataFrame(
+    clustering.trunk_props_df = pd.DataFrame(
         trunk_props,
         columns=[
             "morph_file",
@@ -395,13 +499,10 @@ def cluster_morphologies(
             "raw_segment_angles",
             "raw_segment_path_lengths",
         ],
-    )
-    trunk_props_df.sort_values(["morph_file", "axon_id"], inplace=True)
-    trunk_props_df.to_csv(output_path / TRUNK_PROPS_FILENAME, index=False)
-    LOGGER.info("Exported trunk properties to %s", output_path / TRUNK_PROPS_FILENAME)
+    ).sort_values(["morph_file", "config_name", "axon_id"])
 
     # Export tuft properties
-    cluster_props_df = pd.DataFrame(
+    clustering.cluster_props_df = pd.DataFrame(
         cluster_props,
         columns=[
             "morph_file",
@@ -418,24 +519,22 @@ def cluster_morphologies(
             "cluster_orientation",
             "cluster_barcode",
         ],
-    )
-    with (output_path / TUFT_PROPS_FILENAME).open(mode="w") as f:
-        json.dump(cluster_props_df.to_dict("records"), f, indent=4)
-    LOGGER.info("Exported tuft properties to %s", output_path / TUFT_PROPS_FILENAME)
+    ).sort_values(["morph_file", "config_name", "axon_id"])
 
     # Plot cluster properties
     if debug:
-        plot_cluster_properties(cluster_props_df, figure_path / TUFT_PROPS_PLOT_FILENAME)
-        LOGGER.info(
-            "Exported figure of cluster properties to %s",
-            figure_path / TUFT_PROPS_PLOT_FILENAME,
-        )
+        clustering.plot_cluster_properties()
 
     # Export the terminals
-    new_terminals = pd.DataFrame(all_terminal_points, columns=output_cols)
+    clustering.clustered_terminals = (
+        pd.DataFrame(all_terminal_points, columns=output_cols)
+        .fillna({"cluster_size": 1})
+        .astype({"cluster_size": int})
+        .sort_values(["morph_file", "config_name", "axon_id", "terminal_id"])
+    )
     # TODO: Check if some terminals are missing here and if can remove the merge below
-    # new_terminals = pd.merge(
-    #     new_terminals,
+    # clustering.clustered_terminals = pd.merge(
+    #     clustering.clustered_terminals,
     #     terminals.groupby(
     #         ["morph_file", "axon_id", "cluster_id", "config"]
     #     ).size().rename("cluster_size"),
@@ -443,38 +542,24 @@ def cluster_morphologies(
     #     right_on=["morph_file", "axon_id", "cluster_id"],
     #     how="left",
     # )
-    new_terminals["cluster_size"] = new_terminals["cluster_size"].fillna(1).astype(int)
-    new_terminals.sort_values(["morph_file", "axon_id", "terminal_id"], inplace=True)
-    new_terminals.to_csv(clustered_terminals_path, index=False)
-    LOGGER.info("Exported cluster terminals to %s", clustered_terminals_path)
 
     # Export morphology paths
-    clustered_morph_paths = pd.DataFrame(
+    clustering.clustered_morph_paths = pd.DataFrame(
         morph_paths["clustered"],
-        columns=["morph_file", "config_name", "morph_path"],
-    )
-    clustered_morph_paths.to_csv(output_path / CLUSTERED_MORPHOLOGIES_PATHS_FILENAME, index=False)
-    LOGGER.info(
-        "Exported clustered morphologies paths to %s",
-        output_path / CLUSTERED_MORPHOLOGIES_PATHS_FILENAME,
-    )
+        columns=["morph_file", "config_name", "axon_id", "morph_path"],
+    ).sort_values(["morph_file", "config_name", "axon_id"])
 
-    trunk_morph_paths = pd.DataFrame(
+    clustering.trunk_morph_paths = pd.DataFrame(
         morph_paths["trunks"],
-        columns=["morph_file", "config_name", "morph_path"],
-    )
-    trunk_morph_paths.to_csv(output_path / TRUNK_MORPHOLOGIES_PATHS_FILENAME, index=False)
+        columns=["morph_file", "config_name", "axon_id", "morph_path"],
+    ).sort_values(["morph_file", "config_name", "axon_id"])
+
     if debug:
-        tuft_morph_paths = pd.DataFrame(
+        clustering.tuft_morph_paths = pd.DataFrame(
             morph_paths["tufts"],
             columns=["morph_file", "config_name", "axon_id", "cluster_id", "morph_path"],
-        )
-        tuft_morph_paths.to_csv(output_path / TUFT_MORPHOLOGIES_PATHS_FILENAME, index=False)
-        LOGGER.info(
-            "Exported tuft morphologies paths to %s",
-            output_path / TUFT_MORPHOLOGIES_PATHS_FILENAME,
-        )
-    else:
-        tuft_morph_paths = None
+        ).sort_values(["morph_file", "config_name", "axon_id", "cluster_id"])
 
-    return clustered_morph_paths, trunk_morph_paths, tuft_morph_paths
+    clustering.save()
+
+    return clustering

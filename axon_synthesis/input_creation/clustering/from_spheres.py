@@ -9,7 +9,7 @@ from scipy.spatial import KDTree
 logger = logging.getLogger(__name__)
 
 
-def compute_clusters(config, config_str, axon_id, group_name, group, output_cols, **kwargs):
+def compute_clusters(config, config_name, axon_id, group_name, group, output_cols, **kwargs):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
     new_terminal_points = []
@@ -33,7 +33,7 @@ def compute_clusters(config, config_str, axon_id, group_name, group, output_cols
     group_with_label = group.reset_index()
     group_with_label["cluster_id"] = labels
     group_with_label["distance"] = -1.0
-    group_with_label["config"] = config_str
+    group_with_label["config_name"] = config_name
     clusters = group_with_label.loc[group_with_label["cluster_id"].isin(big_clusters)].groupby(
         "cluster_id",
     )
@@ -102,12 +102,12 @@ def compute_clusters(config, config_str, axon_id, group_name, group, output_cols
         new_terminal_points.append(
             [
                 first_element["morph_file"],
+                config_name,
                 axon_id,
                 real_cluster_id,
                 len(actual_cluster),
+                *cluster_center.tolist(),
             ]
-            + cluster_center.tolist()
-            + [config_str],
         )
         added_clusters.append(real_cluster_id)
 

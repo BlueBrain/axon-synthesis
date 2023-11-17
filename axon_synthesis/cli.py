@@ -68,6 +68,22 @@ class ListParam(click.ParamType):
         return value
 
 
+class DictParam(click.ParamType):
+    """A `click` parameter to process parameters given as JSON objects."""
+
+    name = "dict"
+
+    def convert(self, value, param, ctx):
+        """Convert a given value."""
+        try:
+            if not isinstance(value, dict):
+                value = json.loads(value)
+        except json.JSONDecodeError:
+            self.fail(f"{value!r} is not a valid JSON object", param, ctx)
+
+        return value
+
+
 def atlas_options(func):
     """Decorate a click command to add Atlas-specific options."""
 
@@ -240,7 +256,7 @@ def fetch_white_matter_recipe(**kwargs):
 )
 @click.option(
     "--clustering-parameters",
-    type=ListParam(),
+    type=DictParam(),
     required=True,
     help="Parameters used for the clustering algorithm",
 )

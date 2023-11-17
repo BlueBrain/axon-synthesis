@@ -9,6 +9,24 @@ from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
 LOGGER = logging.getLogger(__name__)
 
 
+class Inputs:
+    """Class to store the Inputs."""
+
+    filename = {
+        "WMR": "WhiteMatterRecipe",
+        "brain_regions_mask": "region_masks.h5",
+        "pop_neuron_numbers": "neuron_density.csv",
+    }
+
+    def __init__(self, path):
+        super(Inputs, self).__init__()
+        self.path = path
+
+    @classmethod
+    def load(cls, path):
+        return cls(path)
+
+
 def create_inputs(
     morphology_path,
     wmr_path,
@@ -78,7 +96,7 @@ def create_inputs(
 
     # Define the tufts and main trunks in input morphologies and compute the properties of the long
     # range trunk and the tufts of each morphology
-    clustered_morph_paths, trunk_morph_paths, tuft_morph_paths = cluster_morphologies(
+    clustering_data = cluster_morphologies(
         atlas,
         wmr,
         morphology_path,
@@ -88,4 +106,4 @@ def create_inputs(
         nb_workers=nb_workers,
     )
 
-    return clustered_morph_paths, trunk_morph_paths, tuft_morph_paths
+    return clustering_data

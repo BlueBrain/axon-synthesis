@@ -284,7 +284,7 @@ def compute_clusters(
     atlas,
     wmr,
     config,
-    config_str,
+    config_name,
     axon,
     axon_id,
     group_name,
@@ -415,11 +415,11 @@ def compute_clusters(
         new_terminal_points.append(
             [
                 group_name,
+                config_name,
                 axon_id,
                 new_terminal_id if cluster_id != -1 else 0,
                 len(i),
                 *i[["x", "y", "z"]].mean().tolist(),
-                config_str,
             ],
         )
         new_terminal_id += 1
