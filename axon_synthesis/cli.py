@@ -11,7 +11,9 @@ from click_option_group import optgroup
 from configobj import ConfigObj
 
 from axon_synthesis import input_creation
+from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.utils import setup_logger
+from axon_synthesis.white_matter_recipe import WmrConfig
 from axon_synthesis.white_matter_recipe import fetch
 
 
@@ -119,6 +121,26 @@ def atlas_options(func):
         return func(*args, **kwargs)
 
     return wrapper_atlas_options
+
+
+def atlas_kwargs_to_config(kwargs) -> AtlasConfig:
+    """Extract the atlas arguments from given kwargs to create an AtlasConfig object."""
+    return AtlasConfig(
+        kwargs.pop("atlas_path"),
+        kwargs.pop("atlas_region_filename"),
+        kwargs.pop("atlas_hierarchy_filename"),
+        kwargs.pop("atlas_layer_names", None),
+    )
+
+
+def wmr_kwargs_to_config(kwargs) -> WmrConfig:
+    """Extract the atlas arguments from given kwargs to create an AtlasConfig object."""
+    return WmrConfig(
+        kwargs.pop("wmr_path"),
+        kwargs.pop("wmr_subregion_uppercase"),
+        kwargs.pop("wmr_subregion_remove_prefix"),
+        kwargs.pop("wmr_sub_region_separator"),
+    )
 
 
 seed_option = click.option(
@@ -278,9 +300,11 @@ def fetch_white_matter_recipe(**kwargs):
     help="Output directory",
 )
 @click.pass_obj
-def create_inputs(global_config, **kwargs):
+def create_inputs(global_config: GlobalConfig, **kwargs):
     """The command to create inputs."""
     kwargs["debug"] = global_config.debug
+    kwargs["atlas_config"] = atlas_kwargs_to_config(kwargs)
+    kwargs["wmr_config"] = wmr_kwargs_to_config(kwargs)
     input_creation.create_inputs(**kwargs)
 
 

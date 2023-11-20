@@ -1,109 +1,83 @@
 """Package to create inputs."""
 import logging
 
-from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.input_creation import pop_neuron_numbers
 from axon_synthesis.input_creation.clustering import cluster_morphologies
+from axon_synthesis.input_creation.inputs import Inputs
+from axon_synthesis.typing import FileType
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
+from axon_synthesis.white_matter_recipe import WmrConfig
 
 LOGGER = logging.getLogger(__name__)
 
 
-class Inputs:
-    """Class to store the Inputs."""
-
-    filename = {
-        "WMR": "WhiteMatterRecipe",
-        "brain_regions_mask": "region_masks.h5",
-        "pop_neuron_numbers": "neuron_density.csv",
-    }
-
-    def __init__(self, path):
-        super(Inputs, self).__init__()
-        self.path = path
-
-    @classmethod
-    def load(cls, path):
-        return cls(path)
-
-
 def create_inputs(
-    morphology_path,
-    wmr_path,
-    wmr_subregion_uppercase,
-    wmr_subregion_remove_prefix,
-    wmr_sub_region_separator,
-    atlas_path,
-    atlas_region_filename,
-    atlas_hierarchy_filename,
-    atlas_layer_names,
+    morphology_path: FileType,
+    wmr_config: WmrConfig,
+    atlas_config: AtlasConfig,
     neuron_density,
     clustering_parameters,
-    output_dir,
+    output_dir: FileType,
     *,
     nb_workers=1,
     debug=False,
 ):
     """Create all inputs required to synthesize long-range axons."""
+    inputs = Inputs(output_dir, morphology_path)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load the Atlas
-    atlas = AtlasHelper.load(
-        atlas_path,
-        atlas_region_filename,
-        atlas_hierarchy_filename,
-        atlas_layer_names,
-    )
+    inputs.load_atlas(atlas_config)
 
     # Process the White Matter Recipe
-    wmr_dir = output_dir / "WhiteMatterRecipe"
-    if WhiteMatterRecipe.exists(wmr_dir):
-        LOGGER.info("Loading the White Matter Recipe from '%s' since it already exists", wmr_dir)
-        wmr = WhiteMatterRecipe.load(wmr_dir)
-    else:
-        wmr = WhiteMatterRecipe.from_raw_WMR(
-            wmr_path,
-            atlas,
-            wmr_subregion_uppercase,
-            wmr_subregion_remove_prefix,
-            wmr_sub_region_separator,
+    if WhiteMatterRecipe.exists(inputs.WMR_DIRNAME):
+        LOGGER.info(
+            "Loading the White Matter Recipe from '%s' since it already exists", inputs.WMR_DIRNAME
         )
-        wmr.save(wmr_dir)
+        inputs.load_wmr()
+    else:
+        inputs.wmr = WhiteMatterRecipe.from_raw_wmr(
+            wmr_config,
+            inputs.atlas,
+        )
+        inputs.wmr.save(inputs.WMR_DIRNAME)
 
     # Pre-compute atlas data
-    brain_regions_mask_file = output_dir / "region_masks.h5"
-    if not brain_regions_mask_file.exists():
-        atlas.compute_region_masks(brain_regions_mask_file)
+    if not inputs.BRAIN_REGIONS_MASK_FILENAME.exists():
+        inputs.atlas.compute_region_masks(inputs.BRAIN_REGIONS_MASK_FILENAME)
     else:
         LOGGER.info(
             "The brain region mask is not computed because it already exists in '%s'",
-            brain_regions_mask_file,
+            inputs.BRAIN_REGIONS_MASK_FILENAME,
         )
 
     # Compute the expected number of neurons in each brain region
-    pop_neuron_numbers_file = output_dir / "neuron_density.csv"
-    if not pop_neuron_numbers_file.exists():
+    if not inputs.POP_NEURON_NUMBERS_FILENAME.exists():
         pop_neuron_numbers.compute(
-            wmr.populations,
+            inputs.wmr.populations,
             neuron_density,
-            pop_neuron_numbers_file,
+            inputs.POP_NEURON_NUMBERS_FILENAME,
         )
     else:
         LOGGER.info(
             "The population neuron numbers are not computed because they already exist in '%s'",
-            pop_neuron_numbers_file,
+            inputs.POP_NEURON_NUMBERS_FILENAME,
         )
 
     # Define the tufts and main trunks in input morphologies and compute the properties of the long
     # range trunk and the tufts of each morphology
-    clustering_data = cluster_morphologies(
-        atlas,
-        wmr,
-        morphology_path,
+    inputs.clustering_data = cluster_morphologies(
+        inputs.atlas,
+        inputs.wmr,
+        inputs.MORPHOLOGY_DIRNAME,
         clustering_parameters,
-        output_dir,
+        inputs.CLUSTERING_DIRNAME,
         debug=debug,
         nb_workers=nb_workers,
     )
 
-    return clustering_data
+    # Export the input metadata
+    inputs.save_metadata()
+
+    return inputs

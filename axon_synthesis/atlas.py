@@ -4,20 +4,18 @@ import operator
 from itertools import chain
 from pathlib import Path
 
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
-
 import h5py
 import numpy as np
 import pandas as pd
-from voxcell import RegionMap
+from attrs import asdict
+from attrs import define
+from attrs import field
 from voxcell import VoxelData
 from voxcell.nexus.voxelbrain import Atlas
 
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import LayerNamesType
+from axon_synthesis.typing import Self
 
 LOGGER = logging.getLogger(__name__)
 
@@ -29,54 +27,69 @@ def _is_in(test_elements: list, brain_regions: np.ndarray) -> np.ndarray:
     return res
 
 
+@define
+class AtlasConfig:
+    """Class to store the Atlas configuration.
+
+    Attributes:
+        path: The path to the directory containing the atlas.
+        region_filename: The name of the file containing the brain regions.
+        hierarchy_filename: The name of the file containing the brain region hierarchy.
+        layer_names: The list of layer names.
+    """
+
+    path: Path = field(converter=Path)
+    region_filename: Path = field(converter=Path)
+    hierarchy_filename: Path = field(converter=Path)
+    # flatmap_filename: Path = field(converter=Path)
+    layer_names: LayerNamesType
+
+    def to_dict(self) -> dict:
+        """Return all attribute values into a dictionary."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        """Create a new AtlasConfig object from a dictionary."""
+        return cls(
+            data["path"],
+            data["region_filename"],
+            data["hierarchy_filename"],
+            # data["flatmap_filename"],
+            data.get("layer_names", None),
+        )
+
+
 class AtlasHelper:
     """Atlas helper."""
 
     def __init__(
         self: Self,
-        atlas: Atlas,
-        brain_regions: VoxelData,
-        region_map: RegionMap,
-        layer_names: LayerNamesType = None,
+        config: AtlasConfig,
     ):
-        """The AtlasHelper constructor.
+        """Create a new BasePathBuilder object.
 
         Args:
-            atlas: The atlas.
-            brain_regions: The brain regions.
-            region_map: The brain region hierarchy.
-            layer_names: The list of layer names.
+            config: The configuration used to load the atlas.
         """
-        self.atlas = atlas
-        self.brain_regions = brain_regions
-        self.region_map = region_map
-        self.layers = layer_names if layer_names is not None else list(range(1, 7))
-        self.top_layer = atlas.load_data(f"[PH]{self.layers[0]}")
+        self.config = config
 
-        # TODO: Compute the depth for specific layers of each region (like in region-grower)
-        self.depths = VoxelData.reduce(operator.sub, [self.pia_coord, atlas.load_data("[PH]y")])
-
-    @classmethod
-    def load(
-        cls: Self,
-        atlas_path: FileType,
-        atlas_region_filename: FileType,
-        atlas_hierarchy_filename: FileType,
-        layer_names: LayerNamesType = None,
-        # atlas_flatmap_filename: str = None,
-    ) -> Self:
-        """Read Atlas data from directory."""
         # Get atlas data
-        LOGGER.info("Loading atlas from: %s", atlas_path)
-        atlas = Atlas.open(atlas_path)
+        LOGGER.info("Loading atlas from: %s", self.config.path)
+        self.atlas = Atlas.open(str(self.config.path.resolve()))
 
-        atlas_region_filename = Path(atlas_region_filename).with_suffix(".nrrd")
-        LOGGER.debug("Loading brain regions from the atlas using: %s", atlas_region_filename.name)
-        brain_regions = atlas.load_data(atlas_region_filename.stem)
+        LOGGER.debug(
+            "Loading brain regions from the atlas using: %s", self.config.region_filename.name
+        )
+        self.brain_regions = self.atlas.load_data(self.config.region_filename.stem)
 
-        atlas_hierarchy_filename = Path(atlas_hierarchy_filename).with_suffix(".json").name
-        LOGGER.debug("Loading region map from the atlas using: %s", atlas_hierarchy_filename)
-        region_map = atlas.load_region_map(atlas_hierarchy_filename)
+        LOGGER.debug("Loading region map from the atlas using: %s", self.config.hierarchy_filename)
+        self.region_map = self.atlas.load_region_map(self.config.hierarchy_filename.name)
+
+        self.layers = (
+            self.config.layer_names if self.config.layer_names is not None else list(range(1, 7))
+        )
+        self.top_layer = self.atlas.load_data(f"[PH]{self.layers[0]}")
 
         # if config.atlas_flatmap_filename is None:
         #     # Create the flatmap of the atlas
@@ -97,7 +110,10 @@ class AtlasHelper:
         #     LOGGER.debug(f"Saving flatmap to: {self.output()['flatmap'].path}")
         #     flatmap.save_nrrd(self.output()["flatmap"].path, encoding="raw")
 
-        return cls(atlas, brain_regions, region_map, layer_names)
+        # TODO: Compute the depth for specific layers of each region (like in region-grower)
+        self.depths = VoxelData.reduce(
+            operator.sub, [self.pia_coord, self.atlas.load_data("[PH]y")]
+        )
 
     @property
     def pia_coord(self) -> VoxelData:

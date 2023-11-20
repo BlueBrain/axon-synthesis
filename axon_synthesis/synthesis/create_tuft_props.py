@@ -99,7 +99,7 @@ def tree_region_lengths(tree, brain_regions):
     return dict(lengths)
 
 
-def load_WMR_data(
+def load_wmr_data(
     all_tuft_roots,
     population_numbers_path,
     terminals_path,
@@ -391,7 +391,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         all_tuft_roots[["x", "y", "z"]] = all_tuft_roots[["x", "y", "z"]].round(6)
 
         if config.input_data_type == "white_matter":
-            all_tuft_roots, wm_fractions, source_populations, pop_numbers = load_WMR_data(
+            all_tuft_roots, wm_fractions, source_populations, pop_numbers = load_wmr_data(
                 all_tuft_roots,
                 self.input()["pop_neuron_numbers"]["population_numbers"].path,
                 self.input()["target_points"]["terminals"].path,
@@ -433,7 +433,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
 
             for axon_id, axon in enumerate(axons):
                 # Get terminals of the current group
-                axon_tree = KDTree(group[["x", "y", "z"]].values.astype(np.float32))
+                axon_tree = KDTree(group[["x", "y", "z"]].to_numpy().astype(np.float32))
 
                 # Compute the length of the tree in each brain region
                 if config.input_data_type != "biological_morphologies":
@@ -460,7 +460,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
                         axon_terminals["dist"] = np.linalg.norm(
                             (
                                 np.array(axon_terminals["common_ancestor_coords"].tolist())
-                                - tuft_root[["x", "y", "z"]].values
+                                - tuft_root[["x", "y", "z"]].to_numpy()
                             ).astype(float),
                             axis=1,
                         )

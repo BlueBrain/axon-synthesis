@@ -1,10 +1,13 @@
 """Some utils for the AxonSynthesis package."""
+import contextlib
 import json
 import logging
 import re
 from contextlib import contextmanager
+from copy import deepcopy
+from pathlib import Path
 
-import matplotlib
+import matplotlib as mpl
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -41,7 +44,7 @@ def fill_diag(mat, val=1):
 
 def cols_to_json(df, cols):
     """Transform the given columns from Python objects to JSON strings."""
-    df = df.copy(deep=False)
+    df = df.copy(deep=False)  # noqa: PD901
     for col in cols:
         df[col] = df[col].map(json.dumps)
     return df
@@ -49,7 +52,7 @@ def cols_to_json(df, cols):
 
 def cols_from_json(df, cols):
     """Transform the given columns to Python objects from JSON strings."""
-    df = df.copy(deep=False)
+    df = df.copy(deep=False)  # noqa: PD901
     for col in cols:
         df[col] = df[col].map(json.loads)
     return df
@@ -70,7 +73,7 @@ def get_layers(atlas, brain_regions, pos):
 
 def add_camera_sync(fig_path):
     """Update the HTML file to synchronize the cameras between the two plots."""
-    with open(fig_path, encoding="utf-8") as f:
+    with Path(fig_path).open(encoding="utf-8") as f:
         tmp = f.read()
         fig_id = re.match('.*id="([^ ]*)" .*', tmp, flags=re.DOTALL).group(1)
 
@@ -91,7 +94,7 @@ def add_camera_sync(fig_path):
     </script>
     """
 
-    with open(fig_path, "w", encoding="utf-8") as f:
+    with Path(fig_path).open("w", encoding="utf-8") as f:
         f.write(tmp.replace("</body>", js + "</body>"))
 
 
@@ -100,7 +103,7 @@ def get_axons(morph):
     return [i for i in morph.neurites if i.type == NeuriteType.axon]
 
 
-def neurite_to_graph(neurite, graph_cls=nx.DiGraph, keep_section_segments=False, **graph_kwargs):
+def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=False, **graph_kwargs):
     """Transform a neurite into a graph."""
     graph_nodes = []
     graph_edges = []
@@ -117,10 +120,7 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, keep_section_segments=False,
             last_pt = last_pts[section.parent.id]
 
         # Add segment points
-        if keep_section_segments:
-            pts = section.points[1:, :3]
-        else:
-            pts = section.points[-1:, :3]
+        pts = section.points[1:, :3] if keep_section_segments else section.points[-1:, :3]
         len_pts = len(pts) - 1
 
         for num, i in enumerate(pts.tolist()):
@@ -160,8 +160,7 @@ def neurite_to_graph_old(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
 
         graph_nodes.append((section.id, *section.points[-1, :3], is_terminal))
 
-        for child in section.children:
-            graph_edges.append((section.id, child.id))
+        graph_edges.extend((section.id, child.id) for child in section.children)
 
     nodes = pd.DataFrame(graph_nodes, columns=["id", "x", "y", "z", "is_terminal"])
     nodes.set_index("id", inplace=True)
@@ -181,34 +180,17 @@ def append_section_recursive(source, target):
     while current_sections:
         source_parent, target_child = current_sections.pop()
         source_child = source_parent.append_section(target_child)
-        for child in target_child.children:
-            current_sections.append((source_child, child))
-        #     if child.id in kept_path:
-        #         new_section = PointLevel(
-        #             child.points[:, COLS.XYZ].tolist(),
-        #             (child.points[:, COLS.R] * 2).tolist(),
-        #         )
-        #         current_sections.append(
-        #             (current_child, current_child.append_section(new_section))
-        #         )
-
-        # if current_parent.id in sections_to_add:
-        #     for new_sec in sections_to_add[current_parent.id]:
-        #         current_child.append_section(new_sec)
+        current_sections.extend((source_child, child) for child in target_child.children)
 
 
 @contextmanager
 def disable_loggers(*logger_names):
-    """A context manager that will prevent any logging messages triggered during the body from being
-    processed.
+    """A context manager that will disable logging messages triggered during the body.
 
     Args:
         *logger_names (str): The names of the loggers to be disabled.
     """
-    if not logger_names:
-        loggers = [logging.root]
-    else:
-        loggers = [logging.getLogger(i) for i in logger_names]
+    loggers = [logging.root] if not logger_names else [logging.getLogger(i) for i in logger_names]
 
     disabled_loggers = [(i, i.disabled) for i in loggers]
 
@@ -228,15 +210,15 @@ def use_matplotlib_backend(new_backend):
     Args:
         new_backend (str): The name of the backend to use in this context.
     """
-    old_backend = matplotlib.get_backend()
-    matplotlib.use(new_backend)
+    old_backend = mpl.get_backend()
+    mpl.use(new_backend)
     try:
         yield
     finally:
-        matplotlib.use(old_backend)
+        mpl.use(old_backend)
 
 
-def get_region_ids(region_map, brain_region_names, with_descendants=True):
+def get_region_ids(region_map, brain_region_names, *, with_descendants=True):
     """Find brain region IDs from their names of acronyms.
 
     Args:
@@ -248,10 +230,8 @@ def get_region_ids(region_map, brain_region_names, with_descendants=True):
     brain_region_ids = []
     for i in brain_region_names:
         if isinstance(i, str):
-            try:
-                i = int(i)
-            except ValueError:
-                pass
+            with contextlib.suppress(ValueError):
+                i = int(i)  # noqa: PLW2901
 
         new_ids = []
 
@@ -269,3 +249,14 @@ def get_region_ids(region_map, brain_region_names, with_descendants=True):
             brain_region_ids.extend(new_ids)
 
     return list(set(brain_region_ids)), list(set(missing_ids))
+
+
+def recursive_to_str(data):
+    """Cast all Path objects into str objects in a given dict."""
+    new_data = deepcopy(data)
+    for k, v in new_data.items():
+        if isinstance(v, dict):
+            new_data[k] = recursive_to_str(v)
+        elif isinstance(v, Path):
+            new_data[k] = str(v)
+    return new_data

@@ -1,19 +1,23 @@
 """Helpers for white matter recipe."""
 import json
 import logging
-import os
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Union
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
 import yaml
+from attrs import asdict
+from attrs import define
+from attrs import field
 from git import Repo
 from scipy.spatial.distance import squareform
 
 from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.typing import FileType
+from axon_synthesis.typing import Self
 from axon_synthesis.utils import cols_from_json
 from axon_synthesis.utils import cols_to_json
 from axon_synthesis.utils import fill_diag
@@ -50,21 +54,19 @@ def fetch(
     )
 
 
-def load(white_matter_file: Union[str, Path]):
+def load(white_matter_file: FileType) -> dict:
     """Load the white matter recipe from YAML file."""
     white_matter_file = Path(white_matter_file)
     LOGGER.debug("Loading white matter recipe file from: %s", white_matter_file)
     with white_matter_file.open("r", encoding="utf-8") as f:
-        wm_recipe = yaml.load(f, Loader=yaml.SafeLoader)
-
-    return wm_recipe
+        return yaml.load(f, Loader=yaml.SafeLoader)
 
 
 def get_atlas_region_id(region_map, pop_row, col_name, second_col_name=None):
     """Get the ID of an atlas region."""
 
-    def get_ids(region_map, pop_row, col_name):
-        if not pop_row.isnull()[col_name]:
+    def get_ids(region_map, pop_row, col_name) -> tuple[list, str]:
+        if not pop_row.isna()[col_name]:
             acronym = pop_row[col_name]
             ids = region_map.find(acronym, attr="acronym")
         else:
@@ -85,19 +87,45 @@ def get_atlas_region_id(region_map, pop_row, col_name, second_col_name=None):
         new_acronym = None
 
     if len(ids) > 1:
-        raise ValueError(
+        msg = (
             f"Found several IDs for the acronym '{acronym or new_acronym}' in the region "
-            f"map: {sorted(ids)}",
+            f"map: {sorted(ids)}"
         )
+        raise ValueError(msg)
     if len(ids) == 0:
-        raise ValueError(f"Could not find the acronym '{acronym or new_acronym}' in the region map")
+        msg = f"Could not find the acronym '{acronym or new_acronym}' in the region map"
+        raise ValueError(msg)
     return ids.pop()
+
+
+@define
+class WmrConfig:
+    """Class to store the WhiteMatterRecipe configuration."""
+
+    path: Path = field(converter=Path)
+    subregion_uppercase: bool
+    subregion_remove_prefix: bool
+    sub_region_separator: str
+
+    def to_dict(self) -> dict:
+        """Return all attribute values into a dictionary."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        """Create a new AtlasConfig object from a dictionary."""
+        return cls(
+            data["path"],
+            data["subregion_uppercase"],
+            data["subregion_remove_prefix"],
+            data["sub_region_separator"],
+        )
 
 
 class WhiteMatterRecipe:
     """Class to store the White Matter Recipe data."""
 
-    filename = {
+    filename: ClassVar[dict] = {
         "populations": "populations.csv",
         "projections": "projections.csv",
         "targets": "targets.csv",
@@ -119,6 +147,18 @@ class WhiteMatterRecipe:
         layer_profiles,
         region_data,
     ):
+        """Create a new WhiteMatterRecipe object.
+
+        Args:
+            populations: The 'populations' of the White Matter Recipe.
+            projections: The 'projections' of the White Matter Recipe.
+            targets: The 'targets' of the White Matter Recipe.
+            fractions: The 'fractions' of the White Matter Recipe.
+            interaction_strengths: The 'interaction_strengths' of the White Matter Recipe.
+            projection_targets: The 'projection_targets' of the White Matter Recipe.
+            layer_profiles: The 'layer_profiles' of the White Matter Recipe.
+            region_data: The 'region_data' of the White Matter Recipe.
+        """
         self.populations = populations
         self.projections = projections
         self.targets = targets
@@ -129,12 +169,12 @@ class WhiteMatterRecipe:
         self.region_data = region_data
 
     @classmethod
-    def exists(cls, path):
+    def exists(cls, path) -> bool:
         """Check that the WMR exists in the given directory."""
         wmr_dir = Path(path)
         return wmr_dir.exists() and all((wmr_dir / i).exists() for i in cls.filename.values())
 
-    def save(self, path):
+    def save(self, path) -> None:
         """Save the White Matter Recipe into the given directory."""
         path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
@@ -182,8 +222,10 @@ class WhiteMatterRecipe:
         self.region_data.to_csv(path / self.filename["region_data"], index=False)
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path) -> Self:
         """Load the White Matter Recipe from the given directory."""
+        path = Path(path)
+
         populations = pd.read_csv(path / cls.filename["populations"])
         populations = cols_from_json(populations, ["atlas_region", "filters"])
 
@@ -225,20 +267,17 @@ class WhiteMatterRecipe:
         )
 
     @classmethod
-    def from_raw_WMR(
+    def from_raw_wmr(
         cls,
-        path: str | os.PathLike,
+        config: WmrConfig,
         atlas: AtlasHelper,
-        subregion_uppercase: bool,
-        subregion_remove_prefix: bool,
-        sub_region_separator: str,
-    ):
+    ) -> Self:
         """Process the white matter recipe."""
         # pylint: disable=too-many-statements
-        LOGGER.info("Loading and processing the white matter recipe YAML file '%s'", path)
+        LOGGER.info("Loading and processing the white matter recipe YAML file '%s'", config.path)
         region_map = atlas.region_map
         brain_regions = atlas.brain_regions
-        wmr = load(path)
+        wmr = load(config.path)
 
         # Get populations
         LOGGER.debug("Extracting populations from white matter recipe")
@@ -278,17 +317,17 @@ class WhiteMatterRecipe:
 
         # Get subregion names
         wm_populations["formatted_subregion"] = wm_populations["sub_region"]
-        if subregion_uppercase:
+        if config.subregion_uppercase:
             wm_populations["formatted_subregion"] = wm_populations[
                 "formatted_subregion"
             ].str.upper()
-        if subregion_remove_prefix:
+        if config.subregion_remove_prefix:
             wm_populations["formatted_subregion"] = wm_populations[
                 "formatted_subregion"
             ].str.extract(r"(\d+.*)")
         wm_populations["subregion_acronym"] = (
             wm_populations["region_acronym"]
-            + sub_region_separator
+            + config.sub_region_separator
             + wm_populations["formatted_subregion"]
         )
 
@@ -387,10 +426,11 @@ class WhiteMatterRecipe:
         LOGGER.debug("Extracting projections from white matter recipe")
         wm_projections = pd.DataFrame.from_records(wmr["projections"])
         if wm_projections["source"].duplicated().any():
-            raise ValueError(
+            msg = (
                 "Found several equal sources in the 'projections' entry: "
                 f"{sorted(wm_projections.loc[wm_projections['a'].duplicated(), 'a'].tolist())}",
             )
+            raise ValueError(msg)
 
         # Map projections
         wm_projections = wm_projections.merge(
@@ -596,7 +636,7 @@ class WhiteMatterRecipe:
         wm_projection_targets.fillna({"target_layer_profile_region_prob": 1}, inplace=True)
         wm_projection_targets["has_atlas_id"] = ~wm_projection_targets[
             "target_subregion_atlas_id"
-        ].isnull()
+        ].isna()
 
         # # Compute normalization factors
 

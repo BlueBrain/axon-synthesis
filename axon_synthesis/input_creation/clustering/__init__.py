@@ -3,13 +3,16 @@ import json
 import logging
 from collections import defaultdict
 from copy import deepcopy
+from enum import Enum
 from pathlib import Path
+from typing import ClassVar
 
 import networkx as nx
 import pandas as pd
 from neurom import load_morphology
 
 from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.base_path_builder import BasePathBuilder
 from axon_synthesis.input_creation.clustering import extract_terminals
 from axon_synthesis.input_creation.clustering.from_barcodes import (
     compute_clusters as clusters_from_barcodes,
@@ -31,17 +34,22 @@ from axon_synthesis.input_creation.clustering.utils import export_morph
 from axon_synthesis.input_creation.clustering.utils import reduce_clusters
 from axon_synthesis.input_creation.trunk_properties import compute_trunk_properties
 from axon_synthesis.typing import FileType
+from axon_synthesis.typing import Self
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import neurite_to_graph
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
 
 LOGGER = logging.getLogger(__name__)
 
+LOADING_TYPE = Enum("LoadingType", ["ALL", "REQUIRED_ONLY", "PATHS_ONLY"])
 
-class Clustering:
+MIN_AXON_POINTS = 5
+
+
+class Clustering(BasePathBuilder):
     """The class to store Clustering data."""
 
-    _filenames = {
+    _filenames: ClassVar[dict] = {
         "CLUSTERING_CONFIGURATIONS_FILENAME": "clustering_configurations.json",
         "FIGURE_DIRNAME": "figures",
         "CLUSTERED_MORPHOLOGIES_DIRNAME": "clustered_morphologies",
@@ -55,8 +63,13 @@ class Clustering:
         "TUFT_PROPS_FILENAME": "tuft_properties.json",
         "TUFT_PROPS_PLOT_FILENAME": "tuft_properties.pdf",
     }
+    _optional_keys: ClassVar[set[str]] = {
+        "TUFT_MORPHOLOGIES_DIRNAME",
+        "TUFT_MORPHOLOGIES_PATHS_FILENAME",
+        "TUFT_PROPS_PLOT_FILENAME",
+    }
 
-    PARAM_SCHEMA = {
+    PARAM_SCHEMA: ClassVar[dict] = {
         "type": "object",
         "patternProperties": {
             ".*": {
@@ -147,53 +160,31 @@ class Clustering:
     PARAM_SCHEMA_VALIDATOR = DefaultValidatingValidator(PARAM_SCHEMA)
 
     def __init__(self, path: FileType, parameters: dict):
-        """The Clustering constructor."""
-        self._path = Path(path)
+        """The Clustering constructor.
 
+        Args:
+            path: The base path used to build the relative paths.
+            parameters: The parameters used for clustering.
+        """
+        super().__init__(path)
+
+        # Process parameters
         parameters = deepcopy(parameters)
         self.PARAM_SCHEMA_VALIDATOR.validate(parameters)
         self._parameters = parameters
-
-        # Set attributes
-        for k, v in self:
-            setattr(self, k, v)
 
         # Clustering results
         self.clustered_terminals = None
         self.cluster_props_df = None
         self.clustered_morph_paths = None
+        self.trunk_props_df = None
         self.trunk_morph_paths = None
         self.tuft_morph_paths = None
-
-    @property
-    def path(self):
-        """Return the associated path."""
-        return self._path
-
-    def __iter__(self):
-        """Return a generator to the paths to the associated data files."""
-        for k, v in self.build_paths(self.path).items():
-            yield k, v
-
-    @classmethod
-    def build_paths(cls, path):
-        """Build the paths to the associated data files."""
-        path = Path(path)
-        return {k: path / v for k, v in cls._filenames.items()}
-
-    @property
-    def filenames(self):
-        """Return the paths to the associated data files."""
-        return list(self)
 
     @property
     def parameters(self):
         """Return the parameters used for clustering."""
         return self._parameters
-
-    def exists(self):
-        """Check if all the paths exist."""
-        return self.path.exists() and all(v.exists() for k, v in self)
 
     def init(self):
         """Initialize the associated directories."""
@@ -255,10 +246,16 @@ class Clustering:
         # Export the clustering configurations so they can can be retrieved afterwards
         with self.CLUSTERING_CONFIGURATIONS_FILENAME.open(mode="w") as f:
             json.dump(self.parameters, f, indent=4)
-        LOGGER.info("Exported tuft properties to %s", self.CLUSTERING_CONFIGURATIONS_FILENAME)
+        LOGGER.info("Exported clustering parameters to %s", self.CLUSTERING_CONFIGURATIONS_FILENAME)
 
     @classmethod
-    def load(cls, path):
+    def load(
+        cls,
+        path: FileType,
+        loading_type: LOADING_TYPE = LOADING_TYPE.PATHS_ONLY,
+        *,
+        allow_missing: bool = False,
+    ) -> Self:
         """Load the clustering data from a given directory."""
         path = Path(path)
         paths = cls.build_paths(path)
@@ -270,15 +267,23 @@ class Clustering:
         # Create the object
         obj = cls(path, parameters)
 
-        # Load data
-        obj.trunk_props_df = pd.read_csv(obj.TRUNK_PROPS_FILENAME)
-        with obj.TUFT_PROPS_FILENAME.open() as f:
-            obj.trunk_props_df = pd.read_json(f)
-        obj.clustered_terminals = pd.read_csv(obj.CLUSTERED_TERMINALS_FILENAME)
-        obj.clustered_morph_paths = pd.read_csv(obj.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME)
-        obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
-        if obj.TUFT_MORPHOLOGIES_PATHS_FILENAME.exists():
-            obj.tuft_morph_paths = pd.read_csv(obj.TUFT_MORPHOLOGIES_PATHS_FILENAME)
+        # Load data if they exist
+        msg = "Some of the following files are missing: %s"
+        if loading_type <= LOADING_TYPE.REQUIRED_ONLY:
+            if obj.exists(require_optional=False):
+                obj.trunk_props_df = pd.read_csv(obj.TRUNK_PROPS_FILENAME)
+                with obj.TUFT_PROPS_FILENAME.open() as f:
+                    obj.trunk_props_df = pd.read_json(f)
+                obj.clustered_terminals = pd.read_csv(obj.CLUSTERED_TERMINALS_FILENAME)
+                obj.clustered_morph_paths = pd.read_csv(obj.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME)
+                obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
+            elif not allow_missing:
+                raise FileNotFoundError(msg, list(obj.required_filenames.keys()))
+        if loading_type <= LOADING_TYPE.ALL:
+            if obj.exists(require_optional=True):
+                obj.tuft_morph_paths = pd.read_csv(obj.TUFT_MORPHOLOGIES_PATHS_FILENAME)
+            elif not allow_missing:
+                raise FileNotFoundError(msg, list(obj.optional_filenames.keys()))
 
         return obj
 
@@ -348,7 +353,7 @@ def cluster_morphologies(
         for axon_id, axon in enumerate(axons):
             # Create a graph for each axon and compute the shortest paths from the soma to all
             # terminals
-            if len(axon.points) < 5:
+            if len(axon.points) < MIN_AXON_POINTS:
                 LOGGER.warning(
                     "The axon %s of %s is skipped because it has only %s points while we need at "
                     "least 5 points are needed",

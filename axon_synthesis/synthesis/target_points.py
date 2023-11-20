@@ -14,7 +14,7 @@ from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
 from axon_synthesis.prepare_atlas import PrepareAtlas
 from axon_synthesis.source_points import CreateSourcePoints
 from axon_synthesis.utils import get_layers
-from axon_synthesis.white_matter_recipe import load_WMR_data
+from axon_synthesis.white_matter_recipe import load_wmr_data
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +101,9 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
             "WMR": FetchWhiteMatterRecipe(),
         }
 
-    def load_WMR(self):
+    def load_wmr(self):
         """Get the white matter recipe data."""
-        data = load_WMR_data(
+        data = load_wmr_data(
             wm_populations_path=self.input()["WMR"]["wm_populations"].pathlib_path,
             wm_projections_path=self.input()["WMR"]["wm_projections"].pathlib_path,
             wm_projection_targets_path=self.input()["WMR"]["wm_projection_targets"].pathlib_path,
@@ -234,7 +234,7 @@ class FindTargetPoints(luigi_tools.task.WorkflowTask):
         brain_regions_mask_file = h5py.File(self.input()["brain_region_masks"].path)
 
         # Get the white matter recipe data
-        self.load_WMR()
+        self.load_wmr()
 
         # Join region data to region map (keep only the ones uses in populations)
         # region_map_df = region_map.as_dataframe().merge(
