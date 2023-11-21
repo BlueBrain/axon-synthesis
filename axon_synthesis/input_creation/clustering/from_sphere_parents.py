@@ -83,7 +83,7 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kw
             else:
                 # Add term_b to the cluster of term_a
                 cluster_ids.loc[term_b] = term_a_cluster_id
-        else:
+        else:  # noqa: PLR5501
             # If term_b is already in a cluster
             if term_b_cluster_id != -1:
                 # Add term_a to the cluster of term_b
@@ -168,4 +168,4 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kw
                 ] = new_terminal_id
                 new_terminal_id += 1
 
-    return new_terminal_points, group["cluster_id"], []
+    return new_terminal_points, group["cluster_id"]

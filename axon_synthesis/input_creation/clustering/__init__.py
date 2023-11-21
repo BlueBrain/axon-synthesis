@@ -388,11 +388,9 @@ def cluster_morphologies(
                     "nb_workers": nb_workers,
                     "debug": debug,
                 }
-                (
-                    new_terminal_points,
-                    cluster_ids,
-                    _,
-                ) = clustering_funcs[config["method"]](**clustering_kwargs)
+                new_terminal_points, cluster_ids = clustering_funcs[config["method"]](
+                    **clustering_kwargs
+                )
 
                 # Add the cluster to the final points
                 all_terminal_points.extend(new_terminal_points)
@@ -449,7 +447,7 @@ def cluster_morphologies(
                         config_name,
                         axon_id,
                         export_morph(
-                            clustering.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME,
+                            clustering.CLUSTERED_MORPHOLOGIES_DIRNAME,
                             group_name,
                             clustered_morph,
                             "clustered",
@@ -463,7 +461,7 @@ def cluster_morphologies(
                         config_name,
                         axon_id,
                         export_morph(
-                            clustering.TRUNK_MORPHOLOGIES_PATHS_FILENAME,
+                            clustering.TRUNK_MORPHOLOGIES_DIRNAME,
                             group_name,
                             trunk_morph,
                             "trunk",

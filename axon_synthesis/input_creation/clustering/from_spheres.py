@@ -16,7 +16,7 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
     # group = group.loc[group["terminal_id"] != axon.root_node.id]
 
     # Get the pairs of terminals closer to the given distance
-    tree = KDTree(group[["x", "y", "z"]].values)
+    tree = KDTree(group[["x", "y", "z"]].to_numpy())
     pairs = tree.query_pairs(config["sphere_radius"])
 
     # Get the connected components
@@ -44,7 +44,7 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
         # Check that the potential cluster is a real one (at least 'min_size'
         # points must be close to the center)
         distances, indices = tree.query(
-            cluster[["x", "y", "z"]].mean().values,
+            cluster[["x", "y", "z"]].mean().to_numpy(),
             k=len(group),
         )
         cluster_mask = np.isin(indices, cluster.index)
@@ -122,6 +122,8 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
         not_added_mask,
         "cluster_id",
     ]
-    new_terminal_points.extend(group_with_label.loc[not_added_mask, output_cols].values.tolist())
+    new_terminal_points.extend(
+        group_with_label.loc[not_added_mask, output_cols].to_numpy().tolist()
+    )
 
-    return new_terminal_points, group_with_label.set_index("index")["cluster_id"], []
+    return new_terminal_points, group_with_label.set_index("index")["cluster_id"]

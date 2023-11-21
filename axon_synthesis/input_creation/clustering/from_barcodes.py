@@ -54,7 +54,7 @@ def barcode_mins(barcode, nb_bins=100, threshold=0.1):
         ).groupby("interval_idx")
 
         # Get the median value
-        return _tmp.quantile(interpolation="higher")["min_indices"].astype(int).values
+        return _tmp.quantile(interpolation="higher")["min_indices"].astype(int).to_numpy()
 
     # Keep one minimum per der1 and der2 interval
     min_indices = _get_min_indices(minimas, der1)
@@ -72,6 +72,7 @@ def compute_clusters(
     group_name,
     group,
     output_cols,
+    *,
     debug=False,
     **kwargs,
 ):
@@ -174,7 +175,7 @@ def compute_clusters(
             cluster_terminals = group.loc[terminal_intervals == num_interval + 1]
             terminal_parents = defaultdict(list)
             crossing_sections = set()
-            for term_sec in cluster_terminals["section_id"].values:
+            for term_sec in cluster_terminals["section_id"].to_numpy():
                 for sec in morph.section(term_sec).iter(IterType.upstream):
                     if np.linalg.norm(sec.points[-1] - soma_center) < interval[0]:
                         break
@@ -188,4 +189,4 @@ def compute_clusters(
             # for sec in crossing_sections:
             #     print(sec)
 
-    return new_terminal_points, cluster_ids, []
+    return new_terminal_points, cluster_ids

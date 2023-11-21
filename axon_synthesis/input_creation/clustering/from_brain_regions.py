@@ -442,7 +442,7 @@ def compute_clusters(
         # group_nodes.loc[group_nodes["cluster_id"] == 0, "tuft_morph_path"] = None
         group_nodes.to_csv(tuft_brain_region_path)
 
-    return new_terminal_points, group["cluster_id"], []
+    return new_terminal_points, group["cluster_id"]
 
 
 def plot(region_component_subgraphs, region_acronyms, filepath):
