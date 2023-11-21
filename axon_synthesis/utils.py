@@ -248,7 +248,7 @@ def get_region_ids(region_map, brain_region_names, *, with_descendants=True):
         else:
             brain_region_ids.extend(new_ids)
 
-    return list(set(brain_region_ids)), list(set(missing_ids))
+    return sorted(set(brain_region_ids)), sorted(set(missing_ids))
 
 
 def recursive_to_str(data):

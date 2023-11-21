@@ -28,7 +28,7 @@ class Inputs(BasePathBuilder):
         "WMR_DIRNAME": "WhiteMatterRecipe",
     }
 
-    def __init__(self, path: FileType, morphology_path: FileType):
+    def __init__(self, path: FileType, morphology_path: FileType = None):
         """Create a new Inputs object.
 
         Args:

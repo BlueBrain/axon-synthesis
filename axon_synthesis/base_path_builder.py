@@ -1,11 +1,11 @@
 """Module to define a base class for relative paths storage and processing."""
-from enum import Enum
+from enum import IntEnum
 from pathlib import Path
 from typing import ClassVar
 
 from axon_synthesis.typing import FileType
 
-FILE_SELECTION = Enum("LoadingType", ["ALL", "REQUIRED_ONLY", "OPTIONAL_ONLY", "NONE"])
+FILE_SELECTION = IntEnum("LoadingType", ["ALL", "REQUIRED_ONLY", "OPTIONAL_ONLY", "NONE"])
 
 
 class BasePathBuilder:
@@ -61,35 +61,37 @@ class BasePathBuilder:
         return {k: v for k, v in self if k not in self._optional_keys}
 
     def filenames_from_type(
-        self, *, file_type: FILE_SELECTION = FILE_SELECTION.ALL
+        self, *, file_selection: FILE_SELECTION = FILE_SELECTION.ALL
     ) -> dict[str, Path]:
         """Return the associated files according to the given filter tag."""
-        if file_type == FILE_SELECTION.ALL:
+        if file_selection == FILE_SELECTION.ALL:
             return self.filenames
-        if file_type == FILE_SELECTION.REQUIRED_ONLY:
+        if file_selection == FILE_SELECTION.REQUIRED_ONLY:
             return self.required_filenames
-        if file_type == FILE_SELECTION.OPTIONAL_ONLY:
+        if file_selection == FILE_SELECTION.OPTIONAL_ONLY:
             return self.optional_filenames
         return {}
 
-    def missing_files(self, *, file_type=FILE_SELECTION.REQUIRED_ONLY):
+    def missing_files(self, *, file_selection=FILE_SELECTION.REQUIRED_ONLY):
         """Get the list of missing files based on a given type (required, optional or all)."""
-        files = self.filenames_from_type(file_type=file_type)
+        files = self.filenames_from_type(file_selection=file_selection)
         return {k: v for k, v in files.items() if not v.exists()}
 
-    def exists(self, *, file_type=FILE_SELECTION.REQUIRED_ONLY):
+    def exists(self, *, file_selection=FILE_SELECTION.REQUIRED_ONLY):
         """Check if all the paths exist."""
-        return not self.missing_files(file_type=file_type)
+        return not self.missing_files(file_selection=file_selection)
 
-    def raise_missing_files(self, *, file_type=FILE_SELECTION.REQUIRED_ONLY, missing_files=None):
+    def raise_missing_files(
+        self, *, file_selection=FILE_SELECTION.REQUIRED_ONLY, missing_files=None
+    ):
         """Raise a 'FileNotFoundError' exception with the relevant list of missing files."""
         msg = "The following files are missing: %s"
         if missing_files is None:
-            missing_files = list(self.missing_files(file_type).keys())
+            missing_files = list(self.missing_files(file_selection).keys())
         raise FileNotFoundError(msg, missing_files)
 
-    def assert_exists(self, *, file_type=FILE_SELECTION.REQUIRED_ONLY):
+    def assert_exists(self, *, file_selection=FILE_SELECTION.REQUIRED_ONLY):
         """Raise a 'FileNotFoundError' exception if the relevant files do not exist."""
-        files = list(self.missing_files(file_type).keys())
+        files = list(self.missing_files(file_selection).keys())
         if files:
             self.raise_missing_files(missing_files=files)

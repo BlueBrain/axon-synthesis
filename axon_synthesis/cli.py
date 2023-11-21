@@ -28,9 +28,18 @@ def configure(ctx: click.Context, _, filename: None | str):
     # Get current default values
     defaults = cfg.dict()
 
+    # Copy global arguments to all sub commands
+    global_values = defaults.get("global", None)
+    if global_values:
+        for subcommand in ctx.command.list_commands(ctx):
+            if subcommand not in defaults:
+                defaults[subcommand] = {}
+            defaults[subcommand].update(global_values)
+
     def format_value(data: dict, name: str) -> str:
         return {f"{name}_{key}": value for key, value in data.items()}
 
+    # Flatten sub-sections
     for value in defaults.values():
         if isinstance(value, dict):
             to_add = {}
@@ -308,36 +317,20 @@ def create_inputs(global_config: GlobalConfig, **kwargs):
     input_creation.create_inputs(**kwargs)
 
 
-# [Config]
-# ; white_matter_file = /gpfs/bbp.cscs.ch/project/proj83/scratch/home/reimann/rat_wm_recipe_tr_ll_ul_un_n_m_subtract_adjacents.yaml
-# white_matter_file = white_matter_FULL_RECIPE_v1p20.yaml
-# ; white_matter_file = /gpfs/bbp.cscs.ch/project/proj83/scratch/home/reimann/white_matter_FULL_RECIPE_v1p20.yaml
-# atlas_path = /gpfs/bbp.cscs.ch/project/proj82/entities/atlas/ThalNCX/20201019/
-# ; atlas_path = /gpfs/bbp.cscs.ch/project/proj83/data/atlas/S1/MEAN/P14-MEAN
-
-# # Fetch and process the white matter recipe
-# [FetchWhiteMatterRecipe]
-# ; url = git@bbpgitlab.epfl.ch:conn/configs/long-range-connectivity-configs.git
-# url = /home/adrien/Work/BBP/codes/long-range-connectivity-configs
-# file_path = white_matter_FULL_RECIPE_v1p20.yaml
-# # version =  # Set a tag here if you don't want to use the latest version
-# subregion_remove_prefix = true
-
-# # DiscoverRawData
-# [CreateDatasetForRepair]
-# morph_dir = /gpfs/bbp.cscs.ch/project/proj81/InputData/Morphologies/Neurons/Mouse/SSCx/WholeBrain/mouselight_isocortex_ASCII_Files_lite
-# output_dataset = dataset_for_repair.csv
-
-# # Extract and cluster terminal points
-# [ExtractTerminals]
-# output_dataset = input_terminals.csv
-
-# [ClusterTerminals]
-# clustering_parameters = [{"method": "sphere_parents", "sphere_radius": 500, "max_path_distance": 1500}, {"method": "sphere_parents", "sphere_radius": 300, "max_path_distance": 1000}, {"method": "sphere_parents", "sphere_radius": 100, "max_path_distance": 300}]
-# plot_debug = True
-
-
-# @main.command(short_help="Synthesize the axons for the given morphologies")
+@main.command(short_help="Synthesize the axons for the given morphologies")
+@click.option(
+    "--morphology-path",
+    type=click.Path(exists=True, file_okay=False),
+    # required=True,
+    help="Path to the folder containing the input morphologies",
+)
+@click.option(
+    "--morphology-data-file",
+    type=click.Path(exists=True, dir_okay=False),
+    # required=True,
+    help="The MVD3 file containing morphology data.",
+)
+@atlas_options
 # @click.option(
 #     "--morphologies",
 #     type=click.Path(exists=True, file_okay=False),
@@ -354,34 +347,10 @@ def create_inputs(global_config: GlobalConfig, **kwargs):
 #     ),
 # )
 # @optgroup.group("Graph creation parameters", help="Parameters used to build the graph")
-# [CreateGraph]
-# intermediate_number = 10
-# min_intermediate_distance = 500
-# min_random_point_distance = 500
-# random_point_bbox_buffer = 500
-# plot_debug = False
-# use_ancestors = False
-# use_depth_penalty = True
-# depth_penalty_sigma = 0.25
-# depth_penalty_amplitude = 10
-# favored_regions = ["fiber tracts"]
-# @optgroup.group("Graph creation parameters", help="Parameters used to build the graph")
-# [PostProcessSteinerMorphologies]
-# plot_debug = True
-# [AddTufts]
-# plot_debug = True
-# use_smooth_trunks = True
-# def synthesize(**kwargs):
-#     pass
-
-
-# [CreateSourcePoints]
-# nb_points = 50
-# seed = 0
-# source_regions = ["Isocortex"]
-# def create_dummy_morphologies(**kwargs):
-#     """Create some dummy morphologies that can be used as axon synthesis inputs."""
-#     pass
+@click.pass_obj
+def synthesize(global_config: GlobalConfig, **kwargs):
+    kwargs["debug"] = global_config.debug
+    kwargs["atlas_config"] = atlas_kwargs_to_config(kwargs)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -218,3 +218,30 @@ class AtlasHelper:
                 f.create_dataset(str(atlas_id), data=coords, compression="gzip", compression_opts=9)
 
         LOGGER.info("Masks exported to %s", output_path)
+
+    def get_region_voxels(self, brain_region_names, return_missing=False):
+        """Extract region voxels from the atlas."""
+        brain_region_ids, missing_ids = get_region_ids(self.region_map, brain_region_names)
+
+        brain_regions_mask = np.isin(self.brain_regions.raw, list(set(brain_region_ids)))
+
+        if return_missing:
+            return brain_regions_mask, missing_ids
+        return brain_regions_mask
+
+    def get_region_points(self, brain_region_names, return_missing=False):
+        """Extract region points from the atlas."""
+        brain_regions_mask, missing_ids = self.get_region_voxels(
+            brain_region_names, return_missing=True
+        )
+
+        brain_region_points = self.brain_regions.indices_to_positions(
+            np.argwhere(brain_regions_mask)
+        )
+
+        # Get voxel centers
+        brain_region_points += self.brain_regions.voxel_dimensions / 2
+
+        if return_missing:
+            return brain_region_points, missing_ids
+        return brain_region_points
