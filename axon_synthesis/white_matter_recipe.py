@@ -16,6 +16,7 @@ from git import Repo
 from scipy.spatial.distance import squareform
 
 from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.base_path_builder import BasePathBuilder
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import cols_from_json
@@ -122,91 +123,79 @@ class WmrConfig:
         )
 
 
-class WhiteMatterRecipe:
+class WhiteMatterRecipe(BasePathBuilder):
     """Class to store the White Matter Recipe data."""
 
-    filename: ClassVar[dict] = {
-        "populations": "populations.csv",
-        "projections": "projections.csv",
-        "targets": "targets.csv",
-        "fractions": "fractions.json",
-        "interaction_strengths": "interaction_strengths.json",
-        "projection_targets": "projection_targets.csv",
-        "layer_profiles": "layer_profiles.csv",
-        "region_data": "region_data.csv",
+    _filenames: ClassVar[dict] = {
+        "POPULATIONS_FILENAME": "populations.csv",
+        "PROJECTIONS_FILENAME": "projections.csv",
+        "TARGETS_FILENAME": "targets.csv",
+        "FRACTIONS_FILENAME": "fractions.json",
+        "INTERACTION_STRENGTHS_FILENAME": "interaction_strengths.json",
+        "PROJECTION_TARGETS_FILENAME": "projection_targets.csv",
+        "LAYER_PROFILES_FILENAME": "layer_profiles.csv",
+        "REGION_DATA_FILENAME": "region_data.csv",
     }
 
     def __init__(
         self,
-        populations,
-        projections,
-        targets,
-        fractions,
-        interaction_strengths,
-        projection_targets,
-        layer_profiles,
-        region_data,
+        path,
+        *,
+        load=True,
     ):
         """Create a new WhiteMatterRecipe object.
 
         Args:
-            populations: The 'populations' of the White Matter Recipe.
-            projections: The 'projections' of the White Matter Recipe.
-            targets: The 'targets' of the White Matter Recipe.
-            fractions: The 'fractions' of the White Matter Recipe.
-            interaction_strengths: The 'interaction_strengths' of the White Matter Recipe.
-            projection_targets: The 'projection_targets' of the White Matter Recipe.
-            layer_profiles: The 'layer_profiles' of the White Matter Recipe.
-            region_data: The 'region_data' of the White Matter Recipe.
+            path: The base path used to build the relative paths.
+            load: If set to False the internal data are not automatically loaded.
         """
-        self.populations = populations
-        self.projections = projections
-        self.targets = targets
-        self.fractions = fractions
-        self.interaction_strengths = interaction_strengths
-        self.projection_targets = projection_targets
-        self.layer_profiles = layer_profiles
-        self.region_data = region_data
+        super().__init__(path)
 
-    @classmethod
-    def exists(cls, path) -> bool:
-        """Check that the WMR exists in the given directory."""
-        wmr_dir = Path(path)
-        return wmr_dir.exists() and all((wmr_dir / i).exists() for i in cls.filename.values())
+        if load:
+            self.assert_exists()
+            self.load()
+        else:
+            self.populations = None
+            self.projections = None
+            self.targets = None
+            self.fractions = None
+            self.interaction_strengths = None
+            self.projection_targets = None
+            self.layer_profiles = None
+            self.region_data = None
 
-    def save(self, path) -> None:
+    def save(self):
         """Save the White Matter Recipe into the given directory."""
-        path = Path(path)
-        path.mkdir(parents=True, exist_ok=True)
+        self.path.mkdir(parents=True, exist_ok=True)
 
         # Export the population DataFrame
         populations = cols_to_json(self.populations, ["atlas_region", "filters"])
-        populations.to_csv(path / self.filename["populations"], index=False)
+        populations.to_csv(self.POPULATIONS_FILENAME, index=False)
 
         # Export the projection DataFrame
         projections = cols_to_json(
             self.projections,
             ["mapping_coordinate_system", "targets", "atlas_region", "filters"],
         )
-        projections.to_csv(path / self.filename["projections"], index=False)
+        projections.to_csv(self.PROJECTIONS_FILENAME, index=False)
 
         # Export the targets DataFrame
         targets = cols_to_json(self.targets, ["target"])
-        targets.to_csv(path / self.filename["targets"], index=False)
+        targets.to_csv(self.TARGETS_FILENAME, index=False)
 
         # Export the projection DataFrame
         projection_targets = cols_to_json(
             self.projection_targets,
             ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
         )
-        projection_targets.to_csv(path / self.filename["projection_targets"], index=False)
+        projection_targets.to_csv(self.PROJECTION_TARGETS_FILENAME, index=False)
 
         # Export the fractions
-        with (path / self.filename["fractions"]).open("w", encoding="utf-8") as f:
+        with (self.FRACTIONS_FILENAME).open("w", encoding="utf-8") as f:
             json.dump(self.fractions, f, indent=4, sort_keys=True)
 
         # Export the interaction strengths
-        with (path / self.filename["interaction_strengths"]).open("w", encoding="utf-8") as f:
+        with (self.INTERACTION_STRENGTHS_FILENAME).open("w", encoding="utf-8") as f:
             json.dump(
                 {k: v.to_dict("index") for k, v in self.interaction_strengths.items()},
                 f,
@@ -216,62 +205,47 @@ class WhiteMatterRecipe:
 
         # Export the layer profiles
         layer_profiles = cols_to_json(self.layer_profiles, ["layers"])
-        layer_profiles.to_csv(path / self.filename["layer_profiles"], index=False)
+        layer_profiles.to_csv(self.LAYER_PROFILES_FILENAME, index=False)
 
         # Export the region data
-        self.region_data.to_csv(path / self.filename["region_data"], index=False)
+        self.region_data.to_csv(self.REGION_DATA_FILENAME, index=False)
 
-    @classmethod
-    def load(cls, path) -> Self:
-        """Load the White Matter Recipe from the given directory."""
-        path = Path(path)
+    def load(self):
+        """Load the White Matter Recipe from the associated directory."""
+        populations = pd.read_csv(self.POPULATIONS_FILENAME)
+        self.populations = cols_from_json(populations, ["atlas_region", "filters"])
 
-        populations = pd.read_csv(path / cls.filename["populations"])
-        populations = cols_from_json(populations, ["atlas_region", "filters"])
-
-        projections = pd.read_csv(path / cls.filename["projections"])
-        projections = cols_from_json(
+        projections = pd.read_csv(self.PROJECTIONS_FILENAME)
+        self.projections = cols_from_json(
             projections,
             ["mapping_coordinate_system", "targets", "atlas_region", "filters"],
         )
 
-        targets = pd.read_csv(path / cls.filename["targets"])
-        targets = cols_from_json(targets, ["target"])
+        targets = pd.read_csv(self.TARGETS_FILENAME)
+        self.targets = cols_from_json(targets, ["target"])
 
-        with (path / cls.filename["fractions"]).open("r", encoding="utf-8") as f:
-            fractions = json.load(f)
+        with self.FRACTIONS_FILENAME.open("r", encoding="utf-8") as f:
+            self.fractions = json.load(f)
 
-        with (path / cls.filename["interaction_strengths"]).open("r", encoding="utf-8") as f:
-            interaction_strengths = json.load(f)
+        with self.INTERACTION_STRENGTHS_FILENAME.open("r", encoding="utf-8") as f:
+            self.interaction_strengths = json.load(f)
 
-        projection_targets = pd.read_csv(path / cls.filename["projection_targets"])
-        projection_targets = cols_from_json(
+        projection_targets = pd.read_csv(self.PROJECTION_TARGETS_FILENAME)
+        self.projection_targets = cols_from_json(
             projection_targets,
             ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
         )
 
-        layer_profiles = pd.read_csv(path / cls.filename["layer_profiles"])
-        layer_profiles = cols_from_json(layer_profiles, ["layers"])
+        layer_profiles = pd.read_csv(self.LAYER_PROFILES_FILENAME)
+        self.layer_profiles = cols_from_json(layer_profiles, ["layers"])
 
-        region_data = pd.read_csv(path / cls.filename["region_data"])
+        self.region_data = pd.read_csv(self.REGION_DATA_FILENAME)
 
-        return cls(
-            populations,
-            projections,
-            targets,
-            fractions,
-            interaction_strengths,
-            projection_targets,
-            layer_profiles,
-            region_data,
-        )
-
-    @classmethod
-    def from_raw_wmr(
-        cls,
+    def load_from_raw_wmr(  # noqa: PLR0915
+        self,
         config: WmrConfig,
         atlas: AtlasHelper,
-    ) -> Self:
+    ):
         """Process the white matter recipe."""
         # pylint: disable=too-many-statements
         LOGGER.info("Loading and processing the white matter recipe YAML file '%s'", config.path)
@@ -712,13 +686,11 @@ class WhiteMatterRecipe:
             for k, v in wm_interaction_mat.items()
         }
 
-        return cls(
-            wm_populations,
-            wm_projections,
-            wm_targets,
-            wm_fractions,
-            wm_interaction_strengths,
-            wm_projection_targets,
-            wm_layer_profiles,
-            region_data,
-        )
+        self.populations = wm_populations
+        self.projections = wm_projections
+        self.targets = wm_targets
+        self.fractions = wm_fractions
+        self.interaction_strengths = wm_interaction_strengths
+        self.projection_targets = wm_projection_targets
+        self.layer_profiles = wm_layer_profiles
+        self.region_data = region_data

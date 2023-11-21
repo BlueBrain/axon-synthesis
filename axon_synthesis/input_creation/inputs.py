@@ -1,17 +1,20 @@
 """Define the class to store the inputs."""
 import json
+import logging
 from pathlib import Path
 from typing import ClassVar
 
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
-from axon_synthesis.input_creation.clustering import LOADING_TYPE
 from axon_synthesis.input_creation.clustering import Clustering
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import recursive_to_str
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Inputs(BasePathBuilder):
@@ -103,15 +106,39 @@ class Inputs(BasePathBuilder):
         self.atlas = AtlasHelper(atlas_config)
         self._update_atlas_metadata()
 
-    def load_wmr(self):
+    def load_wmr(self, wmr_config=None):
         """Load the Atlas."""
-        self.wmr = WhiteMatterRecipe.load(self.WMR_DIRNAME)
+        self.wmr = WhiteMatterRecipe(self.WMR_DIRNAME, load=False)
+        if self.wmr.exists():
+            LOGGER.info(
+                "Loading the White Matter Recipe from '%s' since it already exists",
+                self.WMR_DIRNAME,
+            )
+            self.wmr.load()
+        elif wmr_config is None:
+            msg = (
+                "The directory '%s' that should contain the White Matter Recipe does not exist "
+                "and no config was provided to load a raw WMR"
+            )
+            raise FileNotFoundError(msg, self.WMR_DIRNAME)
+        elif self.atlas is None:
+            msg = (
+                "The directory '%s' that should contain the White Matter Recipe does not exist "
+                "and the atlas is not loaded yet"
+            )
+            raise FileNotFoundError(msg, self.WMR_DIRNAME)
+        else:
+            self.wmr.load_from_raw_wmr(
+                wmr_config,
+                self.atlas,
+            )
+            self.wmr.save()
 
-    def load_clustering_data(self, loading_type=LOADING_TYPE.REQUIRED_ONLY):
+    def load_clustering_data(self, file_type=FILE_SELECTION.REQUIRED_ONLY):
         """Load the Atlas."""
         self.clustering_data = Clustering.load(
             self.CLUSTERING_DIRNAME,
-            loading_type,
+            file_type,
         )
 
     @classmethod

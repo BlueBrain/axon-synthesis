@@ -123,7 +123,16 @@ class AtlasHelper:
     def compute_region_masks(self, output_path: FileType):
         """Compute all region masks."""
         LOGGER.info("Computing brain region masks")
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        output_path = Path(output_path)
+
+        if output_path.exists():
+            LOGGER.info(
+                "The brain region mask is not computed because it already exists in '%s'",
+                output_path,
+            )
+            return
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         region_map_df = self.region_map.as_dataframe()
         region_map_df = (

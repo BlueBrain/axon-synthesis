@@ -3,7 +3,6 @@ import json
 import logging
 from collections import defaultdict
 from copy import deepcopy
-from enum import Enum
 from pathlib import Path
 from typing import ClassVar
 
@@ -12,6 +11,7 @@ import pandas as pd
 from neurom import load_morphology
 
 from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
 from axon_synthesis.input_creation.clustering import extract_terminals
 from axon_synthesis.input_creation.clustering.from_barcodes import (
@@ -40,8 +40,6 @@ from axon_synthesis.utils import neurite_to_graph
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
 
 LOGGER = logging.getLogger(__name__)
-
-LOADING_TYPE = Enum("LoadingType", ["ALL", "REQUIRED_ONLY", "PATHS_ONLY"])
 
 MIN_AXON_POINTS = 5
 
@@ -186,8 +184,8 @@ class Clustering(BasePathBuilder):
         """Return the parameters used for clustering."""
         return self._parameters
 
-    def init(self):
-        """Initialize the associated directories."""
+    def create_tree(self):
+        """Create the associated directories."""
         self.path.mkdir(parents=True, exist_ok=True)
         for k, v in self:
             if k.endswith("_DIRNAME"):
@@ -252,7 +250,7 @@ class Clustering(BasePathBuilder):
     def load(
         cls,
         path: FileType,
-        loading_type: LOADING_TYPE = LOADING_TYPE.PATHS_ONLY,
+        file_type: FILE_SELECTION = FILE_SELECTION.NONE,
         *,
         allow_missing: bool = False,
     ) -> Self:
@@ -269,7 +267,7 @@ class Clustering(BasePathBuilder):
 
         # Load data if they exist
         msg = "Some of the following files are missing: %s"
-        if loading_type <= LOADING_TYPE.REQUIRED_ONLY:
+        if file_type <= FILE_SELECTION.REQUIRED_ONLY:
             if obj.exists(require_optional=False):
                 obj.trunk_props_df = pd.read_csv(obj.TRUNK_PROPS_FILENAME)
                 with obj.TUFT_PROPS_FILENAME.open() as f:
@@ -279,7 +277,7 @@ class Clustering(BasePathBuilder):
                 obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
             elif not allow_missing:
                 raise FileNotFoundError(msg, list(obj.required_filenames.keys()))
-        if loading_type <= LOADING_TYPE.ALL:
+        if file_type <= FILE_SELECTION.ALL:
             if obj.exists(require_optional=True):
                 obj.tuft_morph_paths = pd.read_csv(obj.TUFT_MORPHOLOGIES_PATHS_FILENAME)
             elif not allow_missing:
@@ -311,7 +309,7 @@ def cluster_morphologies(
             clustering.path,
         )
 
-    clustering.init()
+    clustering.create_tree()
 
     terminals = extract_terminals.process_morphologies(morph_dir)
     terminals["config"] = None
@@ -394,9 +392,7 @@ def cluster_morphologies(
                     new_terminal_points,
                     cluster_ids,
                     _,
-                ) = clustering_funcs[
-                    config["method"]
-                ](**clustering_kwargs)
+                ) = clustering_funcs[config["method"]](**clustering_kwargs)
 
                 # Add the cluster to the final points
                 all_terminal_points.extend(new_terminal_points)
