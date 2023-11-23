@@ -12,8 +12,6 @@ import pandas as pd
 from data_validation_framework.target import TaggedOutputLocalTarget
 from scipy.spatial import KDTree
 
-from axon_synthesis.atlas import AtlasHelper
-from axon_synthesis.atlas import load as load_atlas
 from axon_synthesis.config import Config
 from axon_synthesis.main_trunk.clustering import ClusterTerminals
 from axon_synthesis.main_trunk.create_graph.plot import plot_triangulation
@@ -27,7 +25,6 @@ from axon_synthesis.main_trunk.create_graph.utils import add_voronoi_points
 from axon_synthesis.main_trunk.create_graph.utils import create_edges
 from axon_synthesis.main_trunk.create_graph.utils import drop_close_points
 from axon_synthesis.main_trunk.create_graph.utils import drop_outside_points
-from axon_synthesis.main_trunk.create_graph.utils import get_region_points
 from axon_synthesis.main_trunk.create_graph.utils import use_ancestors
 from axon_synthesis.target_points import FindTargetPoints
 
@@ -200,30 +197,16 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
         else:
             raise ValueError(f"The value of 'input_data_type' is unknown ({input_data_type}).")
 
-    def run(self):
+    def run(self, atlas):
         # pylint: disable=too-many-statements
-        config = Config()
-
         terminals = pd.read_csv(self.terminals_path or self.input()["terminals"].path)
         terminals.to_csv(self.output()["input_terminals"].path, index=False)
 
-        favored_region_tree = None
-        brain_regions = None
-        if self.favored_regions or self.use_depth_penalty:
-            atlas, brain_regions, region_map = load_atlas(
-                str(config.atlas_path),
-                config.atlas_region_filename,
-                config.atlas_hierarchy_filename,
-            )
-            if self.use_depth_penalty:
-                atlas_helper = AtlasHelper(atlas, self.layers_indices)
-            if self.favored_regions:
-                favored_region_points = get_region_points(
-                    brain_regions,
-                    region_map,
-                    self.favored_regions,
-                )
-                favored_region_tree = KDTree(favored_region_points)
+        if self.favored_regions:
+            favored_region_points = atlas.get_region_points(self.favored_regions)
+            favored_region_tree = KDTree(favored_region_points)
+        else:
+            favored_region_tree = None
 
         if self.use_ancestors:
             if self.terminals_path:
@@ -278,7 +261,9 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
             drop_close_points(all_points_df, self.duplicate_precision)
 
             # Remove outside points
-            drop_outside_points(all_points_df, pts if self.use_ancestors else None, brain_regions)
+            drop_outside_points(
+                all_points_df, pts if self.use_ancestors else None, atlas.brain_regions
+            )
 
             # Reset index and set IDs
             all_points_df.reset_index(drop=True, inplace=True)
@@ -316,7 +301,7 @@ class CreateGraph(luigi_tools.task.WorkflowTask):
                     edges_df,
                     from_coord_cols,
                     to_coord_cols,
-                    atlas_helper,
+                    atlas,
                     self.depth_penalty_sigma,
                     self.depth_penalty_amplitude,
                 )

@@ -4,6 +4,9 @@ import logging
 from pathlib import Path
 from typing import ClassVar
 
+import h5py
+import pandas as pd
+
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import FILE_SELECTION
@@ -13,6 +16,7 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import recursive_to_str
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
+from axon_synthesis.white_matter_recipe import WmrConfig
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,34 +28,52 @@ class Inputs(BasePathBuilder):
         "BRAIN_REGIONS_MASK_FILENAME": "region_masks.h5",
         "CLUSTERING_DIRNAME": "Clustering",
         "METADATA_FILENAME": "metadata.json",
-        "POP_NEURON_NUMBERS_FILENAME": "neuron_density.csv",
+        "POPULATION_NEURON_NUMBERS_FILENAME": "neuron_density.csv",
+        "POPULATION_PROBABILITIES_FILENAME": "population_probabilities.csv",
+        "PROJECTION_PROBABILITIES_FILENAME": "projection_probabilities.csv",
         "WMR_DIRNAME": "WhiteMatterRecipe",
     }
 
-    def __init__(self, path: FileType, morphology_path: FileType = None):
+    def __init__(
+        self,
+        path: FileType,
+        morphology_path: FileType | None = None,
+        pop_probabilities: FileType | None = None,
+        proj_probabilities: FileType | None = None,
+    ):
         """Create a new Inputs object.
 
         Args:
             path: The base path used to build the relative paths.
             morphology_path: The path of the directory containing the input morphologies.
+            pop_probabilities: The path to the file containing the population probabilities.
+            proj_probabilities: The path to the file containing the projection probabilities.
         """
         super().__init__(path)
 
         self.atlas = None
-        self.wmr = None
+        self.brain_regions_mask_file = None
         self.clustering_data = None
+        self.pop_neuron_numbers = None
+        self.pop_probabilities = None
+        self.proj_probabilities = None
+        self.wmr = None
 
         if self.METADATA_FILENAME.exists():
             self.load_metadata()
         else:
             self._metadata = {
                 "clustering": self.CLUSTERING_DIRNAME,
-                "morphology_path": Path(morphology_path),
                 "path": self.path,
                 "WMR": self.WMR_DIRNAME,
             }
-
-        self.MORPHOLOGY_DIRNAME = self.metadata["morphology_path"]
+            if morphology_path is not None:
+                self._metadata["morphology_path"] = Path(morphology_path)
+            if pop_probabilities is not None:
+                self._metadata["population_probabilities"] = Path(pop_probabilities)
+            if proj_probabilities is not None:
+                self._metadata["projection_probabilities"] = Path(proj_probabilities)
+            self.metadata_to_attributes()
 
     @staticmethod
     def _format_metadata(metadata: dict) -> dict:
@@ -97,36 +119,53 @@ class Inputs(BasePathBuilder):
         try:
             with self.METADATA_FILENAME.open() as f:
                 self._metadata = self._format_metadata(json.load(f))
+            self.metadata_to_attributes()
         except Exception as exc:  # noqa: BLE001
             msg = "Could not load the inputs"
             raise RuntimeError(msg) from exc
 
-    def load_atlas(self, atlas_config):
+    def metadata_to_attributes(self):
+        """Propagate metadata to attributes."""
+        self.reset_path(self.metadata["path"])
+        self._filenames["CLUSTERING_DIRNAME"] = Path(self.metadata["clustering"]).name
+        self._filenames["WMR_DIRNAME"] = Path(self.metadata["WMR"]).name
+        if "morphology_path" in self.metadata:
+            self.MORPHOLOGY_DIRNAME = Path(self.metadata["morphology_path"])
+        self._reset_attributes()
+
+    def load_atlas(self, atlas_config=None):
         """Load the Atlas."""
+        if "atlas" not in self.metadata and atlas_config is None:
+            msg = "Could not load the Atlas because no atlas configuration was provided."
+            raise ValueError(msg)
+        if atlas_config is None:
+            atlas_config = AtlasConfig.from_dict(self.metadata["atlas"])
+        elif isinstance(atlas_config, dict):
+            atlas_config = AtlasConfig.from_dict(atlas_config)
         self.atlas = AtlasHelper(atlas_config)
         self._update_atlas_metadata()
 
-    def load_wmr(self, wmr_config=None):
+    def load_brain_regions_masks(self):
+        """Load the brain region masks."""
+        self.brain_regions_mask_file = h5py.File(self.BRAIN_REGIONS_MASK_FILENAME)
+
+    def load_wmr(self, wmr_config: WmrConfig | None = None):
         """Load the Atlas."""
         self.wmr = WhiteMatterRecipe(self.WMR_DIRNAME, load=False)
         if self.wmr.exists():
-            LOGGER.info(
-                "Loading the White Matter Recipe from '%s' since it already exists",
-                self.WMR_DIRNAME,
-            )
             self.wmr.load()
         elif wmr_config is None:
             msg = (
-                "The directory '%s' that should contain the White Matter Recipe does not exist "
-                "and no config was provided to load a raw WMR"
+                f"The directory '{self.WMR_DIRNAME}' that should contain the White Matter Recipe "
+                "does not exist and no config was provided to load a raw WMR"
             )
-            raise FileNotFoundError(msg, self.WMR_DIRNAME)
+            raise FileNotFoundError(msg)
         elif self.atlas is None:
             msg = (
-                "The directory '%s' that should contain the White Matter Recipe does not exist "
-                "and the atlas is not loaded yet"
+                f"The directory '{self.WMR_DIRNAME}' that should contain the White Matter Recipe "
+                "does not exist and the atlas is not loaded yet"
             )
-            raise FileNotFoundError(msg, self.WMR_DIRNAME)
+            raise FileNotFoundError(msg)
         else:
             self.wmr.load_from_raw_wmr(
                 wmr_config,
@@ -134,18 +173,69 @@ class Inputs(BasePathBuilder):
             )
             self.wmr.save()
 
-    def load_clustering_data(self, file_type=FILE_SELECTION.REQUIRED_ONLY):
+    def load_clustering_data(self, file_selection=FILE_SELECTION.REQUIRED_ONLY):
         """Load the Atlas."""
         self.clustering_data = Clustering.load(
             self.CLUSTERING_DIRNAME,
-            file_type,
+            file_selection,
         )
 
+    def load_pop_neuron_numbers(self):
+        """Load the population numbers."""
+        self.pop_neuron_numbers = pd.read_csv(self.POPULATION_NEURON_NUMBERS_FILENAME)
+
+    def load_probabilities(self):
+        """Load the population and projection probabilities."""
+        self.population_probabilities = pd.read_csv(self.POPULATION_PROBABILITIES_FILENAME)
+        self.projection_probabilities = pd.read_csv(self.PROJECTION_PROBABILITIES_FILENAME)
+
     @classmethod
-    def load(cls, path: FileType) -> Self:
+    def load(cls, path: FileType, atlas_config: AtlasConfig | None = None) -> Self:
         """Load all the inputs from the given path."""
         obj = cls(path)
-        obj.load_atlas()
+        obj.load_atlas(atlas_config)
         obj.load_wmr()
         obj.load_clustering_data()
+        obj.load_brain_regions_masks()
+        obj.load_pop_neuron_numbers()
+        obj.load_probabilities()
         return obj
+
+    def compute_probabilities(self, source="WMR"):
+        """Compute projection probabilities."""
+        if (
+            self.POPULATION_PROBABILITIES_FILENAME.exists()
+            and self.PROJECTION_PROBABILITIES_FILENAME.exists()
+        ):
+            LOGGER.info(
+                "The population and projection probabilities are not computed because they already "
+                "exists in '%s' and '%s'",
+                self.POPULATION_PROBABILITIES_FILENAME,
+                self.PROJECTION_PROBABILITIES_FILENAME,
+            )
+            return None
+
+        # TODO: For now we support only the WMR but latter other methods may come.
+        if source == "WMR":
+            (
+                self.population_probabilities,
+                self.projection_probabilities,
+            ) = self.wmr.compute_probabilities(self.atlas)
+        else:
+            msg = f"The value '{source}' is not known."
+            raise ValueError(msg)
+
+        # Export the population probabilities
+        self.population_probabilities.to_csv(self.POPULATION_PROBABILITIES_FILENAME, index=False)
+
+        # Export the projection probabilities
+        self.projection_probabilities.to_csv(self.PROJECTION_PROBABILITIES_FILENAME, index=False)
+
+        return self.population_probabilities, self.projection_probabilities
+
+    def compute_atlas_region_masks(self):
+        """Compute all region masks of the Atlas."""
+        if self.atlas is None:
+            msg = "The Atlas must be loaded before computing the region masks."
+            raise RuntimeError(msg)
+        self.atlas.compute_region_masks(self.BRAIN_REGIONS_MASK_FILENAME)

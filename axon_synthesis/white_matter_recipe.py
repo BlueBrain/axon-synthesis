@@ -127,14 +127,14 @@ class WhiteMatterRecipe(BasePathBuilder):
     """Class to store the White Matter Recipe data."""
 
     _filenames: ClassVar[dict] = {
-        "POPULATIONS_FILENAME": "populations.csv",
-        "PROJECTIONS_FILENAME": "projections.csv",
-        "TARGETS_FILENAME": "targets.csv",
         "FRACTIONS_FILENAME": "fractions.json",
         "INTERACTION_STRENGTHS_FILENAME": "interaction_strengths.json",
-        "PROJECTION_TARGETS_FILENAME": "projection_targets.csv",
         "LAYER_PROFILES_FILENAME": "layer_profiles.csv",
+        "POPULATIONS_FILENAME": "populations.csv",
+        "PROJECTION_TARGETS_FILENAME": "projection_targets.csv",
+        "PROJECTIONS_FILENAME": "projections.csv",
         "REGION_DATA_FILENAME": "region_data.csv",
+        "TARGETS_FILENAME": "targets.csv",
     }
 
     def __init__(
@@ -212,6 +212,10 @@ class WhiteMatterRecipe(BasePathBuilder):
 
     def load(self):
         """Load the White Matter Recipe from the associated directory."""
+        LOGGER.info(
+            "Loading the White Matter Recipe from '%s'",
+            self.path,
+        )
         populations = pd.read_csv(self.POPULATIONS_FILENAME)
         self.populations = cols_from_json(populations, ["atlas_region", "filters"])
 
@@ -240,6 +244,86 @@ class WhiteMatterRecipe(BasePathBuilder):
         self.layer_profiles = cols_from_json(layer_profiles, ["layers"])
 
         self.region_data = pd.read_csv(self.REGION_DATA_FILENAME)
+
+    def compute_probabilities(self, atlas: AtlasHelper):
+        """Compute projection probabilities from the White Matter Recipe."""
+        LOGGER.info("Computing the probabilities from the white matter")
+
+        projection_targets = self.projection_targets.loc[
+            ~self.projection_targets["target_region_atlas_id"].isna()
+        ]
+        projection_targets = projection_targets.fillna(
+            {"target_subregion_atlas_id": projection_targets["target_region_atlas_id"]},
+        ).astype({"target_region_atlas_id": int, "target_subregion_atlas_id": int})
+
+        # Get the projection matrix
+        projection_matrix = (
+            pd.DataFrame.from_records(self.fractions)
+            .stack()
+            .rename("target_projection_strength")
+            .reset_index()
+            .rename(columns={"level_0": "target_projection_name", "level_1": "pop_raw_name"})
+        )
+
+        all_targets = projection_targets.merge(
+            projection_matrix,
+            on=["pop_raw_name", "target_projection_name"],
+            how="left",
+        )
+        all_targets["probability"] = (
+            all_targets["target_projection_strength"]
+            * all_targets["target_layer_profile_region_prob"]
+        )
+        all_targets["subregion_acronym"] = all_targets["subregion_acronym"].fillna(
+            all_targets["region_acronym"], inplace=True
+        )
+        all_targets = all_targets.rename(
+            columns={"atlas_region_id": "source_brain_region_id", "pop_raw_name": "population_id"}
+        )
+
+        all_targets["target_brain_region_acronym"] = all_targets["target_subregion_acronym"].fillna(
+            all_targets["target_region"]
+        )
+        all_targets["target_brain_region_id"] = all_targets["target_brain_region_acronym"].apply(
+            lambda x: atlas.get_region_ids(x, with_descendants=False)[0]
+        )
+
+        population_probabilities = (
+            all_targets[["source_brain_region_id", "population_id"]]
+            .drop_duplicates()
+            .rename(columns={"source_brain_region_id": "brain_region_id"})
+        )
+        population_probabilities = population_probabilities.merge(
+            (1 / population_probabilities.groupby(["brain_region_id"]).size()).rename(
+                "probability"
+            ),
+            left_on="brain_region_id",
+            right_index=True,
+        )
+
+        projection_probabilities = (
+            all_targets[
+                [
+                    "source_brain_region_id",
+                    "population_id",
+                    "target_brain_region_id",
+                    "target_projection_name",
+                    "probability",
+                ]
+            ]
+            .drop_duplicates()
+            .rename(
+                columns={
+                    "population_id": "source_population_id",
+                    "target_projection_name": "target_population_id",
+                }
+            )
+        )
+        projection_probabilities = projection_probabilities.loc[
+            projection_probabilities["probability"] > 0
+        ]
+
+        return population_probabilities, projection_probabilities
 
     def load_from_raw_wmr(  # noqa: PLR0915
         self,

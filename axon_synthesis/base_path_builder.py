@@ -21,15 +21,17 @@ class BasePathBuilder:
             path: The base path used to build the relative paths.
         """
         self._path = Path(path)
-
-        # Set attributes
-        for k, v in self:
-            setattr(self, k, v)
+        self._reset_attributes()
 
     @property
     def path(self) -> Path:
         """Return the associated path."""
         return self._path
+
+    def reset_path(self, path):
+        """Return the associated path."""
+        self._path = Path(path)
+        self._reset_attributes()
 
     def create_root(self):
         """Ensure the root path exists."""
@@ -38,6 +40,11 @@ class BasePathBuilder:
     def __iter__(self):
         """Return a generator to the paths to the associated data files."""
         yield from self.build_paths(self.path).items()
+
+    def _reset_attributes(self) -> None:
+        """Reset path attributes."""
+        for k, v in self:
+            setattr(self, k, v)
 
     @classmethod
     def build_paths(cls, path) -> dict[str, Path]:

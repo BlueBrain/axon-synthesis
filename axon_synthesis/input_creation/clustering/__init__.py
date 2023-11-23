@@ -250,7 +250,7 @@ class Clustering(BasePathBuilder):
     def load(
         cls,
         path: FileType,
-        file_type: FILE_SELECTION = FILE_SELECTION.NONE,
+        file_selection: FILE_SELECTION = FILE_SELECTION.NONE,
         *,
         allow_missing: bool = False,
     ) -> Self:
@@ -267,8 +267,8 @@ class Clustering(BasePathBuilder):
 
         # Load data if they exist
         msg = "Some of the following files are missing: %s"
-        if file_type <= FILE_SELECTION.REQUIRED_ONLY:
-            if obj.exists(require_optional=False):
+        if file_selection <= FILE_SELECTION.REQUIRED_ONLY:
+            if obj.exists(file_selection=FILE_SELECTION.REQUIRED_ONLY):
                 obj.trunk_props_df = pd.read_csv(obj.TRUNK_PROPS_FILENAME)
                 with obj.TUFT_PROPS_FILENAME.open() as f:
                     obj.trunk_props_df = pd.read_json(f)
@@ -277,8 +277,8 @@ class Clustering(BasePathBuilder):
                 obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
             elif not allow_missing:
                 raise FileNotFoundError(msg, list(obj.required_filenames.keys()))
-        if file_type <= FILE_SELECTION.ALL:
-            if obj.exists(require_optional=True):
+        if file_selection <= FILE_SELECTION.ALL:
+            if obj.exists(file_selection=FILE_SELECTION.OPTIONAL_ONLY):
                 obj.tuft_morph_paths = pd.read_csv(obj.TUFT_MORPHOLOGIES_PATHS_FILENAME)
             elif not allow_missing:
                 raise FileNotFoundError(msg, list(obj.optional_filenames.keys()))

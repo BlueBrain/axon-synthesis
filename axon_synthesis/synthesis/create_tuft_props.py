@@ -54,7 +54,7 @@ def _exp(values, sigma, default_ind=None):
 
 def tree_region_lengths(tree, brain_regions):
     """Compute the length of the tree in each region it passes through."""
-    # TODO: Use geometry.voxel_intersection for this because this naive implementation mays miss
+    # TODO: Use geometry.voxel_intersection for this because this naive implementation may miss
     # some brain region boundary crossing in some cases.
     lengths = defaultdict(int)
     voxel_dim = brain_regions.voxel_dimensions.min()

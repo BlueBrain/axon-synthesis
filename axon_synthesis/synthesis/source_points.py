@@ -1,115 +1,228 @@
 """Create the source points from the atlas."""
 import logging
+from pathlib import Path
 
-import luigi
-import luigi_tools
 import numpy as np
 import pandas as pd
-from data_validation_framework.target import TaggedOutputLocalTarget
-from voxcell.nexus.voxelbrain import Atlas
+from morphio import Morphology
+from morphio import RawDataError
+from morphio import SectionType
+from neurom import COLS
 
-from axon_synthesis.config import Config
-
-# from axon_synthesis.utils import get_region_ids
+from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.typing import FileType
 
 logger = logging.getLogger(__name__)
 
 
-class CreateSourcePoints(luigi_tools.task.WorkflowTask):
-    """Task to create source points used for axon synthesis."""
+def section_id_to_position(morph, sec_id):
+    """Find the position of the last point of the section from its ID."""
+    morph = Morphology(morph)
+    try:
+        return morph.section(sec_id).points[-1, COLS.XYZ] - morph.soma.center
+    except RawDataError:
+        return None
 
-    output_dataset = luigi.Parameter(
-        description="Output dataset file",
-        default="source_terminals.csv",
+
+def find_existing_axons(morph):
+    """Find the positions of the existing axons in a morphology."""
+    morph = Morphology(morph)
+    return [sec.points[0] for sec in morph.root_sections if sec.type == SectionType.axon]
+
+
+def map_population(
+    cells_df: pd.DataFrame,
+    atlas: AtlasHelper,
+    populations: pd.DataFrame | None = None,
+):
+    """Find the population given the position of the morphology and the populations."""
+    if populations is None:
+        cells_df["population_id"] = "default"
+    else:
+        # Get all the parent IDs in the brain region hierarchy
+        cells_region_parents = cells_df.merge(
+            atlas.brain_regions_and_ascendants,
+            left_on="source_brain_region_id",
+            right_on="id",
+            how="left",
+        )
+
+        # Get the probabilities
+        probs = cells_region_parents.merge(
+            populations.rename(columns={"probability": "population_probability"}),
+            left_on="elder_id",
+            right_on="brain_region_id",
+            how="left",
+        )
+        probs = probs.dropna(axis=0, subset=["population_id"])
+
+        # Keep only the probabilities from the deepest level in the hierarchy
+        probs = probs.loc[
+            probs["st_level"]
+            == probs.groupby(["morphology", "source_brain_region_id"])["st_level"].transform(max)
+        ]
+
+        # Select the populations according to the associated probabilities
+        selected = probs.groupby(["morphology", "source_brain_region_id"]).sample(
+            weights=probs["population_probability"]
+        )
+
+        cells_df = cells_df.merge(
+            selected[["morphology", "source_brain_region_id", "population_id"]],
+            on=["morphology", "source_brain_region_id"],
+            how="left",
+        ).fillna({"population_id": "default"})
+
+    return cells_df
+
+
+def set_source_points(
+    cells_df: pd.DataFrame,
+    atlas: AtlasHelper,
+    morph_dir: FileType,
+    ext: str = ".h5",
+    population_probabilities: pd.DataFrame | None = None,
+    axon_grafting_points: pd.DataFrame | None = None,
+    *,
+    rebuild_existing_axons: bool = False,
+):
+    """Extract source points from a cell collection."""
+    if not ext.startswith("."):
+        ext = "." + ext
+    cells_df["morph_file"] = (Path(morph_dir) / cells_df["morphology"]).apply(
+        lambda x: x.with_suffix(ext).resolve()
     )
-    nb_points = luigi.IntParameter(
-        description="The number of random points generated.",
-        default=10,
-    )
-    source_regions = luigi.parameter.OptionalListParameter(
-        description="The region used to generate the source points.",
-        default=None,
-    )
-    seed = luigi.IntParameter(
-        description="The seed used to generate random points.",
-        default=0,
-    )
 
-    def run(self):
-        # Get config
-        config = Config()
-
-        # Get atlas data
-        atlas = Atlas.open(str(config.atlas_path))
-        logger.debug("Loading brain regions from the atlas")
-
-        logger.debug("Loading brain regions from the atlas using: %s", config.atlas_region_filename)
-        brain_regions = atlas.load_data(config.atlas_region_filename)
-
-        logger.debug("Loading region map from the atlas using: %s", config.atlas_hierarchy_filename)
-        region_map = atlas.load_region_map(config.atlas_hierarchy_filename)
-
-        rng = np.random.default_rng(self.seed)
-
-        if self.source_regions:
-            # region_ids, missing_ids = get_region_ids(region_map, self.source_regions)
-            missing_ids = []
-            region_ids = []
-            for i in self.source_regions:  # pylint: disable=not-an-iterable
-                if isinstance(i, int):
-                    region_ids.append(i)
-                    continue
-                new_ids = []
-                for j in region_map.find(i, attr="name", with_descendants=True):
-                    new_ids.append(j)
-                for j in region_map.find(i, attr="acronym", with_descendants=True):
-                    new_ids.append(j)
-                if not new_ids:
-                    missing_ids.append(i)
-                else:
-                    region_ids.extend(new_ids)
-
-            if missing_ids:
-                logger.warning("Could not find the following regions in the atlas: %s", missing_ids)
-
-            potential_voxels = np.argwhere(np.isin(brain_regions.raw, region_ids))
-        else:
-            potential_voxels = np.argwhere(brain_regions.raw != 0)
-
-        if len(potential_voxels) == 0:
-            logger.error("No potential voxels found to place source points")
-        else:
-            logger.debug("Potential voxels found: %s", len(potential_voxels))
-
-        # Get random voxels where the brain region value is not 0
-        voxels = rng.choice(potential_voxels, self.nb_points)
-
-        # Compute coordinates of these voxels and add a random component up to the voxel size
-        coords = brain_regions.indices_to_positions(voxels)
-        coords += np.vstack(
+    # Get source points from the axon_grafting_points file
+    source_coords_cols = ["source_x", "source_y", "source_z"]
+    if axon_grafting_points is not None:
+        axon_grafting_points = axon_grafting_points[
             [
-                rng.uniform(
-                    0,
-                    brain_regions.voxel_dimensions[i],
-                    size=self.nb_points,
-                )
-                for i in range(3)
-            ],
-        ).T
+                col
+                for col in axon_grafting_points.columns
+                if col in ["morphology", "grafting_section_id", *source_coords_cols]
+            ]
+        ]
+        cells_df = cells_df.merge(axon_grafting_points, on="morphology", how="left")
 
-        dataset = pd.DataFrame(coords, columns=["x", "y", "z"])
-        dataset.reset_index(inplace=True)
-        dataset.rename(columns={"index": "morph_file"}, inplace=True)
-        dataset["axon_id"] = 0
-        dataset["terminal_id"] = -1
-        dataset["section_id"] = -1
+    # Find existing axons to rebuild them if required
+    if rebuild_existing_axons:
+        existing_axons = (
+            cells_df.groupby("morph_file")
+            .apply(lambda group: find_existing_axons(group.name))
+            .apply(pd.Series)
+            .stack()
+            .rename("XYZ")
+        )
+        existing_axons.index.rename("axon_id", level=1, inplace=True)
+        existing_axons = existing_axons.reset_index()
+        existing_axons["grafting_section_id"] = -1
+        existing_axons[source_coords_cols] = np.stack(existing_axons["XYZ"].to_numpy())
+        new_axons = (
+            cells_df[
+                [
+                    col
+                    for col in cells_df.columns
+                    if col not in ["grafting_section_id", "source_x", "source_y", "source_z"]
+                ]
+            ]
+            .drop_duplicates("morphology")
+            .merge(
+                existing_axons[["morph_file", "grafting_section_id", *source_coords_cols]],
+                on="morph_file",
+                how="right",
+            )
+        )
 
+        # We don't add axons starting from the soma when an existing axon is rebuilt
+        cells_df = (
+            pd.concat([cells_df.dropna(subset="grafting_section_id"), new_axons])
+            .sort_values(["morphology", "grafting_section_id"])
+            .reset_index(drop=True)
+        )
+
+    # Format the grafting_section_id column
+    if "grafting_section_id" not in cells_df.columns:
+        cells_df["grafting_section_id"] = -1
+    else:
+        cells_df["grafting_section_id"] = cells_df["grafting_section_id"].fillna(-1)
+    cells_df["grafting_section_id"] = cells_df["grafting_section_id"].astype(int)
+
+    # If some coordinate columns are missing we reset them
+    if len(set(source_coords_cols).difference(cells_df.columns)) > 0:
+        cells_df[source_coords_cols] = np.nan
+
+    # Find where the coordinates should be updated
+    missing_coords_mask = cells_df[source_coords_cols].isna().any(axis=1)
+    section_id_mask = (cells_df["grafting_section_id"] != -1) & missing_coords_mask
+
+    # If no section ID is provided we start the axon from the center of the morphology
+    if missing_coords_mask.any():
+        cells_df.loc[missing_coords_mask, source_coords_cols] = 0
+
+    # We shift all the coordinates to the positions in the atlas
+    cells_df[source_coords_cols] += cells_df[["x", "y", "z"]].to_numpy()
+
+    # If a section ID is provided we start the axon from the last point of this section
+    # Note: The coordinates of the points of each morphology are relative to the center of this
+    # morphology
+    if section_id_mask.any():
+        cells_df.loc[section_id_mask, source_coords_cols] += (
+            cells_df.loc[section_id_mask]
+            .apply(
+                lambda row: section_id_to_position(row["morph_file"], row["grafting_section_id"]),
+                axis=1,
+            )
+            .apply(pd.Series)
+            .to_numpy()
+        )
+
+    # Set atlas regions
+    cells_df["source_brain_region_id"] = atlas.brain_regions.lookup(
+        cells_df[["x", "y", "z"]].to_numpy()
+    )
+
+    # Choose population
+    return map_population(cells_df, atlas, population_probabilities)
+
+
+def create_random_sources(
+    atlas,
+    source_regions: list[int | str],
+    nb_points: int,
+    output_path: FileType = None,
+    seed: int | None = None,
+):
+    """Create some random source points."""
+    rng = np.random.default_rng(seed)
+
+    if source_regions:
+        coords, missing_ids = atlas.get_region_points(
+            source_regions, size=nb_points, return_missing=True, rng=rng
+        )
+        if missing_ids:
+            logger.warning("Could not find the following regions in the atlas: %s", missing_ids)
+    else:
+        coords = atlas.get_region_points(
+            [0], size=nb_points, inverse=True, return_missing=True, rng=rng
+        )
+
+    if len(coords) < nb_points:
+        logger.error(
+            "Not enough voxels found to place source points, foune only %s voxels", len(coords)
+        )
+
+    dataset = pd.DataFrame(coords, columns=["x", "y", "z"]).reset_index()
+    dataset.rename(columns={"index": "morph_file"}, inplace=True)
+    dataset["axon_id"] = 0
+    dataset["terminal_id"] = -1
+    dataset["section_id"] = -1
+
+    if output_path is not None:
+        # TODO: Should export a CellCollection to a MVD3 file?
         dataset[["morph_file", "axon_id", "terminal_id", "section_id", "x", "y", "z"]].to_csv(
-            self.output()["terminals"].path,
+            output_path,
             index=False,
         )
 
-    def output(self):
-        return {
-            "terminals": TaggedOutputLocalTarget(self.output_dataset, create_parent=True),
-        }
+    return dataset

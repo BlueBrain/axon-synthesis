@@ -113,6 +113,9 @@ ignore = [
     "TD003",
 ]
 
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
 [tool.ruff.lint.flake8-unused-arguments]
 ignore-variadic-names = true
 

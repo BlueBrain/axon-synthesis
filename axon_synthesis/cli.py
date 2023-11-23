@@ -12,6 +12,7 @@ from configobj import ConfigObj
 
 from axon_synthesis import input_creation
 from axon_synthesis.atlas import AtlasConfig
+from axon_synthesis.synthesis import synthesize_axons
 from axon_synthesis.utils import setup_logger
 from axon_synthesis.white_matter_recipe import WmrConfig
 from axon_synthesis.white_matter_recipe import fetch
@@ -112,12 +113,6 @@ def atlas_options(func):
         help="Name of NRRD file containing the brain regions in the Atlas folder",
     )
     @optgroup.option(
-        "--atlas-hierarchy-filename",
-        type=str,
-        required=True,
-        help="Name of file containing the brain region hierarchy in the Atlas folder",
-    )
-    @optgroup.option(
         "--atlas-layer-names",
         type=ListParam(),
         help=(
@@ -137,7 +132,6 @@ def atlas_kwargs_to_config(kwargs) -> AtlasConfig:
     return AtlasConfig(
         kwargs.pop("atlas_path"),
         kwargs.pop("atlas_region_filename"),
-        kwargs.pop("atlas_hierarchy_filename"),
         kwargs.pop("atlas_layer_names", None),
     )
 
@@ -325,10 +319,28 @@ def create_inputs(global_config: GlobalConfig, **kwargs):
     help="Path to the folder containing the input morphologies",
 )
 @click.option(
+    "--morphology-ext",
+    type=str,
+    # required=True,
+    help="The extension used to filter the input morphologies",
+)
+@click.option(
     "--morphology-data-file",
     type=click.Path(exists=True, dir_okay=False),
     # required=True,
     help="The MVD3 file containing morphology data.",
+)
+@click.option(
+    "--input-dir",
+    type=click.Path(exists=True, file_okay=False),
+    required=True,
+    help="The directory containing the inputs.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False),
+    required=True,
+    help="The directory where the outputs will be stored.",
 )
 @atlas_options
 # @click.option(
@@ -337,20 +349,29 @@ def create_inputs(global_config: GlobalConfig, **kwargs):
 #     required=True,
 #     help="Path to the folder containing the input morphologies",
 # )
-# @click.option(
-#     "--grafting_points",
-#     type=click.Path(exists=True, dir_okay=False),
-#     required=False,
-#     help=(
-#         "Path to the HDF5 file containing the section IDs where the axons should be grafted in "
-#         "the input morphologies (axons are grafted to the soma if not provided)"
-#     ),
-# )
+@click.option(
+    "-r/-nr",
+    "--rebuild-existing-axons/--no-rebuild-existing-axons",
+    default=False,
+    help="Force rebuilding existing axons.",
+)
+@click.option(
+    "--axon-grafting-points-file",
+    type=click.Path(exists=True, dir_okay=False),
+    required=False,
+    help=(
+        "Path to the HDF5 file containing the section IDs where the axons should be grafted in "
+        "the input morphologies (axons are grafted to the soma if not provided)."
+    ),
+)
 # @optgroup.group("Graph creation parameters", help="Parameters used to build the graph")
+@seed_option
 @click.pass_obj
 def synthesize(global_config: GlobalConfig, **kwargs):
+    """The command to synthesize axons."""
     kwargs["debug"] = global_config.debug
     kwargs["atlas_config"] = atlas_kwargs_to_config(kwargs)
+    synthesize_axons(**kwargs)
 
 
 if __name__ == "__main__":  # pragma: no cover

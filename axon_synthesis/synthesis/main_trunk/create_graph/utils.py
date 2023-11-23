@@ -8,24 +8,7 @@ from scipy.spatial import Delaunay
 from scipy.spatial import KDTree
 from scipy.spatial import Voronoi
 
-from axon_synthesis.utils import get_region_ids
-
 logger = logging.getLogger(__name__)
-
-
-def get_region_points(brain_regions, region_map, brain_region_names, return_missing=False):
-    """Extract region points from an atlas."""
-    brain_region_ids, missing_ids = get_region_ids(region_map, brain_region_names)
-
-    brain_regions_mask = np.isin(brain_regions.raw, list(set(brain_region_ids)))
-    brain_region_points = brain_regions.indices_to_positions(np.argwhere(brain_regions_mask))
-
-    # Get voxel centers
-    brain_region_points += brain_regions.voxel_dimensions / 2
-
-    if return_missing:
-        return brain_region_points, missing_ids
-    return brain_region_points
 
 
 def use_ancestors(terminals, tuft_properties_path):
@@ -98,9 +81,7 @@ def add_random_points(all_pts, min_random_point_distance, bbox_buffer, seed):
                     xyz,
                     distance_upper_bound=min_random_point_distance,
                     k=2,
-                )[
-                    0
-                ][1],
+                )[0][1],
             ) and (
                 len(new_pts) == 0
                 or np.linalg.norm(
@@ -264,7 +245,7 @@ def add_depth_penalty(
     edges_df,
     from_coord_cols,
     to_coord_cols,
-    atlas_helper,
+    atlas,
     sigma,
     amplitude,
 ):
@@ -281,8 +262,8 @@ def add_depth_penalty(
     # # and we want to take the cosine of the absolute value of the angle, so we can simplify.
     # penalty = np.abs((np.trace(dot_prod, axis1=1, axis2=2) - 1) * 0.5)
 
-    from_depths = np.nan_to_num(atlas_helper.depths.lookup(edges_df[from_coord_cols].values))
-    to_depths = np.nan_to_num(atlas_helper.depths.lookup(edges_df[to_coord_cols].values))
+    from_depths = np.nan_to_num(atlas.depths.lookup(edges_df[from_coord_cols].values))
+    to_depths = np.nan_to_num(atlas.depths.lookup(edges_df[to_coord_cols].values))
 
     relative_delta = np.clip(np.abs(from_depths - to_depths) / (edges_df["length"]), 0, 1)
 

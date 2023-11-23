@@ -1,5 +1,4 @@
 """Some utils for the AxonSynthesis package."""
-import contextlib
 import json
 import logging
 import re
@@ -58,16 +57,16 @@ def cols_from_json(df, cols):
     return df
 
 
-def get_layers(atlas, brain_regions, pos):
+def get_layers(atlas, pos):
     """Get layer data."""
     # TODO: get layer from the region names?
     names, ids = atlas.get_layers()
-    layers = np.zeros_like(brain_regions.raw, dtype="uint8")
+    layers = np.zeros_like(atlas.brain_regions.raw, dtype="uint8")
     layer_mapping = {}
     for layer_id, (ids_set, layer) in enumerate(zip(ids, names)):
         layer_mapping[layer_id] = layer
-        layers[np.isin(brain_regions.raw, list(ids_set))] = layer_id + 1
-    layers = brain_regions.with_data(layers)
+        layers[np.isin(atlas.brain_regions.raw, list(ids_set))] = layer_id + 1
+    layers = atlas.brain_regions.with_data(layers)
     return layers.lookup(pos, outer_value=0)
 
 
@@ -216,39 +215,6 @@ def use_matplotlib_backend(new_backend):
         yield
     finally:
         mpl.use(old_backend)
-
-
-def get_region_ids(region_map, brain_region_names, *, with_descendants=True):
-    """Find brain region IDs from their names of acronyms.
-
-    Args:
-        region_map (voxcell.region_map.RegionMap): The region map used to convert names into IDs.
-        brain_region_names (list[str]): The names of the brain regions to get IDs.
-        with_descendants (bool): If set to True,
-    """
-    missing_ids = []
-    brain_region_ids = []
-    for i in brain_region_names:
-        if isinstance(i, str):
-            with contextlib.suppress(ValueError):
-                i = int(i)  # noqa: PLW2901
-
-        new_ids = []
-
-        if isinstance(i, int):
-            new_ids.extend(list(region_map.find(i, attr="id", with_descendants=with_descendants)))
-        else:
-            new_ids.extend(list(region_map.find(i, attr="name", with_descendants=with_descendants)))
-            new_ids.extend(
-                list(region_map.find(i, attr="acronym", with_descendants=with_descendants)),
-            )
-
-        if not new_ids:
-            missing_ids.append(i)
-        else:
-            brain_region_ids.extend(new_ids)
-
-    return sorted(set(brain_region_ids)), sorted(set(missing_ids))
 
 
 def recursive_to_str(data):

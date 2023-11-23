@@ -29,17 +29,20 @@ def create_inputs(
     # Load the Atlas
     inputs.load_atlas(atlas_config)
 
+    # Pre-compute atlas data
+    inputs.compute_atlas_region_masks()
+
     # Process the White Matter Recipe
     inputs.load_wmr(wmr_config)
 
-    # Pre-compute atlas data
-    inputs.atlas.compute_region_masks(inputs.BRAIN_REGIONS_MASK_FILENAME)
+    # Compute the population and projection probabilities
+    inputs.compute_probabilities()
 
     # Compute the expected number of neurons in each brain region
     pop_neuron_numbers.compute(
         inputs.wmr.populations,
         neuron_density,
-        inputs.POP_NEURON_NUMBERS_FILENAME,
+        inputs.POPULATION_NEURON_NUMBERS_FILENAME,
     )
 
     # Define the tufts and main trunks in input morphologies and compute the properties of the long

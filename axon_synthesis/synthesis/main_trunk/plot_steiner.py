@@ -67,10 +67,9 @@ class PlotSolutions(luigi_tools.task.WorkflowTask):
         # ################################################################################### #
         if self.plot_fiber_tracts:
             atlas_path = "/gpfs/bbp.cscs.ch/project/proj82/entities/atlas/ThalNCX/20201019/"
-            atlas_hierarchy_filename = "hierarchy.json"
             atlas_region_filename = "brain_regions"
             atlas = Atlas.open(atlas_path)
-            region_map = atlas.load_region_map(atlas_hierarchy_filename)
+            region_map = atlas.load_region_map()
             brain_regions = atlas.load_data(atlas_region_filename)
             fiber_tracts_ids = region_map.find("fiber tracts", attr="name", with_descendants=True)
             fiber_tracts_mask = np.isin(brain_regions.raw, list(fiber_tracts_ids))
