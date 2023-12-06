@@ -4,7 +4,7 @@ import logging
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.input_creation import pop_neuron_numbers
 from axon_synthesis.input_creation.clustering import cluster_morphologies
-from axon_synthesis.input_creation.inputs import Inputs
+from axon_synthesis.inputs import Inputs
 from axon_synthesis.typing import FileType
 from axon_synthesis.white_matter_recipe import WmrConfig
 

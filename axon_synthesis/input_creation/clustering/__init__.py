@@ -559,6 +559,8 @@ def cluster_morphologies(
             columns=["morph_file", "config_name", "axon_id", "cluster_id", "morph_path"],
         ).sort_values(["morph_file", "config_name", "axon_id", "cluster_id"])
 
+    # TODO: Should the 'use_ancestors' mode be moved here from the graph creation step?
+
     clustering.save()
 
     return clustering

@@ -134,6 +134,7 @@ def get_target_points(
     # Remove useless columns
     target_points = target_points[
         [
+            "morphology",
             "morph_file",
             "axon_id",
             "x",

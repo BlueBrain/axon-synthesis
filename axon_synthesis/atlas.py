@@ -17,6 +17,7 @@ from voxcell.nexus.voxelbrain import Atlas
 from axon_synthesis.typing import ArrayLike
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import LayerNamesType
+from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.typing import Self
 
@@ -173,7 +174,7 @@ class AtlasHelper:
 
     def get_region_ids(
         self,
-        brain_region_names: str | int | list[str | int],
+        brain_region_names: RegionIdsType,
         *,
         with_descendants=True,
         return_missing: bool = False,
@@ -224,7 +225,7 @@ class AtlasHelper:
 
     def get_region_voxels(
         self,
-        brain_region_names: str | int | list[str | int],
+        brain_region_names: RegionIdsType,
         *,
         inverse: bool = False,
         return_missing: bool = False,
@@ -250,7 +251,7 @@ class AtlasHelper:
 
     def get_region_points(
         self,
-        brain_region_names: str | int | list[str | int],
+        brain_region_names: RegionIdsType,
         *,
         size: int | None = None,
         inverse: bool = False,

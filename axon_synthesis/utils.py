@@ -13,6 +13,32 @@ import pandas as pd
 from neurom import NeuriteType
 
 
+def create_custom_logger(morph_name, axon_id=None):
+    """Create a custom LoggerAdapter class containing the morphology name and axon ID."""
+
+    class MorphNameAdapter(logging.LoggerAdapter):
+        """Add the morphology name and optionally the axon ID to the logger entries."""
+
+        def process(self, msg, kwargs) -> tuple[str, dict]:
+            header = f"morphology {self.morph_name}"
+            if self.axon_id is not None:
+                header += f" (axon {self.axon_id})"
+            return f"{header}: {msg}", kwargs
+
+    MorphNameAdapter.morph_name = morph_name
+    MorphNameAdapter.axon_id = axon_id
+
+    return MorphNameAdapter
+
+
+def get_logger(name, adapter=None):
+    """Create a logger with the given name and wrap it with the optionally given adapter."""
+    logger = logging.getLogger(name)
+    if adapter is not None:
+        logger = adapter(logging.getLogger(name))
+    return logger
+
+
 def setup_logger(level="info", prefix="", suffix=""):
     """Setup application logger."""
     levels = {
@@ -226,3 +252,47 @@ def recursive_to_str(data):
         elif isinstance(v, Path):
             new_data[k] = str(v)
     return new_data
+
+
+def check_min_max(
+    *, min_value=None, max_value=None, strict_min: bool = False, strict_max: bool = False
+) -> None:
+    """Create a validator used by attrs to check a range."""
+
+    def range_validator(instance, attribute, value) -> None:  # noqa: ARG001
+        """The actual range validator used by attrs."""
+        try:
+            boundaries_msgs = []
+            if (
+                value is None
+                or min_value is None
+                or min_value < value
+                or (not strict_min and min_value == value)
+            ):
+                min_ok = True
+            else:
+                min_ok = False
+                boundaries_msgs.append(
+                    f"{'strictly ' if strict_min else ''}greater than {min_value}"
+                )
+            if (
+                value is None
+                or max_value is None
+                or max_value > value
+                or (not strict_max and max_value == value)
+            ):
+                max_ok = True
+            else:
+                max_ok = False
+                boundaries_msgs.append(f"{'strictly ' if strict_max else ''}lower than {max_value}")
+            if not min_ok or not max_ok:
+                msg = (
+                    f"The attribute '{attribute.name}' must be {' and '.join(boundaries_msgs)} "
+                    f"(got {value})"
+                )
+                raise ValueError(msg)
+        except TypeError as exc:
+            msg = f"The attribute '{attribute.name}' must have a numeric type (got {value})"
+            raise ValueError(msg) from exc
+
+    return range_validator

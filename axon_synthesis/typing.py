@@ -15,5 +15,6 @@ from numpy.typing import ArrayLike
 
 FileType = str | os.PathLike
 LayerNamesType = list[int | str]
+RegionIdsType = int | str | list[int | str]
 LoadableMorphology = FileType | neurom.core.Morphology | morphio.Morphology | morphio.mut.Morphology
 SeedType = None | int | ArrayLike | SeedSequence | BitGenerator | Generator
