@@ -14,6 +14,8 @@ from axon_synthesis.typing import FileType
 
 logger = logging.getLogger(__name__)
 
+SOURCE_COORDS_COLS = ["source_x", "source_y", "source_z"]
+
 
 def section_id_to_position(morph, sec_id):
     """Find the position of the last point of the section from its ID."""
@@ -94,13 +96,12 @@ def set_source_points(
     )
 
     # Get source points from the axon_grafting_points file
-    source_coords_cols = ["source_x", "source_y", "source_z"]
     if axon_grafting_points is not None:
         axon_grafting_points = axon_grafting_points[
             [
                 col
                 for col in axon_grafting_points.columns
-                if col in ["morphology", "grafting_section_id", *source_coords_cols]
+                if col in ["morphology", "grafting_section_id", *SOURCE_COORDS_COLS]
             ]
         ]
         cells_df = cells_df.merge(axon_grafting_points, on="morphology", how="left")
@@ -117,18 +118,18 @@ def set_source_points(
         existing_axons.index.rename("axon_id", level=1, inplace=True)
         existing_axons = existing_axons.reset_index()
         existing_axons["grafting_section_id"] = -1
-        existing_axons[source_coords_cols] = np.stack(existing_axons["XYZ"].to_numpy())
+        existing_axons[SOURCE_COORDS_COLS] = np.stack(existing_axons["XYZ"].to_numpy())
         new_axons = (
             cells_df[
                 [
                     col
                     for col in cells_df.columns
-                    if col not in ["grafting_section_id", "source_x", "source_y", "source_z"]
+                    if col not in ["grafting_section_id", *SOURCE_COORDS_COLS]
                 ]
             ]
             .drop_duplicates("morphology")
             .merge(
-                existing_axons[["morph_file", "grafting_section_id", *source_coords_cols]],
+                existing_axons[["morph_file", "grafting_section_id", *SOURCE_COORDS_COLS]],
                 on="morph_file",
                 how="right",
             )
@@ -149,25 +150,25 @@ def set_source_points(
     cells_df["grafting_section_id"] = cells_df["grafting_section_id"].astype(int)
 
     # If some coordinate columns are missing we reset them
-    if len(set(source_coords_cols).difference(cells_df.columns)) > 0:
-        cells_df[source_coords_cols] = np.nan
+    if len(set(SOURCE_COORDS_COLS).difference(cells_df.columns)) > 0:
+        cells_df[SOURCE_COORDS_COLS] = np.nan
 
     # Find where the coordinates should be updated
-    missing_coords_mask = cells_df[source_coords_cols].isna().any(axis=1)
+    missing_coords_mask = cells_df[SOURCE_COORDS_COLS].isna().any(axis=1)
     section_id_mask = (cells_df["grafting_section_id"] != -1) & missing_coords_mask
 
     # If no section ID is provided we start the axon from the center of the morphology
     if missing_coords_mask.any():
-        cells_df.loc[missing_coords_mask, source_coords_cols] = 0
+        cells_df.loc[missing_coords_mask, SOURCE_COORDS_COLS] = 0
 
     # We shift all the coordinates to the positions in the atlas
-    cells_df[source_coords_cols] += cells_df[["x", "y", "z"]].to_numpy()
+    cells_df[SOURCE_COORDS_COLS] += cells_df[["x", "y", "z"]].to_numpy()
 
     # If a section ID is provided we start the axon from the last point of this section
     # Note: The coordinates of the points of each morphology are relative to the center of this
     # morphology
     if section_id_mask.any():
-        cells_df.loc[section_id_mask, source_coords_cols] += (
+        cells_df.loc[section_id_mask, SOURCE_COORDS_COLS] += (
             cells_df.loc[section_id_mask]
             .apply(
                 lambda row: section_id_to_position(row["morph_file"], row["grafting_section_id"]),
@@ -220,7 +221,7 @@ def create_random_sources(
 
     if output_path is not None:
         # TODO: Should export a CellCollection to a MVD3 file?
-        dataset[["morph_file", "axon_id", "terminal_id", "section_id", "x", "y", "z"]].to_csv(
+        dataset[["morph_file", "axon_id", "terminal_id", "section_id", "x", "y", "z"]].to_hdf(
             output_path,
             index=False,
         )

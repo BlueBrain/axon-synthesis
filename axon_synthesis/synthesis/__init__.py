@@ -4,18 +4,25 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from neurom import NeuriteType
+from neurom.core import Morphology
 from voxcell.cell_collection import CellCollection
 
 from axon_synthesis.atlas import AtlasConfig
+from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.inputs import Inputs
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.synthesis.main_trunk.create_graph import one_graph
+from axon_synthesis.synthesis.main_trunk.steiner_morphology import build_and_graft_trunk
 from axon_synthesis.synthesis.main_trunk.steiner_tree import compute_solution
+from axon_synthesis.synthesis.outputs import Outputs
+from axon_synthesis.synthesis.source_points import SOURCE_COORDS_COLS
 from axon_synthesis.synthesis.source_points import set_source_points
 from axon_synthesis.synthesis.target_points import get_target_points
+from axon_synthesis.synthesis.tuft_properties import create as create_tuft_properties
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
-from axon_synthesis.utils import create_custom_logger
+from axon_synthesis.utils import MorphNameAdapter
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +41,13 @@ def load_axon_grafting_points(path: FileType = None, key: str = _HDF_DEFAULT_GRO
                 raise ValueError(msg)
             return mapping
     return pd.DataFrame([], columns=cols)
+
+
+def remove_existing_axons(morph):
+    """Remove all existing axons from a given morphology."""
+    for i in morph.root_sections:
+        if i.type == NeuriteType.axon:
+            morph.delete_section(i)
 
 
 def synthesize_axons(  # noqa: PLR0913
@@ -66,8 +80,10 @@ def synthesize_axons(  # noqa: PLR0913
         debug: Trigger the Debug mode.
     """
     rng = np.random.default_rng(seed)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    outputs = Outputs(output_dir, create=True)
+    outputs.create_dirs(
+        file_selection=FILE_SELECTION.ALL if debug else FILE_SELECTION.REQUIRED_ONLY
+    )
 
     # Load all inputs
     inputs = Inputs.load(input_dir, atlas_config=atlas_config)
@@ -96,37 +112,66 @@ def synthesize_axons(  # noqa: PLR0913
         source_points,
         inputs.projection_probabilities,
         rng=rng,
-        output_path=output_dir / "target_points.csv" if debug else None,
+        output_path=outputs.TARGET_POINTS if debug else None,
     )
+    if rebuild_existing_axons:
+        # If the existing axons are rebuilt all the new axons will be grafted to the soma
+        target_points["grafting_section_id"] = -1
 
     # Ensure the graph creation config is complete
     if create_graph_config is None:
         create_graph_config = CreateGraphConfig()
     create_graph_config.compute_region_tree(inputs.atlas)
 
-    for group_name, group in target_points.groupby(["morphology", "axon_id"]):
-        # Create a custom logger to add the morph name and axon ID in the log entries
-        AxonLoggerAdapter = create_custom_logger(  # noqa: N806
-            morph_name=group_name[0], axon_id=group_name[1]
-        )
+    for morph_name, morph_terminals in target_points.groupby("morphology"):
+        morph = Morphology(morph_terminals["morph_file"].to_numpy()[0])
 
-        # Create the graph for each axon
-        nodes_df, edges_df = one_graph(
-            inputs.atlas,
-            group,
-            create_graph_config,
-            favored_region_tree=create_graph_config.favored_region_tree,
-            rng=rng,
-            debug=debug,
-            logger_adapter=AxonLoggerAdapter,
-        )
+        if rebuild_existing_axons:
+            # Remove existing axons and set grafting mode to soma
+            remove_existing_axons(morph)
 
-        # Build the Steiner Tree for each axon
-        nodes_df, edges_df = compute_solution(
-            nodes_df,
-            edges_df,
-            output_dir=output_dir / "SteinerTreeSolution" if debug else None,
-            logger_adapter=AxonLoggerAdapter,
-        )
+        for axon_id, axon_terminals in morph_terminals.groupby("axon_id"):
+            # Create a custom logger to add the morph name and axon ID in the log entries
+            custom_logger = MorphNameAdapter(
+                LOGGER, extra={"morph_name": morph_name, "axon_id": axon_id}
+            )
 
-        # Create the tufts for each axon
+            file_name = f"{morph_name}_{axon_id}.h5"
+
+            # Create the graph for each axon
+            nodes, edges = one_graph(
+                inputs.atlas,
+                morph_terminals[SOURCE_COORDS_COLS].to_numpy()[0],
+                axon_terminals,
+                create_graph_config,
+                favored_region_tree=create_graph_config.favored_region_tree,
+                rng=rng,
+                output_path=outputs.GRAPH_CREATION / file_name if debug else None,
+                logger=custom_logger,
+            )
+
+            # Build the Steiner Tree for each axon
+            solution_nodes, solution_edges = compute_solution(
+                nodes,
+                edges,
+                output_path=outputs.STEINER_TREE_SOLUTIONS / file_name if debug else None,
+                logger=custom_logger,
+            )
+
+            # Create the trunk morphology
+            build_and_graft_trunk(
+                morph,
+                # source_coords,
+                axon_terminals["grafting_section_id"].to_numpy()[0],
+                solution_nodes,
+                solution_edges,
+                output_path=(outputs.MAIN_TRUNK_MORPHOLOGIES / file_name if debug else None),
+                logger=custom_logger,
+            )
+
+            # Create the tufts for each axon
+            create_tuft_properties(morph, inputs.atlas, axon_terminals, inputs.cluster_props_df)
+
+            # Graft the axon to the morph
+
+        morph.write(outputs.MORPHOLOGIES / f"{morph_name}.h5")

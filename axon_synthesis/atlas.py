@@ -11,6 +11,7 @@ import pandas as pd
 from attrs import asdict
 from attrs import define
 from attrs import field
+from voxcell import OrientationField
 from voxcell import VoxelData
 from voxcell.nexus.voxelbrain import Atlas
 
@@ -92,6 +93,7 @@ class AtlasHelper:
             self.config.layer_names if self.config.layer_names is not None else list(range(1, 7))
         )
         self.top_layer = self.atlas.load_data(f"[PH]{self.layers[0]}")
+        self.orientations = self.atlas.load_data("orientation", cls=OrientationField)
 
         # if config.atlas_flatmap_filename is None:
         #     # Create the flatmap of the atlas

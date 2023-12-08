@@ -1,5 +1,6 @@
 """Find the target points of the input morphologies."""
 import logging
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -8,6 +9,8 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 
 LOGGER = logging.getLogger(__name__)
+
+TARGET_COORDS_COLS = ["target_x", "target_y", "target_z"]
 
 
 def get_target_points(
@@ -118,7 +121,7 @@ def get_target_points(
     )
 
     mask_tmp = target_points.sort_values("target_brain_region_id").index
-    target_points.loc[mask_tmp, ["target_x", "target_y", "target_z"]] = (
+    target_points.loc[mask_tmp, TARGET_COORDS_COLS] = (
         target_points.groupby("target_brain_region_id")
         .apply(lambda group: rng.choice(brain_regions_masks[str(group.name)][:], size=len(group)))
         .explode()
@@ -126,8 +129,8 @@ def get_target_points(
         .apply(pd.Series)
         .to_numpy()
     )
-    target_points[["target_x", "target_y", "target_z"]] += atlas.brain_regions.indices_to_positions(
-        target_points[["target_x", "target_y", "target_z"]].to_numpy()  # noqa: RUF005
+    target_points[TARGET_COORDS_COLS] += atlas.brain_regions.indices_to_positions(
+        target_points[TARGET_COORDS_COLS].to_numpy()  # noqa: RUF005
         + [0.5, 0.5, 0.5]
     ) + atlas.get_random_voxel_shifts(len(target_points), rng=rng)
 
@@ -161,6 +164,8 @@ def get_target_points(
 
     # Export the target points
     if output_path is not None:
-        target_points.to_csv(output_path, index=False)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=pd.io.pytables.PerformanceWarning)
+            target_points.to_hdf(output_path, "target_points")
 
     return target_points

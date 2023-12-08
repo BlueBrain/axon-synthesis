@@ -170,7 +170,7 @@ def drop_outside_points(all_points_df, ref_pts=None, bbox=None):
     return all_points_df
 
 
-def create_edges(all_points, from_coord_cols, to_coord_cols, group_name):
+def create_edges(all_points, from_coord_cols, to_coord_cols):
     """Create edges from the Delaunay triangulation of the given points."""
     if len(all_points) < 5:  # noqa: PLR2004
         msg = ""
@@ -192,7 +192,6 @@ def create_edges(all_points, from_coord_cols, to_coord_cols, group_name):
 
     edges_df = pd.DataFrame(
         {
-            "morphology": group_name,
             "from": unique_edges[:, 0],
             "to": unique_edges[:, 1],
         },

@@ -22,10 +22,15 @@ from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_voronoi_p
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import create_edges
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import drop_close_points
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import drop_outside_points
+from axon_synthesis.synthesis.target_points import TARGET_COORDS_COLS
+from axon_synthesis.typing import FileType
 from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import check_min_max
-from axon_synthesis.utils import get_logger
+from axon_synthesis.utils import sublogger
+
+FROM_COORDS_COLS = ["x_from", "y_from", "z_from"]
+TO_COORDS_COLS = ["x_to", "y_to", "z_to"]
 
 
 @define
@@ -103,27 +108,24 @@ class CreateGraphConfig:
 
 def one_graph(
     atlas: AtlasHelper,
+    source_coords: np.ndarray,
     target_points: pd.DataFrame,
     config: CreateGraphConfig,
-    *,
     favored_region_tree: KDTree = None,
+    *,
+    output_path: FileType | None = None,
     rng: SeedType = None,
-    debug: bool = False,
-    logger_adapter: logging.LoggerAdapter | None = None,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
     """Create the nodes and edges for one axon based on the target points and the atlas."""
-    logger = get_logger(__name__, logger_adapter)
-    rng = np.random.default_rng(rng)
-    morph_name = target_points["morphology"].to_numpy()[0]
+    logger = sublogger(logger, __name__)
 
-    from_coord_cols = ["source_x", "source_y", "source_z"]
-    to_coord_cols = ["target_x", "target_y", "target_z"]
+    rng = np.random.default_rng(rng)
 
     logger.debug("%s points", len(target_points))
 
     # Terminal points
-    pts = target_points[to_coord_cols].to_numpy()
-    source_coords = target_points[from_coord_cols].to_numpy()[0]
+    pts = target_points[TARGET_COORDS_COLS].to_numpy()
 
     # Add intermediate points
     inter_pts = add_intermediate_points(
@@ -150,7 +152,6 @@ def one_graph(
 
     # Gather points
     nodes_df = pd.DataFrame(all_pts, columns=["x", "y", "z"])
-    nodes_df["morphology"] = morph_name
 
     # Mark the source and target points as terminals and the others as intermediates
     nodes_df["is_terminal"] = [True] * (len(pts) + 1) + [False] * (len(all_pts) - len(pts) - 1)
@@ -173,9 +174,8 @@ def one_graph(
     # intermediate and Voronoï points
     edges_df, tri = create_edges(
         nodes_df[["x", "y", "z"]],
-        from_coord_cols,
-        to_coord_cols,
-        morph_name,
+        FROM_COORDS_COLS,
+        TO_COORDS_COLS,
     )
 
     # Compute cumulative penalties
@@ -185,8 +185,8 @@ def one_graph(
     if config.use_orientation_penalty:
         penalties *= add_orientation_penalty(
             edges_df,
-            from_coord_cols,
-            to_coord_cols,
+            FROM_COORDS_COLS,
+            TO_COORDS_COLS,
             source_coords,
             config.orientation_penalty_exponent,
             config.orientation_penalty_amplitude,
@@ -196,8 +196,8 @@ def one_graph(
     if config.use_depth_penalty:
         penalties *= add_depth_penalty(
             edges_df,
-            from_coord_cols,
-            to_coord_cols,
+            FROM_COORDS_COLS,
+            TO_COORDS_COLS,
             atlas,
             config.depth_penalty_sigma,
             config.depth_penalty_amplitude,
@@ -207,8 +207,8 @@ def one_graph(
     if favored_region_tree is not None:
         penalties *= add_favored_reward(
             edges_df,
-            from_coord_cols,
-            to_coord_cols,
+            FROM_COORDS_COLS,
+            TO_COORDS_COLS,
             favored_region_tree,
             config.favoring_sigma,
             config.favoring_amplitude,
@@ -230,12 +230,12 @@ def one_graph(
 
     logger.info("%s edges", len(edges_df))
 
-    if debug:
+    if output_path is not None:
         pass
     #     plot_triangulation(
     #         edges_df,
-    #         from_coord_cols,
-    #         to_coord_cols,
+    #         FROM_COORDS_COLS,
+    #         TO_COORDS_COLS,
     #         tri,
     #         nodes_df[["x", "y", "z"]],
     #         pts,

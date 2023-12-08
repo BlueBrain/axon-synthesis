@@ -23,7 +23,7 @@ def create_inputs(
     debug=False,
 ):
     """Create all inputs required to synthesize long-range axons."""
-    inputs = Inputs(output_dir, morphology_path)
+    inputs = Inputs(output_dir, morphology_path, create=True)
     inputs.create_root()
 
     # Load the Atlas

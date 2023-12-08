@@ -3,24 +3,23 @@
 The solution is computed using the package pcst_fast: https://github.com/fraenkel-lab/pcst_fast
 """
 import logging
-from pathlib import Path
 
 import pandas as pd
 import pcst_fast as pf
 
 from axon_synthesis.typing import FileType
-from axon_synthesis.utils import get_logger
+from axon_synthesis.utils import sublogger
 
 
 def compute_solution(
     nodes: pd.DataFrame,
     edges: pd.DataFrame,
     *,
-    output_dir: FileType | None = None,
-    logger_adapter: logging.LoggerAdapter | None = None,
+    output_path: FileType | None = None,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
     """Compute the Steiner Tree solution from the given nodes and edges."""
-    logger = get_logger(__name__, logger_adapter)
+    logger = sublogger(logger, __name__)
 
     nodes["is_solution"] = False
     edges["is_solution"] = False
@@ -45,8 +44,6 @@ def compute_solution(
         0,
     )
 
-    logger.info("The solution has %s edges", len(solution_edges))
-
     nodes.loc[
         (nodes["id"].isin(solution_nodes)),
         "is_solution",
@@ -61,11 +58,20 @@ def compute_solution(
         "is_solution",
     ] = True
 
-    if output_dir is not None:
+    if output_path is not None:
         # Export the solutions
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        nodes.to_csv(output_dir / "nodes.csv", index=False)
-        edges.to_csv(output_dir / "edges.csv", index=False)
+        nodes.to_hdf(output_path, "solution_nodes")
+        edges.to_hdf(output_path, "solution_edges")
 
-    return nodes, edges
+    in_solution_nodes = nodes.loc[nodes["is_solution"]]
+    in_solution_edges = edges.loc[edges["is_solution"]]
+
+    logger.debug(
+        "The solution contains %s among %s nodes and %s among %s edges",
+        len(nodes),
+        len(in_solution_nodes),
+        len(edges),
+        len(in_solution_edges),
+    )
+
+    return in_solution_nodes, in_solution_edges

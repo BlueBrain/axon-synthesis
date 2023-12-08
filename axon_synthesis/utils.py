@@ -13,30 +13,23 @@ import pandas as pd
 from neurom import NeuriteType
 
 
-def create_custom_logger(morph_name, axon_id=None):
-    """Create a custom LoggerAdapter class containing the morphology name and axon ID."""
+class MorphNameAdapter(logging.LoggerAdapter):
+    """Add the morphology name and optionally the axon ID to the log entries."""
 
-    class MorphNameAdapter(logging.LoggerAdapter):
-        """Add the morphology name and optionally the axon ID to the logger entries."""
-
-        def process(self, msg, kwargs) -> tuple[str, dict]:
-            header = f"morphology {self.morph_name}"
-            if self.axon_id is not None:
-                header += f" (axon {self.axon_id})"
-            return f"{header}: {msg}", kwargs
-
-    MorphNameAdapter.morph_name = morph_name
-    MorphNameAdapter.axon_id = axon_id
-
-    return MorphNameAdapter
+    def process(self, msg, kwargs) -> tuple[str, dict]:
+        """Add extra information to the log entry."""
+        header = f"morphology {self.extra['morph_name']}"
+        if "axon_id" in self.extra:
+            header += f" (axon {self.extra['axon_id']})"
+        return f"{header}: {msg}", kwargs
 
 
-def get_logger(name, adapter=None):
-    """Create a logger with the given name and wrap it with the optionally given adapter."""
-    logger = logging.getLogger(name)
-    if adapter is not None:
-        logger = adapter(logging.getLogger(name))
-    return logger
+def sublogger(logger, name):
+    """Get a sub-logger with specific name."""
+    new_logger = logger.manager.getLogger(name) if logger is not None else logging.getLogger(name)
+    if isinstance(logger, logging.LoggerAdapter):
+        new_logger = logger.__class__(new_logger, logger.extra)
+    return new_logger
 
 
 def setup_logger(level="info", prefix="", suffix=""):

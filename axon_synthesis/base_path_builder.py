@@ -14,14 +14,23 @@ class BasePathBuilder:
     _filenames: ClassVar[dict] = {}
     _optional_keys: ClassVar[set[str]] = set()
 
-    def __init__(self, path: FileType):
+    def __init__(self, path: FileType, *, exists: bool = False, create: bool = False):
         """Create a new BasePathBuilder object.
 
         Args:
             path: The base path used to build the relative paths.
+            exists: If set to True, the given path must already exist.
+            create: If set to True, the given path will be automatically created.
         """
         self._path = Path(path)
         self._reset_attributes()
+
+        if exists and not self.path.exists():
+            msg = f"The directory {self.path} does not exist"
+            raise FileNotFoundError(msg)
+
+        if create:
+            self.create_root()
 
     @property
     def path(self) -> Path:

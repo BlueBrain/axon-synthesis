@@ -10,46 +10,31 @@ import luigi_tools.parameter
 import luigi_tools.task
 import numpy as np
 import pandas as pd
-from data_validation_framework.target import TaggedOutputLocalTarget
 from morph_tool import resampling
 from neurom import COLS
 from neurom import load_morphology
 from neurom.morphmath import interval_lengths
 from neurom.morphmath import section_length
 from scipy.spatial import KDTree
-from voxcell import OrientationField
 
-# from axon_synthesis import seed_param
-from axon_synthesis.atlas import load as load_atlas
-from axon_synthesis.config import Config
-from axon_synthesis.create_dataset import FetchWhiteMatterRecipe
-from axon_synthesis.main_trunk.clustering import ClusterTerminals
-from axon_synthesis.main_trunk.create_graph import CreateGraph
-from axon_synthesis.main_trunk.steiner_morphologies import SteinerMorphologies
-from axon_synthesis.pop_neuron_numbers import PickPopulationNeuronNumbers
-from axon_synthesis.target_points import FindTargetPoints
+from axon_synthesis.typing import FileType
+from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import get_axons
 
 logger = logging.getLogger(__name__)
 
 
-class TuftsOutputLocalTarget(TaggedOutputLocalTarget):
-    """Target for tuft outputs."""
-
-    __prefix = Path("tufts")  # pylint: disable=unused-private-member
-
-
-def _exp(values, sigma, default_ind=None):
+def _exp(values, sigma, default_ind=None) -> np.ndarray:
     if sigma != 0:
         return (
             # 1.0 / (sigma * np.sqrt(2 * np.pi)) *
             np.exp(-np.power(values, 2) / (2.0 * sigma**2))
         )
-    else:
-        new_values = pd.Series(0, index=values.index)
-        if default_ind is not None:
-            new_values.loc[default_ind] = 1
-        return new_values
+
+    new_values = pd.Series(0, index=values.index)
+    if default_ind is not None:
+        new_values.loc[default_ind] = 1
+    return new_values.to_numpy()
 
 
 def tree_region_lengths(tree, brain_regions):
@@ -167,17 +152,6 @@ def load_wmr_data(
     return all_tuft_roots, wm_fractions, source_populations, pop_numbers
 
 
-def load_atlas_data(atlas_path, atlas_region_filename, atlas_hierarchy_filename):
-    """Load atlas data."""
-    atlas, brain_regions, _ = load_atlas(
-        atlas_path,
-        atlas_region_filename,
-        atlas_hierarchy_filename,
-    )
-    atlas_orientations = atlas.load_data("orientation", cls=OrientationField)
-    return brain_regions, atlas_orientations
-
-
 def compute_cluster_properties(
     cluster_props_df,
     axon,
@@ -188,7 +162,7 @@ def compute_cluster_properties(
     wm_fractions,
     tuft_root,
     bouton_density,
-    atlas_orientations,
+    atlas,
     lengths_in_regions,
     rng,
 ):  # pylint: disable=too-many-arguments
@@ -236,7 +210,7 @@ def compute_cluster_properties(
     # Compute the orientation of the tuft from the atlas (the default
     # orientation is up so we take the 2nd row of the rotation matrix)
     # TODO: check that this formula is correct
-    terminal_data["cluster_orientation"] = atlas_orientations.lookup(
+    terminal_data["cluster_orientation"] = atlas.orientations.lookup(
         sec.points[-1, COLS.XYZ],
     ).tolist()[0][1]
 
@@ -281,14 +255,6 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         min_value=0,
         max_value=sys.float_info.max,
     )
-    pop_numbers_file = luigi.parameter.OptionalPathParameter(
-        description=(
-            "Path to a CSV file containing the number of neuron for each population. These numbers "
-            "are used to compute the axon lengths."
-        ),
-        exists=True,
-        default=None,
-    )
     bouton_density = luigi.parameter.OptionalNumericalParameter(
         description=(
             "Path to a CSV file containing the number of neuron for each population. These numbers "
@@ -300,23 +266,18 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         max_value=sys.float_info.max,
         left_op=luigi.parameter.operator.lt,
     )
-    # seed = seed_param()
-    seed = 0
 
-    # Attributes that are populated in the run() method
-    rng = None
-
-    def requires(self):
-        tasks = {
-            "clustered_morphologies": ClusterTerminals(),
-            "steiner_morphologies": SteinerMorphologies(),
-            "pop_neuron_numbers": PickPopulationNeuronNumbers(),
-            "terminals": CreateGraph(),
-        }
-        if Config().input_data_type == "white_matter":
-            tasks["target_points"] = FindTargetPoints()
-            tasks["WMR"] = FetchWhiteMatterRecipe()
-        return tasks
+    # def requires(self):
+    #     tasks = {
+    #         "clustered_morphologies": ClusterTerminals(),
+    #         "steiner_morphologies": SteinerMorphologies(),
+    #         "pop_neuron_numbers": PickPopulationNeuronNumbers(),
+    #         "terminals": CreateGraph(),
+    #     }
+    #     if Config().input_data_type == "white_matter":
+    #         tasks["target_points"] = FindTargetPoints()
+    #         tasks["WMR"] = FetchWhiteMatterRecipe()
+    #     return tasks
 
     def pick_tuft(self, cluster_props_df, axon_terminal, terminal_index=None):
         """Choose a tuft according to the given properties."""
@@ -346,8 +307,7 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         else:
             prob /= prob.sum()
 
-        chosen_index = self.rng.choice(cluster_props_df.index, p=prob)
-        return chosen_index
+        return self.rng.choice(cluster_props_df.index, p=prob)
 
     @staticmethod
     def get_tuft_root(sec, axon_tree, group):
@@ -378,167 +338,162 @@ class CreateTuftTerminalProperties(luigi_tools.task.WorkflowTask):
         )
         return tuft_root
 
-    def run(self):
-        self.rng = np.random.default_rng(self.seed)
-        config = Config()
 
-        # Get tuft data from the Steiner morphologies
-        all_tuft_roots = pd.read_csv(
-            self.input()["steiner_morphologies"]["nodes"].path,
-            dtype={"morph_file": str},
+def create(
+    self,
+    morph,
+    atlas,
+    axon_terminals: pd.DataFrame,
+    tuft_properties: pd.DataFrame,
+    *,
+    mode: str = "biological_morphologies",  # Can be "white_matter" or "biological_morphologies"
+    output_path: FileType | None = None,
+    rng: SeedType = None,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
+):
+    """Create the properties for each tuft."""
+    rng = np.random.default_rng(rng)
+
+    # Get tuft data from the Steiner morphologies
+    all_tuft_roots = axon_terminals
+    all_tuft_roots = all_tuft_roots.loc[all_tuft_roots["is_terminal"]]
+    all_tuft_roots[["x", "y", "z"]] = all_tuft_roots[["x", "y", "z"]].round(6)
+
+    if mode == "white_matter":
+        target_properties = target_properties.copy()
+        target_properties[["x", "y", "z"]] = target_properties[["x", "y", "z"]].round(6)
+
+        # Add target properties to the tuft roots
+        all_tuft_roots = all_tuft_roots.merge(
+            target_properties.loc[target_properties["axon_id"] != -1],
+            on=["morph_file", "x", "y", "z"],
+            how="left",
         )
-        all_tuft_roots = all_tuft_roots.loc[all_tuft_roots["is_terminal"]]
-        all_tuft_roots[["x", "y", "z"]] = all_tuft_roots[["x", "y", "z"]].round(6)
 
-        if config.input_data_type == "white_matter":
-            all_tuft_roots, wm_fractions, source_populations, pop_numbers = load_wmr_data(
-                all_tuft_roots,
-                self.input()["pop_neuron_numbers"]["population_numbers"].path,
-                self.input()["target_points"]["terminals"].path,
-                self.input()["WMR"]["wm_fractions"].pathlib_path,
-                self.input()["target_points"]["source_populations"].path,
-            )
+    # Ensure morphology file names are strings
+    tuft_properties["morph_file"] = tuft_properties["morph_file"].astype(str)
 
-            # Get atlas data
-            brain_regions, atlas_orientations = load_atlas_data(
-                str(config.atlas_path),
-                config.atlas_region_filename,
-                config.atlas_hierarchy_filename,
-            )
+    tuft_properties["old_new_cluster_barcode"] = None
+    tuft_properties["new_cluster_barcode"] = None
+    tuft_props = []
 
-        # if self.size_sigma == 0 or self.distance_sigma == 0:
-        #     self.size_sigma = 0
-        #     self.distance_sigma = 0
+    for group_name, group in all_tuft_roots.groupby("steiner_morph_file"):
+        steiner_morph_file = Path(str(group_name))
+        morph_file = group["morph_file"].iloc[0]
 
-        with self.input()["clustered_morphologies"]["tuft_properties"].open() as f:
-            # Get tuft data from the input biological morphologies
-            cluster_props_df = pd.DataFrame.from_records(json.load(f))
+        # Load morph (loaded in a persistent Python object to keep C++ objects in memory)
+        morph = load_morphology(group_name)
 
-        # Ensure morphology file names are strings
-        cluster_props_df["morph_file"] = cluster_props_df["morph_file"].astype(str)
+        # Get axons
+        axons = get_axons(morph)
 
-        cluster_props_df["old_new_cluster_barcode"] = None
-        cluster_props_df["new_cluster_barcode"] = None
-        tuft_props = []
+        for axon_id, axon in enumerate(axons):
+            # Get terminals of the current group
+            axon_tree = KDTree(group[["x", "y", "z"]].to_numpy().astype(np.float32))
 
-        for group_name, group in all_tuft_roots.groupby("steiner_morph_file"):
-            steiner_morph_file = Path(str(group_name))
-            morph_file = group["morph_file"].iloc[0]
+            # Compute the length of the tree in each brain region
+            if mode != "biological_morphologies":
+                lengths_in_regions = tree_region_lengths(axon, atlas.brain_regions)
 
-            # Load morph (loaded in a persistent Python object to keep C++ objects in memory)
-            morph = load_morphology(group_name)
+            for sec in axon.iter_sections():
+                if sec.parent is None:
+                    continue
 
-            # Get axons
-            axons = get_axons(morph)
+                tuft_root = self.get_tuft_root(sec, axon_tree, group)
+                if tuft_root is None:
+                    continue
 
-            for axon_id, axon in enumerate(axons):
-                # Get terminals of the current group
-                axon_tree = KDTree(group[["x", "y", "z"]].to_numpy().astype(np.float32))
-
-                # Compute the length of the tree in each brain region
-                if config.input_data_type != "biological_morphologies":
-                    lengths_in_regions = tree_region_lengths(axon, brain_regions)
-
-                for sec in axon.iter_sections():
-                    if sec.parent is None:
-                        continue
-
-                    tuft_root = self.get_tuft_root(sec, axon_tree, group)
-                    if tuft_root is None:
-                        continue
-
-                    if config.input_data_type == "biological_morphologies":
-                        # Use properties from clustered morphologies
-                        axon_terminals = cluster_props_df.loc[
-                            (
-                                cluster_props_df["morph_file"].str.match(
-                                    f".*{steiner_morph_file.stem}\\.(asc|swc|h5)",
-                                )
-                            )
-                            & (cluster_props_df["axon_id"] == axon_id)
-                        ].copy()
-                        axon_terminals["dist"] = np.linalg.norm(
-                            (
-                                np.array(axon_terminals["common_ancestor_coords"].tolist())
-                                - tuft_root[["x", "y", "z"]].to_numpy()
-                            ).astype(float),
-                            axis=1,
-                        )
-                        axon_terminal = cluster_props_df.loc[axon_terminals["dist"].idxmin()]
-                        terminal_index = axon_terminal.name
-                    else:
-                        # Compute cluster properties
-                        terminal_index, axon_terminal = compute_cluster_properties(
-                            cluster_props_df,
-                            axon,
-                            sec,
-                            source_populations,
-                            pop_numbers,
-                            morph_file,
-                            wm_fractions,
-                            tuft_root,
-                            self.bouton_density,
-                            atlas_orientations,
-                            lengths_in_regions,
-                            self.rng,
-                        )
-
-                    # Choose a tuft according to these properties
-                    chosen_index = self.pick_tuft(cluster_props_df, axon_terminal, terminal_index)
-                    logger.info(
+                if mode == "biological_morphologies":
+                    # Use properties from clustered morphologies
+                    axon_terminals = tuft_properties.loc[
                         (
-                            "Chosen tuft for %s, axon %s and ancestor at %s from morph '%s', "
-                            "axon %s and ancestor at %s"
-                        ),
-                        steiner_morph_file,
+                            tuft_properties["morph_file"].str.match(
+                                f".*{steiner_morph_file.stem}\\.(asc|swc|h5)",
+                            )
+                        )
+                        & (tuft_properties["axon_id"] == axon_id)
+                    ].copy()
+                    axon_terminals["dist"] = np.linalg.norm(
+                        (
+                            np.array(axon_terminals["common_ancestor_coords"].tolist())
+                            - tuft_root[["x", "y", "z"]].to_numpy()
+                        ).astype(float),
+                        axis=1,
+                    )
+                    axon_terminal = tuft_properties.loc[axon_terminals["dist"].idxmin()]
+                    terminal_index = axon_terminal.name
+                else:
+                    # Compute cluster properties
+                    terminal_index, axon_terminal = compute_cluster_properties(
+                        tuft_properties,
+                        axon,
+                        sec,
+                        source_populations,
+                        pop_numbers,
+                        morph_file,
+                        wm_fractions,
+                        tuft_root,
+                        self.bouton_density,
+                        atlas,
+                        lengths_in_regions,
+                        self.rng,
+                    )
+
+                # Choose a tuft according to these properties
+                chosen_index = self.pick_tuft(tuft_properties, axon_terminal, terminal_index)
+                logger.info(
+                    (
+                        "Chosen tuft for %s, axon %s and ancestor at %s from morph '%s', "
+                        "axon %s and ancestor at %s"
+                    ),
+                    steiner_morph_file,
+                    axon_id,
+                    tuft_root[["x", "y", "z"]].tolist(),
+                    *tuft_properties.loc[
+                        chosen_index,
+                        ["morph_file", "axon_id", "common_ancestor_coords"],
+                    ].tolist(),
+                )
+
+                tuft_properties.at[
+                    terminal_index,
+                    "new_cluster_barcode",
+                ] = tuft_properties.at[chosen_index, "cluster_barcode"]
+                tuft_props.append(
+                    [
+                        group.iloc[0]["morph_file"],
+                        group_name,
                         axon_id,
+                        tuft_root["id"],
                         tuft_root[["x", "y", "z"]].tolist(),
-                        *cluster_props_df.loc[
-                            chosen_index,
-                            ["morph_file", "axon_id", "common_ancestor_coords"],
-                        ].tolist(),
-                    )
+                        axon_terminal["path_distance"],
+                        axon_terminal["radial_distance"],
+                        axon_terminal["path_length"],
+                        # axon_terminal["cluster_size"],
+                        axon_terminal["cluster_orientation"],
+                        tuft_properties.at[chosen_index, "cluster_barcode"],
+                    ],
+                )
 
-                    cluster_props_df.at[
-                        terminal_index,
-                        "new_cluster_barcode",
-                    ] = cluster_props_df.at[chosen_index, "cluster_barcode"]
-                    tuft_props.append(
-                        [
-                            group.iloc[0]["morph_file"],
-                            group_name,
-                            axon_id,
-                            tuft_root["id"],
-                            tuft_root[["x", "y", "z"]].tolist(),
-                            axon_terminal["path_distance"],
-                            axon_terminal["radial_distance"],
-                            axon_terminal["path_length"],
-                            # axon_terminal["cluster_size"],
-                            axon_terminal["cluster_orientation"],
-                            cluster_props_df.at[chosen_index, "cluster_barcode"],
-                        ],
-                    )
+    tuft_props_df = pd.DataFrame(
+        tuft_props,
+        columns=[
+            "morph_file",
+            "steiner_morph_file",
+            "axon_id",
+            "common_ancestor_id",
+            "common_ancestor_coords",
+            "path_distance",
+            "radial_distance",
+            "path_length",
+            # "cluster_size",
+            "cluster_orientation",
+            "new_cluster_barcode",
+        ],
+    )
+    tuft_props_df.sort_values(["morph_file", "axon_id", "common_ancestor_id"], inplace=True)
 
-        tuft_props_df = pd.DataFrame(
-            tuft_props,
-            columns=[
-                "morph_file",
-                "steiner_morph_file",
-                "axon_id",
-                "common_ancestor_id",
-                "common_ancestor_coords",
-                "path_distance",
-                "radial_distance",
-                "path_length",
-                # "cluster_size",
-                "cluster_orientation",
-                "new_cluster_barcode",
-            ],
-        )
-        tuft_props_df.sort_values(["morph_file", "axon_id", "common_ancestor_id"], inplace=True)
-
-        with self.output().open(mode="w") as f:
+    if output_path is not None:
+        output_path = Path(output_path)
+        with output_path.open(mode="w") as f:
             json.dump(tuft_props_df.to_dict("records"), f, indent=4)
-
-    def output(self):
-        return TuftsOutputLocalTarget("tuft_terminals.csv", create_parent=True)
