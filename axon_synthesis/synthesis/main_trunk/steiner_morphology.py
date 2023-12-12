@@ -80,8 +80,8 @@ def build_and_graft_trunk(
                     current_section.append_section(
                         PointLevel(
                             [
-                                row[1][["x_from", "y_from", "z_from"]].to_numpy(),
-                                row[1][["x_to", "y_to", "z_to"]].to_numpy(),
+                                row[1][FROM_COORDS_COLS].to_numpy(),
+                                row[1][TO_COORDS_COLS].to_numpy(),
                             ],
                             [0, 0],
                         ),
@@ -97,8 +97,8 @@ def build_and_graft_trunk(
                     current_section.append_section(
                         PointLevel(
                             [
-                                row[1][["x_to", "y_to", "z_to"]].to_numpy(),
-                                row[1][["x_from", "y_from", "z_from"]].to_numpy(),
+                                row[1][TO_COORDS_COLS].to_numpy(),
+                                row[1][FROM_COORDS_COLS].to_numpy(),
                             ],
                             [0, 0],
                         ),

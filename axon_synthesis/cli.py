@@ -296,6 +296,12 @@ def fetch_white_matter_recipe(**kwargs):
     ),
 )
 @click.option(
+    "--bouton-density",
+    type=click.FloatRange(min=0, min_open=True),
+    default=0.2,
+    help="The density of boutons along the axons (we suppose here that this density is uniform).",
+)
+@click.option(
     "-o",
     "--output-dir",
     type=click.Path(path_type=Path),

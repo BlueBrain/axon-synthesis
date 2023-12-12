@@ -11,6 +11,7 @@ from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
+from axon_synthesis.input_creation import pop_neuron_numbers
 from axon_synthesis.input_creation.clustering import Clustering
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import Self
@@ -40,6 +41,8 @@ class Inputs(BasePathBuilder):
         morphology_path: FileType | None = None,
         pop_probabilities: FileType | None = None,
         proj_probabilities: FileType | None = None,
+        neuron_density: float | None = None,
+        **kwargs,
     ):
         """Create a new Inputs object.
 
@@ -48,13 +51,16 @@ class Inputs(BasePathBuilder):
             morphology_path: The path of the directory containing the input morphologies.
             pop_probabilities: The path to the file containing the population probabilities.
             proj_probabilities: The path to the file containing the projection probabilities.
+            neuron_density: The mean neuron density used to compute the expected total number of
+                neurons in target regions.
         """
-        super().__init__(path)
+        super().__init__(path, **kwargs)
 
         self.atlas = None
         self.brain_regions_mask_file = None
         self.clustering_data = None
-        self.pop_neuron_numbers = None
+        self.neuron_density = neuron_density
+        self._pop_neuron_numbers = None
         self.pop_probabilities = None
         self.proj_probabilities = None
         self.wmr = None
@@ -64,6 +70,7 @@ class Inputs(BasePathBuilder):
         else:
             self._metadata = {
                 "clustering": self.CLUSTERING_DIRNAME,
+                "neuron_density": self.neuron_density,
                 "path": self.path,
                 "WMR": self.WMR_DIRNAME,
             }
@@ -131,6 +138,7 @@ class Inputs(BasePathBuilder):
         self._filenames["WMR_DIRNAME"] = Path(self.metadata["WMR"]).name
         if "morphology_path" in self.metadata:
             self.MORPHOLOGY_DIRNAME = Path(self.metadata["morphology_path"])
+        self.neuron_density = self.metadata["neuron_density"]
         self._reset_attributes()
 
     def load_atlas(self, atlas_config=None):
@@ -180,9 +188,19 @@ class Inputs(BasePathBuilder):
             file_selection,
         )
 
-    def load_pop_neuron_numbers(self):
+    @property
+    def pop_neuron_numbers(self):
         """Load the population numbers."""
-        self.pop_neuron_numbers = pd.read_csv(self.POPULATION_NEURON_NUMBERS_FILENAME)
+        if self._pop_neuron_numbers is None:
+            if self.POPULATION_NEURON_NUMBERS_FILENAME.exists():
+                self._pop_neuron_numbers = pd.read_csv(self.POPULATION_NEURON_NUMBERS_FILENAME)
+            else:
+                self._pop_neuron_numbers = pop_neuron_numbers.compute(
+                    self.wmr.populations,
+                    self.neuron_density,
+                    self.POPULATION_NEURON_NUMBERS_FILENAME,
+                )
+        return self._pop_neuron_numbers
 
     def load_probabilities(self):
         """Load the population and projection probabilities."""

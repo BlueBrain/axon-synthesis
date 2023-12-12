@@ -291,6 +291,8 @@ def cluster_morphologies(
     wmr: WhiteMatterRecipe,
     morph_dir: FileType,
     clustering_parameters: dict,
+    pop_neuron_numbers: pd.DataFrame,
+    bouton_density: float,
     output_path: FileType,
     *,
     debug: bool = False,
@@ -310,6 +312,16 @@ def cluster_morphologies(
         )
 
     clustering.create_tree()
+
+    projection_pop_numbers = wmr.projection_targets.merge(
+        pop_neuron_numbers[
+            ["pop_raw_name", "atlas_region_volume", "pop_neuron_numbers"]
+        ].drop_duplicates(),
+        left_on="target_population_name",
+        right_on="pop_raw_name",
+        how="left",
+        suffixes=("", "_target"),
+    )
 
     terminals = extract_terminals.process_morphologies(morph_dir)
     terminals["config"] = None
@@ -411,6 +423,8 @@ def cluster_morphologies(
                 # Reduce clusters to one section
                 sections_to_add = defaultdict(list)
                 kept_path = reduce_clusters(
+                    atlas,
+                    wmr,
                     axon_group,
                     group_name,
                     morph,
@@ -422,6 +436,8 @@ def cluster_morphologies(
                     morph_paths,
                     cluster_props,
                     shortest_paths,
+                    projection_pop_numbers,
+                    bouton_density,
                     export_tuft_morph_dir=clustering.TUFT_MORPHOLOGIES_DIRNAME if debug else None,
                     config_name=config_name,
                 )
@@ -516,6 +532,7 @@ def cluster_morphologies(
             "path_length",
             "cluster_size",
             "cluster_orientation",
+            "cluster_weight",
             "cluster_barcode",
         ],
     ).sort_values(["morph_file", "config_name", "axon_id"])

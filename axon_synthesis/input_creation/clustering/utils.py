@@ -20,7 +20,9 @@ from tmd.io.conversion import convert_morphio_trees
 from tmd.Topology.methods import tree_to_property_barcode
 from tmd.Topology.persistent_properties import PersistentAngles
 
+from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.typing import FileType
+from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +137,55 @@ def tuft_morph_path(root_path, group_name, axon_id, cluster_id):
     return root_path / f"{Path(group_name).with_suffix('').name}_{axon_id}_{cluster_id}.asc"
 
 
+def compute_mean_tuft_length(
+    volume,
+    N_pot,
+    fraction,
+    strength,
+    bouton_density,
+):
+    """Compute properties for the cluster."""
+    N_act = N_pot * fraction
+    N_tot = volume * strength
+    n_syn_per = N_tot / N_act
+    return n_syn_per / bouton_density
+
+
+def compute_weight(
+    atlas,
+    cluster,
+):
+    """Compute the weight of the given cluster as a function of its properties."""
+    weight = 0
+    return weight
+
+
+def compute_common_section_properties(
+    first_axon_pt, section, cluster, N_pot, volume, fraction, strength, bouton_density
+):
+    """Compute basic properties of the given section."""
+    path_distance = sum(section_length(i.points) for i in section.iter(IterType.upstream))
+    radial_distance = np.linalg.norm(first_axon_pt - section.points[-1])
+    path_length = sum(section_length(i.points) for i in section.iter())
+
+    if all(i is not None for i in [N_pot, volume, fraction, strength, bouton_density]):
+        mean_tuft_length = compute_mean_tuft_length(
+            volume,
+            N_pot,
+            fraction,
+            strength,
+            bouton_density,
+        )
+        cluster_weight = mean_tuft_length
+    else:
+        cluster_weight = 1
+
+    return path_distance, radial_distance, path_length, cluster_weight
+
+
 def reduce_clusters(
+    atlas: AtlasHelper,
+    wmr: WhiteMatterRecipe,
     group,
     group_name,
     morph,
@@ -147,6 +197,8 @@ def reduce_clusters(
     morph_paths,
     cluster_props,
     shortest_paths,
+    projection_pop_numbers,
+    bouton_density,
     export_tuft_morph_dir: FileType | None = None,
     config_name: str | None = None,
 ):
@@ -155,6 +207,13 @@ def reduce_clusters(
         config_name = ""
     kept_path = set()
     group = group.dropna(subset="cluster_id").astype({"cluster_id": int})
+
+    root_point = axon.points[0, COLS.XYZ]
+    atlas_region_id = atlas.brain_regions.lookup(root_point)
+    source_projections = projection_pop_numbers.loc[
+        projection_pop_numbers["atlas_region_id"] == atlas_region_id
+    ]
+
     for cluster_id, cluster in group.groupby("cluster_id"):
         # Skip the root cluster
         if (cluster.cluster_id == 0).any():
@@ -220,11 +279,41 @@ def reduce_clusters(
             )
 
         # Add tuft category data
-        path_distance = sum(
-            section_length(i.points) for i in common_section.iter(IterType.upstream)
+        # TODO: Fix the WMR stuff
+        try:
+            target_atlas_region_id = atlas.brain_regions.lookup(cluster_center)
+        except:  # noqa: E722
+            target_atlas_region_id = 0
+        target_projection_number = source_projections.loc[
+            source_projections["target_atlas_id"] == target_atlas_region_id
+        ]
+        if len(target_projection_number) > 0:
+            target_tmp = target_projection_number.sample()
+            target_projection_number, volume = target_tmp[
+                ["pop_neuron_numbers", "atlas_region_volume_target"]
+            ].to_numpy()[0]
+            target_tmp
+        else:
+            target_projection_number = None
+            fraction = None
+            strength = None
+            volume = None
+
+        (
+            path_distance,
+            radial_distance,
+            path_length,
+            cluster_weight,
+        ) = compute_common_section_properties(
+            root_point,
+            common_section,
+            cluster,
+            target_projection_number,
+            volume,
+            fraction,
+            strength,
+            bouton_density,
         )
-        radial_distance = np.linalg.norm(axon.points[0, COLS.XYZ] - common_section.points[-1])
-        path_length = sum(section_length(i.points) for i in common_section.iter())
 
         cluster_props.append(
             (
@@ -240,6 +329,7 @@ def reduce_clusters(
                 path_length,
                 len(cluster),
                 tuft_orientation.tolist(),
+                cluster_weight,
                 np.array(tuft_barcode).tolist(),
             ),
         )

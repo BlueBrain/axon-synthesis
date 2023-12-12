@@ -2,7 +2,6 @@
 import logging
 
 from axon_synthesis.atlas import AtlasConfig
-from axon_synthesis.input_creation import pop_neuron_numbers
 from axon_synthesis.input_creation.clustering import cluster_morphologies
 from axon_synthesis.inputs import Inputs
 from axon_synthesis.typing import FileType
@@ -16,6 +15,7 @@ def create_inputs(
     wmr_config: WmrConfig,
     atlas_config: AtlasConfig,
     neuron_density,
+    bouton_density,
     clustering_parameters,
     output_dir: FileType,
     *,
@@ -23,7 +23,7 @@ def create_inputs(
     debug=False,
 ):
     """Create all inputs required to synthesize long-range axons."""
-    inputs = Inputs(output_dir, morphology_path, create=True)
+    inputs = Inputs(output_dir, morphology_path, neuron_density=neuron_density, create=True)
     inputs.create_root()
 
     # Load the Atlas
@@ -38,13 +38,6 @@ def create_inputs(
     # Compute the population and projection probabilities
     inputs.compute_probabilities()
 
-    # Compute the expected number of neurons in each brain region
-    pop_neuron_numbers.compute(
-        inputs.wmr.populations,
-        neuron_density,
-        inputs.POPULATION_NEURON_NUMBERS_FILENAME,
-    )
-
     # Define the tufts and main trunks in input morphologies and compute the properties of the long
     # range trunk and the tufts of each morphology
     inputs.clustering_data = cluster_morphologies(
@@ -52,6 +45,8 @@ def create_inputs(
         inputs.wmr,
         inputs.MORPHOLOGY_DIRNAME,
         clustering_parameters,
+        inputs.pop_neuron_numbers,
+        bouton_density,
         inputs.CLUSTERING_DIRNAME,
         debug=debug,
         nb_workers=nb_workers,
