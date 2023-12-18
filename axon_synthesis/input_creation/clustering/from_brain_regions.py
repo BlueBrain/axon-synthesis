@@ -106,7 +106,7 @@ def cut_edges(edges, nodes, brain_regions, nb_workers, group_name):
     logger.debug("%s: Computed brain regions for %s segments", group_name, len(edges))
 
     nb_intersected_regions = all_brain_regions["brain_regions"].apply(len)
-    cut_edge_mask = nb_intersected_regions >= 2
+    cut_edge_mask = nb_intersected_regions >= 2  # noqa: PLR2004
     one_region_mask = nb_intersected_regions == 1
 
     # Set brain regions to not cut edges
@@ -280,7 +280,7 @@ def _find_wm_first_nested_region(region_id, wm_regions, region_map) -> int:
     return region_id
 
 
-def compute_clusters(
+def compute_clusters(  # noqa: PLR0913
     atlas,
     wmr,
     config,
@@ -403,15 +403,15 @@ def compute_clusters(
     # cluster_ids = {}
     for components in region_components.values():  # pylint: disable=unused-variable
         for component in components:
-            group_nodes.loc[group_nodes["id"].isin(list(component)), "cluster_id"] = cluster_id
-            cluster_id = group_nodes["cluster_id"].max() + 1
+            group_nodes.loc[group_nodes["id"].isin(list(component)), "tuft_id"] = cluster_id
+            cluster_id = group_nodes["tuft_id"].max() + 1
 
-    group["cluster_id"] = group_nodes["cluster_id"]
+    group["tuft_id"] = group_nodes["tuft_id"]
 
     new_terminal_points = []
     # new_terminal_id = group["terminal_id"].max() + 1
     new_terminal_id = 0
-    for cluster_id, i in group.groupby("cluster_id"):
+    for cluster_id, i in group.groupby("tuft_id"):
         new_terminal_points.append(
             [
                 group_name,
@@ -437,12 +437,12 @@ def compute_clusters(
         logger.debug("Export tuft brain regions to %s", tuft_brain_region_path)
         group_nodes["region_acronym"] = group_nodes["wm_brain_region"].map(region_acronyms)
         # group_nodes["tuft_morph_path"] = group_nodes.apply(
-        #     lambda row: task.tuft_morph_path(group_name, axon_id, row["cluster_id"]), axis=1
+        #     lambda row: task.tuft_morph_path(group_name, axon_id, row["tuft_id"]), axis=1
         # )
-        # group_nodes.loc[group_nodes["cluster_id"] == 0, "tuft_morph_path"] = None
+        # group_nodes.loc[group_nodes["tuft_id"] == 0, "tuft_morph_path"] = None
         group_nodes.to_csv(tuft_brain_region_path)
 
-    return new_terminal_points, group["cluster_id"]
+    return new_terminal_points, group["tuft_id"]
 
 
 def plot(region_component_subgraphs, region_acronyms, filepath):

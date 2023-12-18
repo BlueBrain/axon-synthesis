@@ -50,7 +50,7 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kw
 
     # The root can not be part of a cluster so it is given a specific cluster ID
     cluster_ids.loc[-1] = cluster_ids.max() + 1
-    group.loc[group["terminal_id"] == 0, "cluster_id"] = cluster_ids.loc[-1]
+    group.loc[group["terminal_id"] == 0, "tuft_id"] = cluster_ids.loc[-1]
 
     # Check that the paths between each pair do not exceed the given distance
     for a, b in terminal_pairs:
@@ -99,12 +99,12 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kw
     )
 
     # Reset cluster IDs to consecutive values
-    nodes["cluster_id"] = cluster_ids.map(
+    nodes["tuft_id"] = cluster_ids.map(
         {v: k for k, v in enumerate(sorted(cluster_ids.unique()), start=-1)},
     )
 
     # Groupy points by cluster IDs
-    clusters = nodes.loc[nodes["is_terminal"]].groupby("cluster_id")
+    clusters = nodes.loc[nodes["is_terminal"]].groupby("tuft_id")
     sorted_clusters = sorted(clusters, key=lambda x: x[1].size, reverse=True)
 
     new_terminal_id = 1
@@ -164,8 +164,8 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kw
             if not is_root:
                 group.loc[
                     group["section_id"].isin(terminals_with_current_ancestor.index),
-                    "cluster_id",
+                    "tuft_id",
                 ] = new_terminal_id
                 new_terminal_id += 1
 
-    return new_terminal_points, group["cluster_id"]
+    return new_terminal_points, group["tuft_id"]

@@ -31,11 +31,11 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
     cluster_ids, cluster_sizes = np.unique(labels, return_counts=True)
     big_clusters = cluster_ids[cluster_sizes >= config["min_size"]]
     group_with_label = group.reset_index()
-    group_with_label["cluster_id"] = labels
+    group_with_label["tuft_id"] = labels
     group_with_label["distance"] = -1.0
     group_with_label["config_name"] = config_name
-    clusters = group_with_label.loc[group_with_label["cluster_id"].isin(big_clusters)].groupby(
-        "cluster_id",
+    clusters = group_with_label.loc[group_with_label["tuft_id"].isin(big_clusters)].groupby(
+        "tuft_id",
     )
 
     # Check clusters
@@ -69,11 +69,11 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
     ) in enumerate(real_clusters):
         # Let at least 4 points in the graph
         points_not_clustered = group_with_label.loc[
-            ~group_with_label["cluster_id"].isin([i[0] for i in real_clusters[: cluster_index + 1]])
+            ~group_with_label["tuft_id"].isin([i[0] for i in real_clusters[: cluster_index + 1]])
         ]
-        if len(points_not_clustered) + cluster_index + 1 <= 3:
+        if len(points_not_clustered) + cluster_index + 1 <= 3:  # noqa: PLR2004
             points_in_current_cluster = group_with_label.loc[
-                group_with_label["cluster_id"] == real_cluster_id
+                group_with_label["tuft_id"] == real_cluster_id
             ].sort_values("distance", ascending=False)
             removed_indices = points_in_current_cluster.index[
                 : max(0, 3 - len(points_not_clustered) - cluster_index)
@@ -89,8 +89,8 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
             ]
 
             # Mark the points that will not be merged to keep at least 4 points in the graph
-            group_with_label.loc[removed_indices, "cluster_id"] = (
-                group_with_label["cluster_id"].max() + np.arange(len(removed_indices)) + 1
+            group_with_label.loc[removed_indices, "tuft_id"] = (
+                group_with_label["tuft_id"].max() + np.arange(len(removed_indices)) + 1
             )
         else:
             actual_cluster = real_cluster
@@ -112,18 +112,19 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
         added_clusters.append(real_cluster_id)
 
     # Add non merged points
-    not_added_mask = ~group_with_label["cluster_id"].isin(added_clusters)
-    group_with_label.loc[not_added_mask, "cluster_id"] = sorted(
+    not_added_mask = ~group_with_label["tuft_id"].isin(added_clusters)
+    group_with_label.loc[not_added_mask, "tuft_id"] = sorted(
         set(range(len(added_clusters) + len(group_with_label.loc[not_added_mask]))).difference(
             added_clusters,
         ),
     )
     group_with_label.loc[not_added_mask, "terminal_id"] = group_with_label.loc[
         not_added_mask,
-        "cluster_id",
+        "tuft_id",
     ]
+    group_with_label["size"] = 1
     new_terminal_points.extend(
         group_with_label.loc[not_added_mask, output_cols].to_numpy().tolist()
     )
 
-    return new_terminal_points, group_with_label.set_index("index")["cluster_id"]
+    return new_terminal_points, group_with_label.set_index("index")["tuft_id"]

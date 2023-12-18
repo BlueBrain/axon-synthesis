@@ -157,14 +157,24 @@ class Clustering(BasePathBuilder):
     }
     PARAM_SCHEMA_VALIDATOR = DefaultValidatingValidator(PARAM_SCHEMA)
 
-    def __init__(self, path: FileType, parameters: dict):
+    def __init__(self, path: FileType, parameters: dict, **kwargs):
         """The Clustering constructor.
 
         Args:
             path: The base path used to build the relative paths.
             parameters: The parameters used for clustering.
+            **kwargs: The keyword arguments are passed to the base constructor.
         """
-        super().__init__(path)
+        super().__init__(path, **kwargs)
+
+        if self.path.exists():
+            LOGGER.warning(
+                "The '%s' folder already exists, the new morpholgies will be added to it",
+                self.path,
+            )
+
+        if kwargs.get("create", False):
+            self.create_tree()
 
         # Process parameters
         parameters = deepcopy(parameters)
@@ -173,10 +183,10 @@ class Clustering(BasePathBuilder):
 
         # Clustering results
         self.clustered_terminals = None
-        self.cluster_props_df = None
         self.clustered_morph_paths = None
         self.trunk_props_df = None
         self.trunk_morph_paths = None
+        self.tuft_props_df = None
         self.tuft_morph_paths = None
 
     @property
@@ -193,8 +203,8 @@ class Clustering(BasePathBuilder):
 
     def plot_cluster_properties(self):
         """Plot cluster properties."""
-        if self.cluster_props_df is not None:
-            plot_cluster_properties(self.cluster_props_df, self.TUFT_PROPS_PLOT_FILENAME)
+        if self.tuft_props_df is not None:
+            plot_cluster_properties(self.tuft_props_df, self.TUFT_PROPS_PLOT_FILENAME)
             LOGGER.info(
                 "Exported figure of cluster properties to %s",
                 self.TUFT_PROPS_PLOT_FILENAME,
@@ -212,7 +222,7 @@ class Clustering(BasePathBuilder):
 
         # Export tuft properties
         with self.TUFT_PROPS_FILENAME.open(mode="w") as f:
-            json.dump(self.cluster_props_df.to_dict("records"), f, indent=4)
+            json.dump(self.tuft_props_df.to_dict("records"), f, indent=4)
         LOGGER.info("Exported tuft properties to %s", self.TUFT_PROPS_FILENAME)
 
         # Export the terminals
@@ -271,7 +281,7 @@ class Clustering(BasePathBuilder):
             if obj.exists(file_selection=FILE_SELECTION.REQUIRED_ONLY):
                 obj.trunk_props_df = pd.read_csv(obj.TRUNK_PROPS_FILENAME)
                 with obj.TUFT_PROPS_FILENAME.open() as f:
-                    obj.trunk_props_df = pd.read_json(f)
+                    obj.tuft_props_df = pd.read_json(f)
                 obj.clustered_terminals = pd.read_csv(obj.CLUSTERED_TERMINALS_FILENAME)
                 obj.clustered_morph_paths = pd.read_csv(obj.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME)
                 obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
@@ -299,19 +309,11 @@ def cluster_morphologies(
     nb_workers: int = 1,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Compute the cluster of all morphologies of the given directory."""
-    clustering = Clustering(output_path, clustering_parameters)
+    clustering = Clustering(output_path, clustering_parameters, create=True)
     LOGGER.info(
         "Clustering morphologies using the following configuration: %s",
         clustering.parameters,
     )
-
-    if clustering.path.exists():
-        LOGGER.warning(
-            "The '%s' folder already exists, the new morpholgies will be added to it",
-            clustering.path,
-        )
-
-    clustering.create_tree()
 
     projection_pop_numbers = wmr.projection_targets.merge(
         pop_neuron_numbers[
@@ -325,7 +327,7 @@ def cluster_morphologies(
 
     terminals = extract_terminals.process_morphologies(morph_dir)
     terminals["config"] = None
-    terminals["cluster_id"] = -1
+    terminals["tuft_id"] = -1
 
     all_terminal_points = []
     cluster_props = []
@@ -336,7 +338,7 @@ def cluster_morphologies(
         "config_name",
         "axon_id",
         "terminal_id",
-        "cluster_size",
+        "size",
         "x",
         "y",
         "z",
@@ -400,7 +402,7 @@ def cluster_morphologies(
                     "nb_workers": nb_workers,
                     "debug": debug,
                 }
-                new_terminal_points, cluster_ids = clustering_funcs[config["method"]](
+                new_terminal_points, tuft_ids = clustering_funcs[config["method"]](
                     **clustering_kwargs
                 )
 
@@ -408,8 +410,8 @@ def cluster_morphologies(
                 all_terminal_points.extend(new_terminal_points)
 
                 # Propagate cluster IDs
-                axon_group["cluster_id"] = cluster_ids
-                # terminals.loc[axon_group.index, "cluster_id"] = axon_group["cluster_id"]
+                axon_group["tuft_id"] = tuft_ids
+                # terminals.loc[axon_group.index, "tuft_id"] = axon_group["tuft_id"]
 
                 LOGGER.info(
                     "%s (axon %s): %s points after merge",
@@ -424,7 +426,7 @@ def cluster_morphologies(
                 sections_to_add = defaultdict(list)
                 kept_path = reduce_clusters(
                     atlas,
-                    wmr,
+                    # wmr,
                     axon_group,
                     group_name,
                     morph,
@@ -517,23 +519,24 @@ def cluster_morphologies(
     ).sort_values(["morph_file", "config_name", "axon_id"])
 
     # Export tuft properties
-    clustering.cluster_props_df = pd.DataFrame(
+    clustering.tuft_props_df = pd.DataFrame(
         cluster_props,
         columns=[
             "morph_file",
             "config_name",
             "axon_id",
-            "cluster_id",
-            "cluster_center_coords",
+            "tuft_id",
+            "center_coords",
             "common_ancestor_id",
             "common_ancestor_coords",
             "path_distance",
             "radial_distance",
             "path_length",
-            "cluster_size",
-            "cluster_orientation",
-            "cluster_weight",
-            "cluster_barcode",
+            "size",
+            "orientation",
+            "weight",
+            "population_id",
+            "barcode",
         ],
     ).sort_values(["morph_file", "config_name", "axon_id"])
 
@@ -544,18 +547,18 @@ def cluster_morphologies(
     # Export the terminals
     clustering.clustered_terminals = (
         pd.DataFrame(all_terminal_points, columns=output_cols)
-        .fillna({"cluster_size": 1})
-        .astype({"cluster_size": int})
+        .fillna({"size": 1})
+        .astype({"size": int})
         .sort_values(["morph_file", "config_name", "axon_id", "terminal_id"])
     )
     # TODO: Check if some terminals are missing here and if can remove the merge below
     # clustering.clustered_terminals = pd.merge(
     #     clustering.clustered_terminals,
     #     terminals.groupby(
-    #         ["morph_file", "axon_id", "cluster_id", "config"]
-    #     ).size().rename("cluster_size"),
+    #         ["morph_file", "axon_id", "tuft_id", "config"]
+    #     ).size().rename("size"),
     #     left_on=["morph_file", "axon_id", "terminal_id"],
-    #     right_on=["morph_file", "axon_id", "cluster_id"],
+    #     right_on=["morph_file", "axon_id", "tuft_id"],
     #     how="left",
     # )
 
@@ -573,8 +576,8 @@ def cluster_morphologies(
     if debug:
         clustering.tuft_morph_paths = pd.DataFrame(
             morph_paths["tufts"],
-            columns=["morph_file", "config_name", "axon_id", "cluster_id", "morph_path"],
-        ).sort_values(["morph_file", "config_name", "axon_id", "cluster_id"])
+            columns=["morph_file", "config_name", "axon_id", "tuft_id", "morph_path"],
+        ).sort_values(["morph_file", "config_name", "axon_id", "tuft_id"])
 
     # TODO: Should the 'use_ancestors' mode be moved here from the graph creation step?
 

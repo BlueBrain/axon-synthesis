@@ -45,22 +45,22 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
         [
             [
                 i["x"],
-                cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "x"].iloc[0],
+                cluster_df.loc[cluster_df["terminal_id"] == i["tuft_id"], "x"].iloc[0],
                 None,
             ],
             [
                 i["y"],
-                cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "y"].iloc[0],
+                cluster_df.loc[cluster_df["terminal_id"] == i["tuft_id"], "y"].iloc[0],
                 None,
             ],
             [
                 i["z"],
-                cluster_df.loc[cluster_df["terminal_id"] == i["cluster_id"], "z"].iloc[0],
+                cluster_df.loc[cluster_df["terminal_id"] == i["tuft_id"], "z"].iloc[0],
                 None,
             ],
         ]
         for i in group.to_dict("records")
-        if i["cluster_id"] >= 0
+        if i["tuft_id"] >= 0
     ]
     edge_trace = go.Scatter3d(
         x=[j for i in cluster_lines for j in i[0]],
@@ -127,7 +127,7 @@ def plot_cluster_properties(cluster_props_df, output_path):
     with PdfPages(str(output_path)) as pdf:
         ax = cluster_props_df.plot.scatter(
             x="path_distance",
-            y="cluster_size",
+            y="size",
             title="Cluster size vs path distance",
             legend=True,
         )
@@ -137,7 +137,7 @@ def plot_cluster_properties(cluster_props_df, output_path):
 
         ax = cluster_props_df.plot.scatter(
             x="radial_distance",
-            y="cluster_size",
+            y="size",
             title="Cluster size vs radial distance",
             legend=True,
         )
@@ -149,7 +149,7 @@ def plot_cluster_properties(cluster_props_df, output_path):
             plt.scatter(
                 x=cluster_props_df["radial_distance"],
                 y=(
-                    cluster_props_df["cluster_center_coords"].apply(np.array)
+                    cluster_props_df["center_coords"].apply(np.array)
                     - cluster_props_df["common_ancestor_coords"]
                 ).apply(np.linalg.norm),
             )
@@ -161,7 +161,7 @@ def plot_cluster_properties(cluster_props_df, output_path):
         plt.close()
 
         ax = cluster_props_df.plot.scatter(
-            x="cluster_size",
+            x="size",
             y="path_length",
             title="Path length vs cluster size",
             legend=True,

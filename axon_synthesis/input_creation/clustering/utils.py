@@ -7,6 +7,7 @@ from pathlib import Path
 import networkx as nx
 import numpy as np
 from jsonschema import Draft7Validator
+from jsonschema import ValidationError
 from jsonschema import validators
 from jsonschema.protocols import Validator
 from morphio import IterType
@@ -22,7 +23,6 @@ from tmd.Topology.persistent_properties import PersistentAngles
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.typing import FileType
-from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +132,9 @@ def resize_root_section(tuft_morph, tuft_orientation, root_section_idx=0):
     new_root_section.diameters = np.repeat(new_root_section.diameters[1], 2)
 
 
-def tuft_morph_path(root_path, group_name, axon_id, cluster_id):
+def tuft_morph_path(root_path, group_name, axon_id, tuft_id):
     """Create a tuft file path according to the group name, axon ID and cluster ID."""
-    return root_path / f"{Path(group_name).with_suffix('').name}_{axon_id}_{cluster_id}.asc"
+    return root_path / f"{Path(group_name).with_suffix('').name}_{axon_id}_{tuft_id}.asc"
 
 
 def compute_mean_tuft_length(
@@ -151,17 +151,8 @@ def compute_mean_tuft_length(
     return n_syn_per / bouton_density
 
 
-def compute_weight(
-    atlas,
-    cluster,
-):
-    """Compute the weight of the given cluster as a function of its properties."""
-    weight = 0
-    return weight
-
-
 def compute_common_section_properties(
-    first_axon_pt, section, cluster, N_pot, volume, fraction, strength, bouton_density
+    first_axon_pt, section, N_pot, volume, fraction, strength, bouton_density
 ):
     """Compute basic properties of the given section."""
     path_distance = sum(section_length(i.points) for i in section.iter(IterType.upstream))
@@ -185,7 +176,7 @@ def compute_common_section_properties(
 
 def reduce_clusters(
     atlas: AtlasHelper,
-    wmr: WhiteMatterRecipe,
+    # wmr: WhiteMatterRecipe,
     group,
     group_name,
     morph,
@@ -206,7 +197,7 @@ def reduce_clusters(
     if not config_name:
         config_name = ""
     kept_path = set()
-    group = group.dropna(subset="cluster_id").astype({"cluster_id": int})
+    group = group.dropna(subset="tuft_id").astype({"tuft_id": int})
 
     root_point = axon.points[0, COLS.XYZ]
     atlas_region_id = atlas.brain_regions.lookup(root_point)
@@ -214,9 +205,9 @@ def reduce_clusters(
         projection_pop_numbers["atlas_region_id"] == atlas_region_id
     ]
 
-    for cluster_id, cluster in group.groupby("cluster_id"):
+    for tuft_id, cluster in group.groupby("tuft_id"):
         # Skip the root cluster
-        if (cluster.cluster_id == 0).any():
+        if (cluster.tuft_id == 0).any():
             continue
 
         # Compute the common ancestor of the nodes
@@ -225,7 +216,9 @@ def reduce_clusters(
             cluster["section_id"].tolist(),
             shortest_paths=shortest_paths,
         )
-        common_ancestor_shift = -2 if len(cluster) == 1 and len(cluster_common_path) > 2 else -1
+        common_ancestor_shift = (
+            -2 if len(cluster) == 1 and len(cluster_common_path) > 2 else -1  # noqa: PLR2004
+        )
         common_ancestor = cluster_common_path[common_ancestor_shift]
         common_section = morph.section(common_ancestor)
 
@@ -246,7 +239,7 @@ def reduce_clusters(
 
         # Compute cluster center
         cluster_center = cluster_df.loc[
-            cluster_df["terminal_id"] == cluster_id,
+            cluster_df["terminal_id"] == tuft_id,
             ["x", "y", "z"],
         ].to_numpy()[0]
 
@@ -267,13 +260,13 @@ def reduce_clusters(
                     group_name,
                     config_name,
                     axon_id,
-                    cluster_id,
+                    tuft_id,
                     export_morph(
                         export_tuft_morph_dir,
                         group_name,
                         tuft_morph,
                         "tuft",
-                        f"_{config_name}_{axon_id}_{cluster_id}",
+                        f"_{config_name}_{axon_id}_{tuft_id}",
                     ),
                 ),
             )
@@ -289,12 +282,12 @@ def reduce_clusters(
         ]
         if len(target_projection_number) > 0:
             target_tmp = target_projection_number.sample()
-            target_projection_number, volume = target_tmp[
-                ["pop_neuron_numbers", "atlas_region_volume_target"]
+            target_projection_number, volume, target_projection_name = target_tmp[
+                ["pop_neuron_numbers", "atlas_region_volume_target", "target_projection_name"]
             ].to_numpy()[0]
-            target_tmp
         else:
             target_projection_number = None
+            target_projection_name = "default"
             fraction = None
             strength = None
             volume = None
@@ -307,7 +300,6 @@ def reduce_clusters(
         ) = compute_common_section_properties(
             root_point,
             common_section,
-            cluster,
             target_projection_number,
             volume,
             fraction,
@@ -320,7 +312,7 @@ def reduce_clusters(
                 group_name,
                 config_name,
                 axon_id,
-                cluster_id,
+                tuft_id,
                 cluster_center.tolist(),
                 common_ancestor,
                 tuft_ancestor.points[-1].tolist(),
@@ -330,6 +322,7 @@ def reduce_clusters(
                 len(cluster),
                 tuft_orientation.tolist(),
                 cluster_weight,
+                target_projection_name,
                 np.array(tuft_barcode).tolist(),
             ),
         )
@@ -344,7 +337,7 @@ def reduce_clusters(
                 [
                     common_section.points[-1],
                     cluster_df.loc[
-                        (cluster_df["terminal_id"] == cluster_id),
+                        (cluster_df["terminal_id"] == tuft_id),
                         ["x", "y", "z"],
                     ].to_numpy()[0],
                 ],
@@ -418,7 +411,9 @@ def extend_validator_with_default(validator_class) -> Validator:
     _no_default = object()
     validate_properties = validator_class.VALIDATORS["properties"]
 
-    def set_defaults_and_validate(validator, properties, instance, schema):
+    def set_defaults_and_validate(
+        validator, properties, instance, schema
+    ) -> ValidationError | None:
         drop_if_empty = set()
         new_instance = deepcopy(instance)
         for prop, subschema in properties.items():
