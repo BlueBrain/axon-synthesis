@@ -134,12 +134,18 @@ def get_target_points(
         + [0.5, 0.5, 0.5]
     ) + atlas.get_random_voxel_shifts(len(target_points), rng=rng)
 
+    # Build terminal IDs inside groups
+    counter = target_points[["morphology", "axon_id"]].copy(deep=False)
+    counter["counter"] = 1
+    target_points["terminal_id"] = counter.groupby(["morphology", "axon_id"])["counter"].cumsum()
+
     # Remove useless columns
     target_points = target_points[
         [
             "morphology",
             "morph_file",
             "axon_id",
+            "terminal_id",
             "x",
             "y",
             "z",

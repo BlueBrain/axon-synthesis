@@ -171,7 +171,11 @@ def drop_outside_points(all_points_df, ref_pts=None, bbox=None):
 
 
 def create_edges(all_points, from_coord_cols, to_coord_cols):
-    """Create edges from the Delaunay triangulation of the given points."""
+    """Create undirected edges from the Delaunay triangulation of the given points.
+
+    .. note::
+        The source-target order has no meaning.
+    """
     if len(all_points) < 5:  # noqa: PLR2004
         msg = ""
         raise RuntimeError(msg)

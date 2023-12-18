@@ -156,6 +156,13 @@ def one_graph(
     # Mark the source and target points as terminals and the others as intermediates
     nodes_df["is_terminal"] = [True] * (len(pts) + 1) + [False] * (len(all_pts) - len(pts) - 1)
 
+    # Associate the terminal IDs to the nodes
+    nodes_df["terminal_id"] = (
+        [-1]
+        + target_points["terminal_id"].to_numpy().tolist()
+        + [-1] * (len(all_pts) - len(pts) - 1)
+    )
+
     # Remove close points
     nodes_df = drop_close_points(nodes_df, config.duplicate_precision)
 

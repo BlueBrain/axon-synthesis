@@ -13,7 +13,7 @@ morphio
 morphology-workflows>=0.2.0
 networkx
 NeuroM>3.2
-NeuroTS>=3.2
+NeuroTS>=3.5
 numpy
 pandas
 pcst_fast

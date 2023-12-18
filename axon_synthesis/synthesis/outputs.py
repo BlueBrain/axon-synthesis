@@ -15,14 +15,16 @@ class Outputs(BasePathBuilder):
         "STEINER_TREE_SOLUTIONS": "SteinerTreeSolutions",
         "TARGET_POINTS": "target_points.h5",
         "TUFT_MORPHOLOGIES": "TuftMorphologies",
+        "TUFT_FIGURES": "TuftFigures",
     }
 
     _optional_keys: ClassVar[set[str]] = {
         "GRAPH_CREATION",
         "MAIN_TRUNK_MORPHOLOGIES",
         "STEINER_TREE_SOLUTIONS",
-        "TUFT_MORPHOLOGIES",
         "TARGET_POINTS",
+        "TUFT_MORPHOLOGIES",
+        "TUFT_FIGURES",
     }
 
     def create_dirs(self, *, file_selection: FILE_SELECTION = FILE_SELECTION.REQUIRED_ONLY):

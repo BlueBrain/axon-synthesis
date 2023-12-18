@@ -132,13 +132,13 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=Fal
 
         if section.parent is None:
             # Add first point of the root section
-            graph_nodes.append((node_id, *section.points[0, :3], True, -1, 0))
+            graph_nodes.append((node_id, *section.points[0, :4], True, -1, 0))
             last_pt = last_pts[None]
         else:
             last_pt = last_pts[section.parent.id]
 
         # Add segment points
-        pts = section.points[1:, :3] if keep_section_segments else section.points[-1:, :3]
+        pts = section.points[1:, :4] if keep_section_segments else section.points[-1:, :4]
         len_pts = len(pts) - 1
 
         for num, i in enumerate(pts.tolist()):
@@ -151,7 +151,7 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=Fal
 
     nodes = pd.DataFrame(
         graph_nodes,
-        columns=["id", "x", "y", "z", "is_terminal", "section_id", "sub_segment_num"],
+        columns=["id", "x", "y", "z", "radius", "is_terminal", "section_id", "sub_segment_num"],
     )
     nodes.set_index("id", inplace=True)
 
@@ -161,7 +161,7 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=Fal
     ).reset_index(drop=True)
 
     graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
-    nx.set_node_attributes(graph, nodes[["x", "y", "z", "is_terminal"]].to_dict("index"))
+    nx.set_node_attributes(graph, nodes[["x", "y", "z", "radius", "is_terminal"]].to_dict("index"))
 
     return nodes, edges, graph
 

@@ -11,6 +11,7 @@ from voxcell.cell_collection import CellCollection
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.inputs import Inputs
+from axon_synthesis.synthesis.add_tufts import build_and_graft_tufts
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.synthesis.main_trunk.create_graph import one_graph
 from axon_synthesis.synthesis.main_trunk.steiner_morphology import build_and_graft_trunk
@@ -19,7 +20,7 @@ from axon_synthesis.synthesis.outputs import Outputs
 from axon_synthesis.synthesis.source_points import SOURCE_COORDS_COLS
 from axon_synthesis.synthesis.source_points import set_source_points
 from axon_synthesis.synthesis.target_points import get_target_points
-from axon_synthesis.synthesis.tuft_properties import create as create_tuft_properties
+from axon_synthesis.synthesis.tuft_properties import pick_barcodes
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import MorphNameAdapter
@@ -138,10 +139,10 @@ def synthesize_axons(  # noqa: PLR0913
 
             file_name = f"{morph_name}_{axon_id}.h5"
 
-            # Create the graph for each axon
+            # Create the graph for the current axon
             nodes, edges = one_graph(
                 inputs.atlas,
-                morph_terminals[SOURCE_COORDS_COLS].to_numpy()[0],
+                axon_terminals[SOURCE_COORDS_COLS].to_numpy()[0],
                 axon_terminals,
                 create_graph_config,
                 favored_region_tree=create_graph_config.favored_region_tree,
@@ -150,7 +151,7 @@ def synthesize_axons(  # noqa: PLR0913
                 logger=custom_logger,
             )
 
-            # Build the Steiner Tree for each axon
+            # Build the Steiner Tree for the current axon
             solution_nodes, solution_edges = compute_solution(
                 nodes,
                 edges,
@@ -161,17 +162,30 @@ def synthesize_axons(  # noqa: PLR0913
             # Create the trunk morphology
             build_and_graft_trunk(
                 morph,
-                # source_coords,
                 axon_terminals["grafting_section_id"].to_numpy()[0],
-                solution_nodes,
                 solution_edges,
                 output_path=(outputs.MAIN_TRUNK_MORPHOLOGIES / file_name if debug else None),
                 logger=custom_logger,
             )
 
-            # Create the tufts for each axon
-            create_tuft_properties(morph, inputs.atlas, axon_terminals, inputs.cluster_props_df)
+            # Post-process the trunk
+            # TODO: Post-process the trunk
 
-            # Graft the axon to the morph
+            # Choose a barcode for each tuft of the current axon
+            barcodes = pick_barcodes(
+                axon_terminals, solution_edges, inputs.clustering_data.tuft_props_df
+            )
+
+            # Create the tufts for each barcode
+            build_and_graft_tufts(
+                morph,
+                barcodes,
+                inputs.tuft_parameters,
+                inputs.tuft_distributions,
+                rng=rng,
+                output_dir=(outputs.TUFT_MORPHOLOGIES if debug else None),
+                figure_dir=(outputs.TUFT_FIGURES if debug else None),
+                logger=custom_logger,
+            )
 
         morph.write(outputs.MORPHOLOGIES / f"{morph_name}.h5")

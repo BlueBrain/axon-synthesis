@@ -74,4 +74,22 @@ def compute_solution(
         len(in_solution_edges),
     )
 
+    # Add node data to solution edges
+    in_solution_edges = in_solution_edges.merge(
+        in_solution_nodes[["terminal_id", "is_terminal"]].rename(
+            columns={"terminal_id": "source_terminal_id", "is_terminal": "source_is_terminal"}
+        ),
+        left_on="from",
+        right_index=True,
+        how="left",
+    )
+    in_solution_edges = in_solution_edges.merge(
+        in_solution_nodes[["terminal_id", "is_terminal"]].rename(
+            columns={"terminal_id": "target_terminal_id", "is_terminal": "target_is_terminal"}
+        ),
+        left_on="to",
+        right_index=True,
+        how="left",
+    )
+
     return in_solution_nodes, in_solution_edges

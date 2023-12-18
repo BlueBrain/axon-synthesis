@@ -1,5 +1,4 @@
 {
-    "apical_dendrite": {},
     "axon": {
         "branching_method": "bio_oriented",
         "growth_method": "tmd",
@@ -28,11 +27,8 @@
         "targeting": 0.12,
         "tree_type": 2
     },
-    "basal_dendrite": {},
     "diameter_params": {
         "method": "uniform",
-        "basal_dendrite": 1,
-        "apical_dendrite": 1,
         "axon":1
     },
     "grow_types": [

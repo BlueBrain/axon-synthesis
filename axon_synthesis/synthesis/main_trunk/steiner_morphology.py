@@ -27,15 +27,17 @@ def build_and_graft_trunk(
     """Build and graft a trunk to a morphology from a set of nodes and edges."""
     logger = sublogger(logger, __name__)
 
-    # morph_paths = []
-
     # Build the synthesized axon
     active_sections = []
     already_added = []
 
+    edges["section_id"] = -999
+
+    edges_tmp = edges.copy()
+
     if source_section_id == -1:
         # Create a root section to start a new axon
-        roots = edges.loc[edges["from"] == 0]
+        roots = edges_tmp.loc[edges_tmp["from"] == 0]
         if len(roots) > 1:
             # Handle bifurcation at root
             from_pt = roots[FROM_COORDS_COLS].to_numpy()[0]
@@ -44,13 +46,15 @@ def build_and_graft_trunk(
             ).mean(axis=0)
             edges.loc[roots.index][FROM_COORDS_COLS] = [to_pt] * len(roots)
             target_idx = 0
+            roots_is_terminal = False
         else:
             from_pt = roots[FROM_COORDS_COLS].to_numpy()[0]
             to_pt = roots[TO_COORDS_COLS].to_numpy()[0]
             target_idx = roots["to"].to_numpy()[0]
+            roots_is_terminal = bool(roots["target_is_terminal"].to_numpy()[0])
 
             # Remove the root edge
-            edges = edges.drop(roots.index)
+            edges_tmp = edges_tmp.drop(roots.index)
 
         # Build the root section
         root_section = morph.append_root_section(
@@ -63,17 +67,23 @@ def build_and_graft_trunk(
             ),
             SectionType.axon,
         )
+        if roots_is_terminal:
+            edges.loc[roots.index, "section_id"] = root_section.id
     else:
         # Attach the axon to the grafting section
         root_section = morph.section(source_section_id)
+        edges.loc[edges["from"] == 0, "section_id"] = root_section.id
         target_idx = 0
 
     active_sections.append((root_section, target_idx))
 
+    # import pdb
+    # pdb.set_trace()
+
     while active_sections:
         current_section, target = active_sections.pop()
         already_added = []
-        for row in edges.loc[edges["from"] == target].iterrows():
+        for row in edges_tmp.loc[edges_tmp["from"] == target].iterrows():
             already_added.append(row[0])
             active_sections.append(
                 (
@@ -90,7 +100,9 @@ def build_and_graft_trunk(
                     row[1]["to"],
                 ),
             )
-        for row in edges.loc[edges["to"] == target].iterrows():
+            if row[1]["target_is_terminal"]:
+                edges.loc[row[1].name, "section_id"] = active_sections[-1][0].id
+        for row in edges_tmp.loc[edges_tmp["to"] == target].iterrows():
             already_added.append(row[0])
             active_sections.append(
                 (
@@ -107,7 +119,9 @@ def build_and_graft_trunk(
                     row[1]["from"],
                 ),
             )
-        edges = edges.drop(already_added)
+            if row[1]["source_is_terminal"]:
+                edges.loc[row[1].name, "section_id"] = active_sections[-1][0].id
+        edges_tmp = edges_tmp.drop(already_added)
 
     # At this point we do not merge consecutive sections that are not separated by a
     # bifurcation, we do it only at the very end of the process. This is to keep section
@@ -117,33 +131,3 @@ def build_and_graft_trunk(
         # Export the morphology
         morph.write(output_path)
         logger.info("Exported to %s", output_path)
-
-    # morph_paths.append((str(group_name), morph_path))
-
-    # Set the path of the new morph in the node DF
-    # nodes.loc[nodes["morphology"] == group_name, "steiner_morph_file"] = morph_path
-
-    # Export the node DF
-    # nodes.to_csv(self.output()["nodes"].path, index=False)
-
-    # Export the morph path DF
-    # pd.DataFrame(morph_paths, columns=["morphology", "steiner_morph_file"]).to_csv(
-    #     self.output()["morphology_paths"].path,
-    #     index=False,
-    # )
-
-    # return morph
-
-
-# def output(self):
-#     return {
-#         "nodes": TaggedOutputLocalTarget(
-#             self.output_dir / "steiner_morph_nodes.csv",
-#             create_parent=True,
-#         ),
-#         "morphologies": TaggedOutputLocalTarget(self.output_dir, create_parent=True),
-#         "morphology_paths": TaggedOutputLocalTarget(
-#             self.output_dir / "steiner_morph_paths.csv",
-#             create_parent=True,
-#         ),
-#     }
