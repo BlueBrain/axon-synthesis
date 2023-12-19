@@ -29,11 +29,19 @@ def build_and_graft_trunk(
 
     # Build the synthesized axon
     active_sections = []
-    already_added = []
 
     edges["section_id"] = -999
 
-    edges_tmp = edges.copy()
+    edges_tmp = edges[
+        [
+            "from",
+            "to",
+            *FROM_COORDS_COLS,
+            *TO_COORDS_COLS,
+            "source_is_terminal",
+            "target_is_terminal",
+        ]
+    ].copy()
 
     if source_section_id == -1:
         # Create a root section to start a new axon
@@ -77,50 +85,47 @@ def build_and_graft_trunk(
 
     active_sections.append((root_section, target_idx))
 
-    # import pdb
-    # pdb.set_trace()
-
     while active_sections:
         current_section, target = active_sections.pop()
         already_added = []
-        for row in edges_tmp.loc[edges_tmp["from"] == target].iterrows():
-            already_added.append(row[0])
+        for label, row in edges_tmp.loc[edges_tmp["from"] == target].iterrows():
+            already_added.append(label)
             active_sections.append(
                 (
                     current_section.append_section(
                         PointLevel(
                             [
-                                row[1][FROM_COORDS_COLS].to_numpy(),
-                                row[1][TO_COORDS_COLS].to_numpy(),
+                                row[FROM_COORDS_COLS].to_numpy(),
+                                row[TO_COORDS_COLS].to_numpy(),
                             ],
                             [0, 0],
                         ),
                         SectionType.axon,
                     ),
-                    row[1]["to"],
+                    row["to"],
                 ),
             )
-            if row[1]["target_is_terminal"]:
-                edges.loc[row[1].name, "section_id"] = active_sections[-1][0].id
-        for row in edges_tmp.loc[edges_tmp["to"] == target].iterrows():
-            already_added.append(row[0])
+            if row["source_is_terminal"] or row["target_is_terminal"]:
+                edges.loc[label, "section_id"] = active_sections[-1][0].id
+        for label, row in edges_tmp.loc[edges_tmp["to"] == target].iterrows():
+            already_added.append(label)
             active_sections.append(
                 (
                     current_section.append_section(
                         PointLevel(
                             [
-                                row[1][TO_COORDS_COLS].to_numpy(),
-                                row[1][FROM_COORDS_COLS].to_numpy(),
+                                row[TO_COORDS_COLS].to_numpy(),
+                                row[FROM_COORDS_COLS].to_numpy(),
                             ],
                             [0, 0],
                         ),
                         SectionType.axon,
                     ),
-                    row[1]["from"],
+                    row["from"],
                 ),
             )
-            if row[1]["source_is_terminal"]:
-                edges.loc[row[1].name, "section_id"] = active_sections[-1][0].id
+            if row["source_is_terminal"] or row["target_is_terminal"]:
+                edges.loc[label, "section_id"] = active_sections[-1][0].id
         edges_tmp = edges_tmp.drop(already_added)
 
     # At this point we do not merge consecutive sections that are not separated by a

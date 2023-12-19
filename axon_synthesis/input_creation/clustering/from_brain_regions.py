@@ -12,6 +12,7 @@ from bluepyparallel import init_parallel_factory
 from plotly.subplots import make_subplots
 from voxcell.math_utils import voxel_intersection
 
+from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import disable_loggers
 from axon_synthesis.utils import neurite_to_graph
 
@@ -419,7 +420,7 @@ def compute_clusters(  # noqa: PLR0913
                 axon_id,
                 new_terminal_id if cluster_id != -1 else 0,
                 len(i),
-                *i[["x", "y", "z"]].mean().tolist(),
+                *i[COORDS_COLS].mean().tolist(),
             ],
         )
         new_terminal_id += 1

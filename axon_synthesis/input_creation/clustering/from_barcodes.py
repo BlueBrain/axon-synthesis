@@ -1,6 +1,7 @@
 """Clustering from barcodes."""
 # import json
 from collections import defaultdict
+from itertools import pairwise
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,8 @@ from tmd.Topology.analysis import histogram_horizontal
 from tmd.Topology.analysis import histogram_stepped
 from tmd.Topology.methods import tree_to_property_barcode
 from tmd.view.plot import barcode as plot_barcode
+
+from axon_synthesis.utils import COORDS_COLS
 
 
 def barcode_mins(barcode, nb_bins=100, threshold=0.1):
@@ -166,12 +169,12 @@ def compute_clusters(
 
             plt.show()
 
-        group["radial_dist"] = np.linalg.norm(group[["x", "y", "z"]] - soma_center, axis=1)
+        group["radial_dist"] = np.linalg.norm(group[COORDS_COLS] - soma_center, axis=1)
         min_positions = np.append(np.insert(min_positions, 0, 0), group["radial_dist"].max() + 1)
         terminal_intervals = np.digitize(group["radial_dist"], min_positions)
         cluster_ids = []
 
-        for num_interval, interval in enumerate(zip(min_positions[:-1], min_positions[1:])):
+        for num_interval, interval in enumerate(pairwise(min_positions)):
             cluster_terminals = group.loc[terminal_intervals == num_interval + 1]
             terminal_parents = defaultdict(list)
             crossing_sections = set()

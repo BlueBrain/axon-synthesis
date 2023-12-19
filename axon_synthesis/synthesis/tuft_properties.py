@@ -69,7 +69,7 @@ def pick_barcodes(
     potential_barcodes = potential_barcodes.rename(
         columns={"target_x": "tuft_x", "target_y": "tuft_y", "target_z": "tuft_z"}
     )
-    return potential_barcodes.sample(weights="prob")[
+    return potential_barcodes.groupby("terminal_id").sample(weights="prob")[
         [
             "morphology",
             "axon_id",

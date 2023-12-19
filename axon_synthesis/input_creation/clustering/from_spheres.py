@@ -6,6 +6,8 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import KDTree
 
+from axon_synthesis.utils import COORDS_COLS
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +18,7 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
     # group = group.loc[group["terminal_id"] != axon.root_node.id]
 
     # Get the pairs of terminals closer to the given distance
-    tree = KDTree(group[["x", "y", "z"]].to_numpy())
+    tree = KDTree(group[COORDS_COLS].to_numpy())
     pairs = tree.query_pairs(config["sphere_radius"])
 
     # Get the connected components
@@ -44,7 +46,7 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
         # Check that the potential cluster is a real one (at least 'min_size'
         # points must be close to the center)
         distances, indices = tree.query(
-            cluster[["x", "y", "z"]].mean().to_numpy(),
+            cluster[COORDS_COLS].mean().to_numpy(),
             k=len(group),
         )
         cluster_mask = np.isin(indices, cluster.index)
@@ -95,7 +97,7 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
         else:
             actual_cluster = real_cluster
 
-        cluster_center = actual_cluster[["x", "y", "z"]].mean().to_numpy()
+        cluster_center = actual_cluster[COORDS_COLS].mean().to_numpy()
 
         # Add the merged point
         first_element = actual_cluster.iloc[0]

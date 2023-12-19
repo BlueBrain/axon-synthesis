@@ -26,6 +26,7 @@ from axon_synthesis.synthesis.target_points import TARGET_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
+from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import check_min_max
 from axon_synthesis.utils import sublogger
 
@@ -151,7 +152,7 @@ def one_graph(
     all_pts = add_voronoi_points(all_pts, config.voronoi_steps)
 
     # Gather points
-    nodes_df = pd.DataFrame(all_pts, columns=["x", "y", "z"])
+    nodes_df = pd.DataFrame(all_pts, columns=COORDS_COLS)
 
     # Mark the source and target points as terminals and the others as intermediates
     nodes_df["is_terminal"] = [True] * (len(pts) + 1) + [False] * (len(all_pts) - len(pts) - 1)
@@ -180,7 +181,7 @@ def one_graph(
     # Create edges using the Delaunay triangulation of the union of the terminals,
     # intermediate and Voronoï points
     edges_df, tri = create_edges(
-        nodes_df[["x", "y", "z"]],
+        nodes_df[COORDS_COLS],
         FROM_COORDS_COLS,
         TO_COORDS_COLS,
     )
@@ -244,7 +245,7 @@ def one_graph(
     #         FROM_COORDS_COLS,
     #         TO_COORDS_COLS,
     #         tri,
-    #         nodes_df[["x", "y", "z"]],
+    #         nodes_df[COORDS_COLS],
     #         pts,
     #     )
 

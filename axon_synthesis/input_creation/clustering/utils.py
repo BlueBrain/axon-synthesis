@@ -23,6 +23,7 @@ from tmd.Topology.persistent_properties import PersistentAngles
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.typing import FileType
+from axon_synthesis.utils import COORDS_COLS
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +241,7 @@ def reduce_clusters(
         # Compute cluster center
         cluster_center = cluster_df.loc[
             cluster_df["terminal_id"] == tuft_id,
-            ["x", "y", "z"],
+            COORDS_COLS,
         ].to_numpy()[0]
 
         # Compute tuft orientation
@@ -338,7 +339,7 @@ def reduce_clusters(
                     common_section.points[-1],
                     cluster_df.loc[
                         (cluster_df["terminal_id"] == tuft_id),
-                        ["x", "y", "z"],
+                        COORDS_COLS,
                     ].to_numpy()[0],
                 ],
                 [0, 0],

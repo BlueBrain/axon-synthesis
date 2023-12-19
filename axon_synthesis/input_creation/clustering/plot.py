@@ -10,6 +10,7 @@ from neurom.core import Morphology
 from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 
+from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import disable_loggers
 
@@ -23,7 +24,7 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
     )
     fig_builder = NeuronBuilder(plotted_morph, "3d", line_width=4, title=f"{plotted_morph.name}")
 
-    x, y, z = group[["x", "y", "z"]].to_numpy().T
+    x, y, z = group[COORDS_COLS].to_numpy().T
     node_trace = go.Scatter3d(
         x=x,
         y=y,
@@ -32,7 +33,7 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
         marker={"size": 3, "color": "black"},
         name="Morphology nodes",
     )
-    x, y, z = cluster_df[["x", "y", "z"]].to_numpy().T
+    x, y, z = cluster_df[COORDS_COLS].to_numpy().T
     cluster_trace = go.Scatter3d(
         x=x,
         y=y,

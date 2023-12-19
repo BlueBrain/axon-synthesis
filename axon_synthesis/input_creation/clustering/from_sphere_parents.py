@@ -7,6 +7,7 @@ from scipy.spatial import KDTree
 from scipy.spatial.distance import pdist
 
 from axon_synthesis.input_creation.clustering.utils import common_path
+from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import neurite_to_graph
 
 
@@ -41,7 +42,7 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kw
     pair_paths = dict(i for i in nx.all_pairs_shortest_path(graph) if i[0] in terminal_ids)
 
     # Get the pairs of terminals closer to the given distance
-    terminal_nodes = nodes.loc[terminal_ids, ["x", "y", "z"]]
+    terminal_nodes = nodes.loc[terminal_ids, COORDS_COLS]
     terminal_tree = KDTree(terminal_nodes.values)
     terminal_pairs = terminal_tree.query_pairs(sphere_radius)
 
@@ -63,7 +64,7 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kw
         except KeyError:
             path = pair_paths[term_b][term_a]
 
-        if pdist(nodes.loc[path, ["x", "y", "z"]].values).max() > max_path_distance:
+        if pdist(nodes.loc[path, COORDS_COLS].values).max() > max_path_distance:
             # Skip if a point on the path exceeds the clustering distance
             continue
 
@@ -158,7 +159,7 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kw
                     axon_id,
                     new_terminal_id if not is_root else 0,
                     len(terminals_with_current_ancestor),
-                    *terminals_with_current_ancestor[["x", "y", "z"]].mean().tolist(),
+                    *terminals_with_current_ancestor[COORDS_COLS].mean().tolist(),
                 ],
             )
             if not is_root:

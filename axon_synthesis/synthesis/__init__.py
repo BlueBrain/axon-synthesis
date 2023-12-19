@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from neurom import NeuriteType
 from neurom.core import Morphology
+from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
 
 from axon_synthesis.atlas import AtlasConfig
@@ -23,6 +24,7 @@ from axon_synthesis.synthesis.target_points import get_target_points
 from axon_synthesis.synthesis.tuft_properties import pick_barcodes
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
+from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import MorphNameAdapter
 
 LOGGER = logging.getLogger(__name__)
@@ -126,6 +128,11 @@ def synthesize_axons(  # noqa: PLR0913
 
     for morph_name, morph_terminals in target_points.groupby("morphology"):
         morph = Morphology(morph_terminals["morph_file"].to_numpy()[0])
+
+        # Translate the morphology to its position in the atlas
+        morph = morph.transform(
+            Translation(morph_terminals[COORDS_COLS].to_numpy()[0] - morph.soma.center)
+        )
 
         if rebuild_existing_axons:
             # Remove existing axons and set grafting mode to soma

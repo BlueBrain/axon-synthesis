@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 from neurom import NeuriteType
 
+COORDS_COLS = ["x", "y", "z"]
+
 
 class MorphNameAdapter(logging.LoggerAdapter):
     """Add the morphology name and optionally the axon ID to the log entries."""
@@ -151,7 +153,7 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=Fal
 
     nodes = pd.DataFrame(
         graph_nodes,
-        columns=["id", "x", "y", "z", "radius", "is_terminal", "section_id", "sub_segment_num"],
+        columns=["id", *COORDS_COLS, "radius", "is_terminal", "section_id", "sub_segment_num"],
     )
     nodes.set_index("id", inplace=True)
 
@@ -161,7 +163,7 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=Fal
     ).reset_index(drop=True)
 
     graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
-    nx.set_node_attributes(graph, nodes[["x", "y", "z", "radius", "is_terminal"]].to_dict("index"))
+    nx.set_node_attributes(graph, nodes[[*COORDS_COLS, "radius", "is_terminal"]].to_dict("index"))
 
     return nodes, edges, graph
 
@@ -180,12 +182,12 @@ def neurite_to_graph_old(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
 
         graph_edges.extend((section.id, child.id) for child in section.children)
 
-    nodes = pd.DataFrame(graph_nodes, columns=["id", "x", "y", "z", "is_terminal"])
+    nodes = pd.DataFrame(graph_nodes, columns=["id", *COORDS_COLS, "is_terminal"])
     nodes.set_index("id", inplace=True)
 
     edges = pd.DataFrame(graph_edges, columns=["source", "target"])
     graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
-    nx.set_node_attributes(graph, nodes[["x", "y", "z", "is_terminal"]].to_dict("index"))
+    nx.set_node_attributes(graph, nodes[[*COORDS_COLS, "is_terminal"]].to_dict("index"))
 
     return nodes, edges, graph
 

@@ -8,6 +8,8 @@ from scipy.spatial import Delaunay
 from scipy.spatial import KDTree
 from scipy.spatial import Voronoi
 
+from axon_synthesis.utils import COORDS_COLS
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,10 +26,10 @@ def use_ancestors(terminals, tuft_properties_path):
     mask = ~tmp["cluster_id"].isna()
     new_terminal_coords = pd.DataFrame(
         tmp.loc[mask, "common_ancestor_coords"].to_list(),
-        columns=["x", "y", "z"],
+        columns=COORDS_COLS,
     )
-    tmp.loc[mask, ["x", "y", "z"]] = new_terminal_coords.to_numpy()
-    terminals[["x", "y", "z"]] = tmp[["x", "y", "z"]]
+    tmp.loc[mask, COORDS_COLS] = new_terminal_coords.to_numpy()
+    terminals[COORDS_COLS] = tmp[COORDS_COLS]
 
 
 def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermediate_number):
@@ -130,7 +132,7 @@ def add_voronoi_points(all_pts, voronoi_steps):
 
 def drop_close_points(all_points_df, duplicate_precision):
     """Drop points that are closer to a given distance."""
-    tree = KDTree(all_points_df[["x", "y", "z"]])
+    tree = KDTree(all_points_df[COORDS_COLS])
     close_pts = tree.query_pairs(duplicate_precision)
 
     if not close_pts:
@@ -153,8 +155,8 @@ def drop_outside_points(all_points_df, ref_pts=None, bbox=None):
     """Remove points outside the bounding box of reference points or brain regions."""
     if bbox is not None:
         outside_pts = all_points_df.loc[
-            ((all_points_df[["x", "y", "z"]] < bbox[0]).any(axis=1))
-            | ((all_points_df[["x", "y", "z"]] > bbox[1]).any(axis=1))
+            ((all_points_df[COORDS_COLS] < bbox[0]).any(axis=1))
+            | ((all_points_df[COORDS_COLS] > bbox[1]).any(axis=1))
         ]
         all_points_df = all_points_df.drop(outside_pts.index)
 
@@ -162,8 +164,8 @@ def drop_outside_points(all_points_df, ref_pts=None, bbox=None):
         min_pts = ref_pts.min(axis=0)
         max_pts = ref_pts.max(axis=0)
         outside_pts = all_points_df.loc[
-            ((all_points_df[["x", "y", "z"]] < min_pts).any(axis=1))
-            | ((all_points_df[["x", "y", "z"]] > max_pts).any(axis=1))
+            ((all_points_df[COORDS_COLS] < min_pts).any(axis=1))
+            | ((all_points_df[COORDS_COLS] > max_pts).any(axis=1))
         ]
         all_points_df = all_points_df.drop(outside_pts.index)
 
@@ -212,33 +214,33 @@ def create_edges(all_points, from_coord_cols, to_coord_cols):
     return edges_df, tri
 
 
-def add_terminal_penalty(edges_df, all_points_df):
+def add_terminal_penalty(edges, nodes):
     """Add penalty to edges to ensure the Steiner algorithm don't connect terminals directly."""
     # Compute penalty
-    penalty = edges_df["weight"].max() + edges_df["weight"].mean()
+    penalty = edges["weight"].max() + edges["weight"].mean()
 
     # Get terminal edges
-    terminal_edges = edges_df[["from", "to"]].isin(
-        all_points_df.loc[all_points_df["is_terminal"], "id"].to_numpy(),
+    terminal_edges = edges[["from", "to"]].isin(
+        nodes.loc[nodes["is_terminal"], "id"].to_numpy(),
     )
 
     # Add the penalty
-    edges_df_terminals = edges_df.join(terminal_edges, rsuffix="_is_terminal")
-    from_to_all_terminals = edges_df_terminals.groupby("from")[
+    edges_are_terminals = edges.join(terminal_edges, rsuffix="_is_terminal")
+    from_to_all_terminals = edges_are_terminals.groupby("from")[
         ["from_is_terminal", "to_is_terminal"]
     ].all()
 
-    edges_df_terminals = edges_df_terminals.join(
+    edges_are_terminals = edges_are_terminals.join(
         from_to_all_terminals["from_is_terminal"].rename("from_all_terminals"),
         on="from",
     )
-    edges_df_terminals = edges_df_terminals.join(
+    edges_are_terminals = edges_are_terminals.join(
         from_to_all_terminals["to_is_terminal"].rename("to_all_terminals"),
         on="to",
     )
-    edges_df.loc[
-        (edges_df_terminals[["from_is_terminal", "to_is_terminal"]].all(axis=1))
-        & (~edges_df_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1)),
+    edges.loc[
+        (edges_are_terminals[["from_is_terminal", "to_is_terminal"]].all(axis=1))
+        & (~edges_are_terminals[["from_all_terminals", "to_all_terminals"]].all(axis=1)),
         "weight",
     ] += penalty
 

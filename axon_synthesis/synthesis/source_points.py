@@ -11,6 +11,7 @@ from neurom import COLS
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.typing import FileType
+from axon_synthesis.utils import COORDS_COLS
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +163,7 @@ def set_source_points(
         cells_df.loc[missing_coords_mask, SOURCE_COORDS_COLS] = 0
 
     # We shift all the coordinates to the positions in the atlas
-    cells_df[SOURCE_COORDS_COLS] += cells_df[["x", "y", "z"]].to_numpy()
+    cells_df[SOURCE_COORDS_COLS] += cells_df[COORDS_COLS].to_numpy()
 
     # If a section ID is provided we start the axon from the last point of this section
     # Note: The coordinates of the points of each morphology are relative to the center of this
@@ -180,7 +181,7 @@ def set_source_points(
 
     # Set atlas regions
     cells_df["source_brain_region_id"] = atlas.brain_regions.lookup(
-        cells_df[["x", "y", "z"]].to_numpy()
+        cells_df[COORDS_COLS].to_numpy()
     )
 
     # Choose population
@@ -213,7 +214,7 @@ def create_random_sources(
             "Not enough voxels found to place source points, foune only %s voxels", len(coords)
         )
 
-    dataset = pd.DataFrame(coords, columns=["x", "y", "z"]).reset_index()
+    dataset = pd.DataFrame(coords, columns=COORDS_COLS).reset_index()
     dataset.rename(columns={"index": "morph_file"}, inplace=True)
     dataset["axon_id"] = 0
     dataset["terminal_id"] = -1
@@ -221,7 +222,7 @@ def create_random_sources(
 
     if output_path is not None:
         # TODO: Should export a CellCollection to a MVD3 file?
-        dataset[["morph_file", "axon_id", "terminal_id", "section_id", "x", "y", "z"]].to_hdf(
+        dataset[["morph_file", "axon_id", "terminal_id", "section_id", *COORDS_COLS]].to_hdf(
             output_path,
             index=False,
         )
