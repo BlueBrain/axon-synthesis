@@ -3,6 +3,7 @@ import logging
 
 import pandas as pd
 
+from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import sublogger
 
 
@@ -11,6 +12,7 @@ def pick_barcodes(
     edges,
     tuft_properties,
     *,
+    rng: SeedType = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
     """Choose a barcode among the ones available."""
@@ -19,20 +21,40 @@ def pick_barcodes(
     tuft_properties = tuft_properties[["population_id", "weight", "orientation", "barcode"]].rename(
         columns={"orientation": "tuft_orientation"}
     )
+
+    source_terminals = terminals.merge(
+        edges.loc[
+            edges["source_is_terminal"],
+            [
+                "source_terminal_id",
+                "source_is_terminal",
+                "target_is_terminal",
+                "section_id",
+                "reversed_edge",
+            ],
+        ].rename(columns={"source_terminal_id": "terminal_id"}),
+        on="terminal_id",
+    )
+    source_terminals["target_is_terminal"] = False
+    target_terminals = terminals.merge(
+        edges.loc[
+            edges["target_is_terminal"],
+            [
+                "target_terminal_id",
+                "source_is_terminal",
+                "target_is_terminal",
+                "section_id",
+                "reversed_edge",
+            ],
+        ].rename(columns={"target_terminal_id": "terminal_id"}),
+        on="terminal_id",
+    )
+    target_terminals["source_is_terminal"] = False
+
     edge_terminals = pd.concat(
         [
-            terminals.merge(
-                edges.loc[edges["source_is_terminal"], ["source_terminal_id", "section_id"]].rename(
-                    columns={"source_terminal_id": "terminal_id"}
-                ),
-                on="terminal_id",
-            ),
-            terminals.merge(
-                edges.loc[edges["target_is_terminal"], ["target_terminal_id", "section_id"]].rename(
-                    columns={"target_terminal_id": "terminal_id"}
-                ),
-                on="terminal_id",
-            ),
+            source_terminals,
+            target_terminals,
         ]
     )
 
@@ -69,7 +91,7 @@ def pick_barcodes(
     potential_barcodes = potential_barcodes.rename(
         columns={"target_x": "tuft_x", "target_y": "tuft_y", "target_z": "tuft_z"}
     )
-    return potential_barcodes.groupby("terminal_id").sample(weights="prob")[
+    return potential_barcodes.groupby("terminal_id").sample(weights="prob", random_state=rng)[
         [
             "morphology",
             "axon_id",
@@ -84,5 +106,8 @@ def pick_barcodes(
             "tuft_y",
             "tuft_z",
             "tuft_orientation",
+            "source_is_terminal",
+            "target_is_terminal",
+            "reversed_edge",
         ]
     ]

@@ -31,6 +31,7 @@ def build_and_graft_trunk(
     active_sections = []
 
     edges["section_id"] = -999
+    edges["reversed_edge"] = False
 
     edges_tmp = edges[
         [
@@ -90,42 +91,42 @@ def build_and_graft_trunk(
         already_added = []
         for label, row in edges_tmp.loc[edges_tmp["from"] == target].iterrows():
             already_added.append(label)
+            new_section = current_section.append_section(
+                PointLevel(
+                    [
+                        row[FROM_COORDS_COLS].to_numpy(),
+                        row[TO_COORDS_COLS].to_numpy(),
+                    ],
+                    [0, 0],
+                ),
+                SectionType.axon,
+            )
             active_sections.append(
                 (
-                    current_section.append_section(
-                        PointLevel(
-                            [
-                                row[FROM_COORDS_COLS].to_numpy(),
-                                row[TO_COORDS_COLS].to_numpy(),
-                            ],
-                            [0, 0],
-                        ),
-                        SectionType.axon,
-                    ),
+                    new_section,
                     row["to"],
                 ),
             )
-            if row["source_is_terminal"] or row["target_is_terminal"]:
-                edges.loc[label, "section_id"] = active_sections[-1][0].id
+            edges.loc[label, "section_id"] = new_section.id
         for label, row in edges_tmp.loc[edges_tmp["to"] == target].iterrows():
             already_added.append(label)
+            new_section = current_section.append_section(
+                PointLevel(
+                    [
+                        row[TO_COORDS_COLS].to_numpy(),
+                        row[FROM_COORDS_COLS].to_numpy(),
+                    ],
+                    [0, 0],
+                ),
+                SectionType.axon,
+            )
             active_sections.append(
                 (
-                    current_section.append_section(
-                        PointLevel(
-                            [
-                                row[TO_COORDS_COLS].to_numpy(),
-                                row[FROM_COORDS_COLS].to_numpy(),
-                            ],
-                            [0, 0],
-                        ),
-                        SectionType.axon,
-                    ),
+                    new_section,
                     row["from"],
                 ),
             )
-            if row["source_is_terminal"] or row["target_is_terminal"]:
-                edges.loc[label, "section_id"] = active_sections[-1][0].id
+            edges.loc[label, ["section_id", "reversed_edge"]] = [new_section.id, True]
         edges_tmp = edges_tmp.drop(already_added)
 
     # At this point we do not merge consecutive sections that are not separated by a

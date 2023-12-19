@@ -11,6 +11,7 @@ from neurom import COLS
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.typing import FileType
+from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
 
 logger = logging.getLogger(__name__)
@@ -37,8 +38,11 @@ def map_population(
     cells_df: pd.DataFrame,
     atlas: AtlasHelper,
     populations: pd.DataFrame | None = None,
+    *,
+    rng: SeedType = None,
 ):
     """Find the population given the position of the morphology and the populations."""
+    rng = np.random.default_rng(rng)
     if populations is None:
         cells_df["population_id"] = "default"
     else:
@@ -67,7 +71,8 @@ def map_population(
 
         # Select the populations according to the associated probabilities
         selected = probs.groupby(["morphology", "source_brain_region_id"]).sample(
-            weights=probs["population_probability"]
+            weights=probs["population_probability"],
+            random_state=rng,
         )
 
         cells_df = cells_df.merge(
@@ -87,6 +92,7 @@ def set_source_points(
     population_probabilities: pd.DataFrame | None = None,
     axon_grafting_points: pd.DataFrame | None = None,
     *,
+    rng: SeedType = None,
     rebuild_existing_axons: bool = False,
 ):
     """Extract source points from a cell collection."""
@@ -185,7 +191,7 @@ def set_source_points(
     )
 
     # Choose population
-    return map_population(cells_df, atlas, population_probabilities)
+    return map_population(cells_df, atlas, population_probabilities, rng=rng)
 
 
 def create_random_sources(

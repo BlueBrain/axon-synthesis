@@ -86,6 +86,13 @@ def build_and_graft_tufts(
 
     rng = np.random.default_rng(rng)
 
+    tuft_properties["use_parent"] = False
+    tuft_properties.loc[
+        (tuft_properties["source_is_terminal"] & ~tuft_properties["reversed_edge"])
+        | (tuft_properties["target_is_terminal"] & tuft_properties["reversed_edge"]),
+        "use_parent",
+    ] = True
+
     for _, row in tuft_properties.iterrows():
         # Create specific parameters
         params = deepcopy(parameters)
@@ -134,5 +141,7 @@ def build_and_graft_tufts(
             )
 
         # Graft the tuft to the current terminal
-        morph.section(row["section_id"]).append_section(new_morph.root_sections[0], recursive=True)
-        # append_section_recursive(morph.section(row["section_id"]), new_morph.root_sections[0])
+        sec = morph.section(row["section_id"])
+        if row["use_parent"]:
+            sec = sec.parent
+        sec.append_section(new_morph.root_sections[0], recursive=True)

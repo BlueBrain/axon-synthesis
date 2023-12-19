@@ -64,7 +64,7 @@ def synthesize_axons(  # noqa: PLR0913
     atlas_config: AtlasConfig | None = None,
     create_graph_config: CreateGraphConfig | None = None,
     rebuild_existing_axons: bool = False,
-    seed: SeedType = None,
+    rng: SeedType = None,
     debug: bool = False,
 ):
     """Synthesize the long-range axons.
@@ -79,10 +79,10 @@ def synthesize_axons(  # noqa: PLR0913
         atlas_config: The config used to load the Atlas.
         create_graph_config: The config used to create the graph.
         rebuild_existing_axons: Rebuild the axons if they already exist.
-        seed: The random seed.
+        rng: The random seed or the random generator.
         debug: Trigger the Debug mode.
     """
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(rng)
     outputs = Outputs(output_dir, create=True)
     outputs.create_dirs(
         file_selection=FILE_SELECTION.ALL if debug else FILE_SELECTION.REQUIRED_ONLY
@@ -105,6 +105,7 @@ def synthesize_axons(  # noqa: PLR0913
         morphology_ext,
         inputs.population_probabilities,
         axon_grafting_points,
+        rng=rng,
         rebuild_existing_axons=rebuild_existing_axons,
     )
 
@@ -180,7 +181,7 @@ def synthesize_axons(  # noqa: PLR0913
 
             # Choose a barcode for each tuft of the current axon
             barcodes = pick_barcodes(
-                axon_terminals, solution_edges, inputs.clustering_data.tuft_props_df
+                axon_terminals, solution_edges, inputs.clustering_data.tuft_props_df, rng=rng
             )
 
             # Create the tufts for each barcode

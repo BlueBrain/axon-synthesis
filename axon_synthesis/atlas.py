@@ -287,6 +287,7 @@ class AtlasHelper:
 
         if rng is not None:
             # Pick a random point inside the voxel
+            rng = np.random.default_rng(rng)
             voxel_points += self.get_random_voxel_shifts(len(voxel_points), rng=rng)
 
         if size is not None:

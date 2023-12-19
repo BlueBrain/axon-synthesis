@@ -50,10 +50,11 @@ def setup_logger(level="info", prefix="", suffix=""):
     )
 
     if levels[level] >= logging.INFO:  # pragma: no cover
-        logging.getLogger("distributed").level = max(
-            logging.getLogger("distributed").level,
-            logging.WARNING,
-        )
+        for logger_name in ["morph_tool.converter", "distributed"]:
+            logging.getLogger(logger_name).level = max(
+                logging.getLogger(logger_name).level,
+                logging.WARNING,
+            )
 
 
 def fill_diag(mat, val=1):
@@ -190,17 +191,6 @@ def neurite_to_graph_old(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
     nx.set_node_attributes(graph, nodes[[*COORDS_COLS, "is_terminal"]].to_dict("index"))
 
     return nodes, edges, graph
-
-
-def append_section_recursive(source, target):
-    """Append a target section to a source."""
-    current_sections = [(source, target)]
-
-    # Add kept sections
-    while current_sections:
-        source_parent, target_child = current_sections.pop()
-        source_child = source_parent.append_section(target_child)
-        current_sections.extend((source_child, child) for child in target_child.children)
 
 
 @contextmanager

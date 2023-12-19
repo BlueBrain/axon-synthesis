@@ -59,9 +59,10 @@ def configure(ctx: click.Context, _, filename: None | str):
 class GlobalConfig:
     """Class to store global configuration."""
 
-    def __init__(self, *, debug=False):
+    def __init__(self, *, debug=False, seed=None):
         """The GlobalConfig constructor."""
         self.debug = debug
+        self.seed = seed
 
 
 class ListParam(click.ParamType):
@@ -371,11 +372,11 @@ def create_inputs(global_config: GlobalConfig, **kwargs):
     ),
 )
 # @optgroup.group("Graph creation parameters", help="Parameters used to build the graph")
-@seed_option
 @click.pass_obj
 def synthesize(global_config: GlobalConfig, **kwargs):
     """The command to synthesize axons."""
     kwargs["debug"] = global_config.debug
+    kwargs["rng"] = global_config.seed
     kwargs["atlas_config"] = atlas_kwargs_to_config(kwargs)
     synthesize_axons(**kwargs)
 
