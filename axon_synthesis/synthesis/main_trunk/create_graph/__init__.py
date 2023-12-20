@@ -27,11 +27,12 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import CoordsCols
 from axon_synthesis.utils import check_min_max
 from axon_synthesis.utils import sublogger
 
-FROM_COORDS_COLS = ["x_from", "y_from", "z_from"]
-TO_COORDS_COLS = ["x_to", "y_to", "z_to"]
+FROM_COORDS_COLS = CoordsCols("x_from", "y_from", "z_from")
+TO_COORDS_COLS = CoordsCols("x_to", "y_to", "z_to")
 
 
 @define

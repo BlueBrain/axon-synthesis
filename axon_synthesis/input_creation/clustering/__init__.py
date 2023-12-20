@@ -35,6 +35,7 @@ from axon_synthesis.input_creation.clustering.utils import reduce_clusters
 from axon_synthesis.input_creation.trunk_properties import compute_trunk_properties
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import Self
+from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import neurite_to_graph
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
@@ -339,9 +340,7 @@ def cluster_morphologies(
         "axon_id",
         "terminal_id",
         "size",
-        "x",
-        "y",
-        "z",
+        *COORDS_COLS,
     ]
 
     clustering_funcs = {

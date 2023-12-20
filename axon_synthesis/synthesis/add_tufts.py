@@ -15,6 +15,7 @@ from neurots.generate.tree import TreeGrower
 from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 
+from axon_synthesis.synthesis.tuft_properties import TUFT_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
@@ -74,15 +75,17 @@ def build_and_graft_tufts(
     rng: SeedType = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
-    """Build the tufts and graft them to the given morphology."""
+    """Build the tufts and graft them to the given morphology.
+
+    .. warning::
+        The directories passed to ``output_dir`` and ``figure_dir`` should already exist.
+    """
     logger = sublogger(logger, __name__)
 
     if output_dir is not None:
         output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
     if figure_dir is not None:
         figure_dir = Path(figure_dir)
-        figure_dir.mkdir(parents=True, exist_ok=True)
 
     rng = np.random.default_rng(rng)
 
@@ -108,7 +111,7 @@ def build_and_graft_tufts(
         ]
         logger.debug("Tuft barcode: %s", row["barcode"])
 
-        initial_point = [row["tuft_x"], row["tuft_y"], row["tuft_z"]]
+        initial_point = [row[col] for col in TUFT_COORDS_COLS]
 
         # Grow a tuft
         new_morph = MorphIoMorphology()
@@ -116,7 +119,7 @@ def build_and_graft_tufts(
         grower = TreeGrower(
             new_morph,
             initial_direction=row["tuft_orientation"],
-            initial_point=[row["tuft_x"], row["tuft_y"], row["tuft_z"]],
+            initial_point=initial_point,
             parameters=params["axon"],
             distributions=distrib["axon"],
             context=None,

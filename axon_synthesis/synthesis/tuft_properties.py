@@ -3,8 +3,13 @@ import logging
 
 import pandas as pd
 
+from axon_synthesis.synthesis.target_points import TARGET_COORDS_COLS
 from axon_synthesis.typing import SeedType
+from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import CoordsCols
 from axon_synthesis.utils import sublogger
+
+TUFT_COORDS_COLS = CoordsCols("tuft_x", "tuft_y", "tuft_z")
 
 
 def pick_barcodes(
@@ -89,7 +94,11 @@ def pick_barcodes(
     )
     potential_barcodes["prob"] = potential_barcodes["weight"] / potential_barcodes["weight_sum"]
     potential_barcodes = potential_barcodes.rename(
-        columns={"target_x": "tuft_x", "target_y": "tuft_y", "target_z": "tuft_z"}
+        columns={
+            TARGET_COORDS_COLS.X: TUFT_COORDS_COLS.X,
+            TARGET_COORDS_COLS.Y: TUFT_COORDS_COLS.Y,
+            TARGET_COORDS_COLS.Z: TUFT_COORDS_COLS.Z,
+        }
     )
     return potential_barcodes.groupby("terminal_id").sample(weights="prob", random_state=rng)[
         [
@@ -97,14 +106,10 @@ def pick_barcodes(
             "axon_id",
             "terminal_id",
             "grafting_section_id",
-            "x",
-            "y",
-            "z",
+            *COORDS_COLS,
             "barcode",
             "section_id",
-            "tuft_x",
-            "tuft_y",
-            "tuft_z",
+            *TUFT_COORDS_COLS,
             "tuft_orientation",
             "source_is_terminal",
             "target_is_terminal",

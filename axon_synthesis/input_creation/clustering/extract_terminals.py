@@ -7,6 +7,7 @@ from morph_tool.utils import is_morphology
 from neurom import load_morphology
 
 from axon_synthesis.typing import FileType
+from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import get_axons
 
 logger = logging.getLogger(__name__)
@@ -64,9 +65,7 @@ def process_morphologies(morph_dir: FileType) -> pd.DataFrame:
             "axon_id",
             "terminal_id",
             "section_id",
-            "x",
-            "y",
-            "z",
+            *COORDS_COLS,
         ],
     )
 
@@ -130,9 +129,7 @@ def process_morphologies(morph_dir: FileType) -> pd.DataFrame:
 #                 "axon_id",
 #                 "terminal_id",
 #                 "section_id",
-#                 "x",
-#                 "y",
-#                 "z",
+#                 *COORDS_COLS,
 #             ],
 #         )
 

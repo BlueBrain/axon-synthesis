@@ -13,10 +13,11 @@ from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import CoordsCols
 
 logger = logging.getLogger(__name__)
 
-SOURCE_COORDS_COLS = ["source_x", "source_y", "source_z"]
+SOURCE_COORDS_COLS = CoordsCols("source_x", "source_y", "source_z")
 
 
 def section_id_to_position(morph, sec_id):

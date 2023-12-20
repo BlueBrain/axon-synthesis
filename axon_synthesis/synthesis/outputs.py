@@ -14,8 +14,8 @@ class Outputs(BasePathBuilder):
         "MORPHOLOGIES": "Morphologies",
         "STEINER_TREE_SOLUTIONS": "SteinerTreeSolutions",
         "TARGET_POINTS": "target_points.h5",
-        "TUFT_MORPHOLOGIES": "TuftMorphologies",
         "TUFT_FIGURES": "TuftFigures",
+        "TUFT_MORPHOLOGIES": "TuftMorphologies",
     }
 
     _optional_keys: ClassVar[set[str]] = {
@@ -34,4 +34,5 @@ class Outputs(BasePathBuilder):
             self.GRAPH_CREATION.mkdir(parents=True, exist_ok=True)
             self.MAIN_TRUNK_MORPHOLOGIES.mkdir(parents=True, exist_ok=True)
             self.STEINER_TREE_SOLUTIONS.mkdir(parents=True, exist_ok=True)
+            self.TUFT_FIGURES.mkdir(parents=True, exist_ok=True)
             self.TUFT_MORPHOLOGIES.mkdir(parents=True, exist_ok=True)

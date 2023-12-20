@@ -12,7 +12,22 @@ import numpy as np
 import pandas as pd
 from neurom import NeuriteType
 
-COORDS_COLS = ["x", "y", "z"]
+
+class CoordsCols(list):
+    """Class to associate column names to coordinates."""
+
+    def __init__(self, *args):
+        """Constructor of the CoordsCols class."""
+        if len(args) != 3:  # noqa: PLR2004
+            msg = "Exactly 3 column names should be given"
+            raise ValueError(msg)
+        super().__init__(args)
+        self.X = self[0]
+        self.Y = self[1]
+        self.Z = self[2]
+
+
+COORDS_COLS = CoordsCols("x", "y", "z")
 
 
 class MorphNameAdapter(logging.LoggerAdapter):
@@ -50,7 +65,11 @@ def setup_logger(level="info", prefix="", suffix=""):
     )
 
     if levels[level] >= logging.INFO:  # pragma: no cover
-        for logger_name in ["morph_tool.converter", "distributed"]:
+        for logger_name in [
+            "distributed",
+            "h5py",
+            "morph_tool.converter",
+        ]:
             logging.getLogger(logger_name).level = max(
                 logging.getLogger(logger_name).level,
                 logging.WARNING,

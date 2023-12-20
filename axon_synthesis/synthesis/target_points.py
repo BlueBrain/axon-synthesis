@@ -5,12 +5,15 @@ import warnings
 import numpy as np
 import pandas as pd
 
+from axon_synthesis.synthesis.source_points import SOURCE_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
+from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import CoordsCols
 
 LOGGER = logging.getLogger(__name__)
 
-TARGET_COORDS_COLS = ["target_x", "target_y", "target_z"]
+TARGET_COORDS_COLS = CoordsCols("target_x", "target_y", "target_z")
 
 
 def get_target_points(
@@ -146,21 +149,15 @@ def get_target_points(
             "morph_file",
             "axon_id",
             "terminal_id",
-            "x",
-            "y",
-            "z",
+            *COORDS_COLS,
             "orientation",
             "grafting_section_id",
             "population_id",
             "source_brain_region_id",
-            "source_x",
-            "source_y",
-            "source_z",
+            *SOURCE_COORDS_COLS,
             "target_population_id",
             "target_brain_region_id",
-            "target_x",
-            "target_y",
-            "target_z",
+            *TARGET_COORDS_COLS,
         ]
     ].rename(
         columns={
