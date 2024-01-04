@@ -15,6 +15,7 @@ from axon_synthesis.inputs import Inputs
 from axon_synthesis.synthesis.add_tufts import build_and_graft_tufts
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.synthesis.main_trunk.create_graph import one_graph
+from axon_synthesis.synthesis.main_trunk.post_process import post_process_trunk
 from axon_synthesis.synthesis.main_trunk.steiner_morphology import build_and_graft_trunk
 from axon_synthesis.synthesis.main_trunk.steiner_tree import compute_solution
 from axon_synthesis.synthesis.outputs import Outputs
@@ -136,8 +137,11 @@ def synthesize_axons(  # noqa: PLR0913
         )
 
         if rebuild_existing_axons:
-            # Remove existing axons and set grafting mode to soma
+            # Remove existing axons
+            # TODO: Set grafting mode to soma
             remove_existing_axons(morph)
+
+        morph.name = morph_name
 
         for axon_id, axon_terminals in morph_terminals.groupby("axon_id"):
             # Create a custom logger to add the morph name and axon ID in the log entries
@@ -145,7 +149,8 @@ def synthesize_axons(  # noqa: PLR0913
                 LOGGER, extra={"morph_name": morph_name, "axon_id": axon_id}
             )
 
-            file_name = f"{morph_name}_{axon_id}.h5"
+            morph_file_name = f"{morph_name}_{axon_id}.h5"
+            figure_file_name = f"{morph_name}_{axon_id}.html"
 
             # Create the graph for the current axon
             nodes, edges = one_graph(
@@ -155,7 +160,7 @@ def synthesize_axons(  # noqa: PLR0913
                 create_graph_config,
                 favored_region_tree=create_graph_config.favored_region_tree,
                 rng=rng,
-                output_path=outputs.GRAPH_CREATION / file_name if debug else None,
+                output_path=outputs.GRAPH_CREATION / morph_file_name if debug else None,
                 logger=custom_logger,
             )
 
@@ -163,25 +168,38 @@ def synthesize_axons(  # noqa: PLR0913
             solution_nodes, solution_edges = compute_solution(
                 nodes,
                 edges,
-                output_path=outputs.STEINER_TREE_SOLUTIONS / file_name if debug else None,
+                output_path=outputs.STEINER_TREE_SOLUTIONS / morph_file_name if debug else None,
                 logger=custom_logger,
             )
 
             # Create the trunk morphology
-            build_and_graft_trunk(
+            trunk_section_id = build_and_graft_trunk(
                 morph,
                 axon_terminals["grafting_section_id"].to_numpy()[0],
                 solution_edges,
-                output_path=(outputs.MAIN_TRUNK_MORPHOLOGIES / file_name if debug else None),
+                output_path=(outputs.MAIN_TRUNK_MORPHOLOGIES / morph_file_name if debug else None),
                 logger=custom_logger,
             )
 
-            # Post-process the trunk
-            # TODO: Post-process the trunk
-
             # Choose a barcode for each tuft of the current axon
             barcodes = pick_barcodes(
-                axon_terminals, solution_edges, inputs.clustering_data.tuft_props_df, rng=rng
+                axon_terminals, solution_edges, inputs.clustering_data.tuft_properties, rng=rng
+            )
+
+            # Post-process the trunk
+            post_process_trunk(
+                morph,
+                trunk_section_id,
+                inputs.clustering_data.trunk_properties,
+                barcodes,
+                rng=rng,
+                output_path=(
+                    outputs.POSTPROCESS_TRUNK_MORPHOLOGIES / morph_file_name if debug else None
+                ),
+                figure_path=(
+                    outputs.POSTPROCESS_TRUNK_FIGURES / figure_file_name if debug else None
+                ),
+                logger=custom_logger,
             )
 
             # Create the tufts for each barcode
@@ -195,5 +213,7 @@ def synthesize_axons(  # noqa: PLR0913
                 figure_dir=(outputs.TUFT_FIGURES if debug else None),
                 logger=custom_logger,
             )
+
+            # TODO: Diametrize the synthesized axon
 
         morph.write(outputs.MORPHOLOGIES / f"{morph_name}.h5")

@@ -6,6 +6,7 @@ import pandas as pd
 from axon_synthesis.synthesis.target_points import TARGET_COORDS_COLS
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import DEFAULT_POPULATION
 from axon_synthesis.utils import CoordsCols
 from axon_synthesis.utils import sublogger
 
@@ -27,6 +28,7 @@ def pick_barcodes(
         columns={"orientation": "tuft_orientation"}
     )
 
+    # Merge edges properties to source and target terminals
     source_terminals = terminals.merge(
         edges.loc[
             edges["source_is_terminal"],
@@ -63,9 +65,12 @@ def pick_barcodes(
         ]
     )
 
+    # Get tuft properties
     edges_with_props = edge_terminals.merge(
         tuft_properties, left_on="target_population_id", right_on="population_id", how="left"
     )
+
+    # Use default barcode for missing populations
     missing_barcode = edges_with_props.loc[edges_with_props["barcode"].isna()]
     if not missing_barcode.empty:
         msg = "No barcode found for the populations %s, the default barcodes are used for them"
@@ -73,15 +78,20 @@ def pick_barcodes(
         logger.info(msg, missing_populations)
         missing_df = edge_terminals.loc[
             edge_terminals["target_population_id"].isin(missing_populations)
-        ].merge(tuft_properties.loc[tuft_properties["population_id"] == "default"], how="cross")
+        ].merge(
+            tuft_properties.loc[tuft_properties["population_id"] == DEFAULT_POPULATION], how="cross"
+        )
         edges_with_props = pd.concat([edges_with_props.dropna(subset="barcode"), missing_df])
 
+    # Format the weight of the tufts
     if "weight" not in edges_with_props.columns:
         if "cluster_weight" in edges_with_props.columns:
             edges_with_props["weight"] = edges_with_props["cluster_weight"]
         else:
             edges_with_props["weight"] = 1
     edges_with_props["weight"] = edges_with_props["weight"].fillna(1)
+
+    # Gather potential barcodes for all terminals
     potential_barcodes = (
         edges_with_props.reset_index()
         .merge(
@@ -100,6 +110,15 @@ def pick_barcodes(
             TARGET_COORDS_COLS.Z: TUFT_COORDS_COLS.Z,
         }
     )
+
+    potential_barcodes["use_parent"] = False
+    potential_barcodes.loc[
+        (potential_barcodes["source_is_terminal"] & ~potential_barcodes["reversed_edge"])
+        | (potential_barcodes["target_is_terminal"] & potential_barcodes["reversed_edge"]),
+        "use_parent",
+    ] = True
+
+    # Pick one barcode for each terminal
     return potential_barcodes.groupby("terminal_id").sample(weights="prob", random_state=rng)[
         [
             "morphology",
@@ -114,5 +133,6 @@ def pick_barcodes(
             "source_is_terminal",
             "target_is_terminal",
             "reversed_edge",
+            "use_parent",
         ]
     ]

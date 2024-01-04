@@ -67,7 +67,7 @@ def segment_angles(neurite, reference=None):
     """Compute the angles between segments of the sections of a neurite."""
     # pylint: disable=protected-access
     func = partial(section_segment_angles, reference=reference)
-    return features.neurite._map_segments(func, neurite)
+    return features.neurite._map_segments(func, neurite)  # noqa: SLF001
 
 
 def compute_trunk_properties(
@@ -75,6 +75,7 @@ def compute_trunk_properties(
     morph_name: str,
     axon_id: str,
     config_name: str,
+    atlas_region_id: int,
 ) -> list[tuple]:
     """Compute the properties of the trunk morphologies listed in the given DataFrame."""
     # Load morph paths
@@ -83,7 +84,7 @@ def compute_trunk_properties(
 
     # Compute long-range trunk features that will be used for smoothing and jittering
     long_range_trunks = get_axons(trunk_morph)
-    for num, axon in enumerate(long_range_trunks):
+    for axon in long_range_trunks:
         trunk_stats = morph_stats.extract_stats(
             axon,
             {
@@ -100,6 +101,7 @@ def compute_trunk_properties(
                 morph_name,
                 config_name,
                 axon_id,
+                atlas_region_id,
                 json.dumps(np.array(trunk_stats["raw_segment_lengths"]).tolist()),
                 trunk_stats["mean_segment_lengths"],
                 trunk_stats["std_segment_lengths"],

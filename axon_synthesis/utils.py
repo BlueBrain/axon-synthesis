@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 from neurom import NeuriteType
 
+DEFAULT_POPULATION = "default"
+
 
 class CoordsCols(list):
     """Class to associate column names to coordinates."""

@@ -34,6 +34,7 @@ from axon_synthesis.input_creation.clustering.utils import export_morph
 from axon_synthesis.input_creation.clustering.utils import reduce_clusters
 from axon_synthesis.input_creation.trunk_properties import compute_trunk_properties
 from axon_synthesis.typing import FileType
+from axon_synthesis.typing import SeedType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import get_axons
@@ -185,9 +186,9 @@ class Clustering(BasePathBuilder):
         # Clustering results
         self.clustered_terminals = None
         self.clustered_morph_paths = None
-        self.trunk_props_df = None
+        self.trunk_properties = None
         self.trunk_morph_paths = None
-        self.tuft_props_df = None
+        self.tuft_properties = None
         self.tuft_morph_paths = None
 
     @property
@@ -204,8 +205,8 @@ class Clustering(BasePathBuilder):
 
     def plot_cluster_properties(self):
         """Plot cluster properties."""
-        if self.tuft_props_df is not None:
-            plot_cluster_properties(self.tuft_props_df, self.TUFT_PROPS_PLOT_FILENAME)
+        if self.tuft_properties is not None:
+            plot_cluster_properties(self.tuft_properties, self.TUFT_PROPS_PLOT_FILENAME)
             LOGGER.info(
                 "Exported figure of cluster properties to %s",
                 self.TUFT_PROPS_PLOT_FILENAME,
@@ -218,12 +219,12 @@ class Clustering(BasePathBuilder):
     def save(self):
         """Save the clustering data to the associated path."""
         # Export long-range trunk properties
-        self.trunk_props_df.to_csv(self.TRUNK_PROPS_FILENAME, index=False)
+        self.trunk_properties.to_csv(self.TRUNK_PROPS_FILENAME, index=False)
         LOGGER.info("Exported trunk properties to %s", self.TRUNK_PROPS_FILENAME)
 
         # Export tuft properties
         with self.TUFT_PROPS_FILENAME.open(mode="w") as f:
-            json.dump(self.tuft_props_df.to_dict("records"), f, indent=4)
+            json.dump(self.tuft_properties.to_dict("records"), f, indent=4)
         LOGGER.info("Exported tuft properties to %s", self.TUFT_PROPS_FILENAME)
 
         # Export the terminals
@@ -280,9 +281,9 @@ class Clustering(BasePathBuilder):
         msg = "Some of the following files are missing: %s"
         if file_selection <= FILE_SELECTION.REQUIRED_ONLY:
             if obj.exists(file_selection=FILE_SELECTION.REQUIRED_ONLY):
-                obj.trunk_props_df = pd.read_csv(obj.TRUNK_PROPS_FILENAME)
+                obj.trunk_properties = pd.read_csv(obj.TRUNK_PROPS_FILENAME)
                 with obj.TUFT_PROPS_FILENAME.open() as f:
-                    obj.tuft_props_df = pd.read_json(f)
+                    obj.tuft_properties = pd.read_json(f)
                 obj.clustered_terminals = pd.read_csv(obj.CLUSTERED_TERMINALS_FILENAME)
                 obj.clustered_morph_paths = pd.read_csv(obj.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME)
                 obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
@@ -308,6 +309,7 @@ def cluster_morphologies(
     *,
     debug: bool = False,
     nb_workers: int = 1,
+    rng: SeedType = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Compute the cluster of all morphologies of the given directory."""
     clustering = Clustering(output_path, clustering_parameters, create=True)
@@ -356,6 +358,9 @@ def cluster_morphologies(
 
         # Load the morphology
         morph = load_morphology(group_name)
+
+        # Get the source brain region
+        atlas_region_id = atlas.brain_regions.lookup(morph.soma.center)
 
         # Get the list of axons of the morphology
         axons = get_axons(morph)
@@ -425,7 +430,6 @@ def cluster_morphologies(
                 sections_to_add = defaultdict(list)
                 kept_path = reduce_clusters(
                     atlas,
-                    # wmr,
                     axon_group,
                     group_name,
                     morph,
@@ -439,8 +443,10 @@ def cluster_morphologies(
                     shortest_paths,
                     projection_pop_numbers,
                     bouton_density,
+                    atlas_region_id,
                     export_tuft_morph_dir=clustering.TUFT_MORPHOLOGIES_DIRNAME if debug else None,
                     config_name=config_name,
+                    rng=rng,
                 )
 
                 # Create the clustered morphology
@@ -454,7 +460,9 @@ def cluster_morphologies(
 
                 # Compute trunk properties
                 trunk_props.extend(
-                    compute_trunk_properties(trunk_morph, group_name, axon_id, config_name),
+                    compute_trunk_properties(
+                        trunk_morph, group_name, axon_id, config_name, atlas_region_id
+                    ),
                 )
 
                 # Export the trunk and clustered morphologies
@@ -500,12 +508,13 @@ def cluster_morphologies(
                     )
 
     # Export long-range trunk properties
-    clustering.trunk_props_df = pd.DataFrame(
+    clustering.trunk_properties = pd.DataFrame(
         trunk_props,
         columns=[
             "morph_file",
             "config_name",
             "axon_id",
+            "atlas_region_id",
             "raw_segment_lengths",
             "mean_segment_lengths",
             "std_segment_lengths",
@@ -518,7 +527,7 @@ def cluster_morphologies(
     ).sort_values(["morph_file", "config_name", "axon_id"])
 
     # Export tuft properties
-    clustering.tuft_props_df = pd.DataFrame(
+    clustering.tuft_properties = pd.DataFrame(
         cluster_props,
         columns=[
             "morph_file",

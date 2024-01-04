@@ -12,6 +12,8 @@ class Outputs(BasePathBuilder):
         "GRAPH_CREATION": "CraphCreation",
         "MAIN_TRUNK_MORPHOLOGIES": "MainTrunkMorphologies",
         "MORPHOLOGIES": "Morphologies",
+        "POSTPROCESS_TRUNK_FIGURES": "PostProcessTrunkFigures",
+        "POSTPROCESS_TRUNK_MORPHOLOGIES": "PostProcessTrunkMorphologies",
         "STEINER_TREE_SOLUTIONS": "SteinerTreeSolutions",
         "TARGET_POINTS": "target_points.h5",
         "TUFT_FIGURES": "TuftFigures",
@@ -33,6 +35,8 @@ class Outputs(BasePathBuilder):
         if file_selection == FILE_SELECTION.ALL:
             self.GRAPH_CREATION.mkdir(parents=True, exist_ok=True)
             self.MAIN_TRUNK_MORPHOLOGIES.mkdir(parents=True, exist_ok=True)
+            self.POSTPROCESS_TRUNK_FIGURES.mkdir(parents=True, exist_ok=True)
+            self.POSTPROCESS_TRUNK_MORPHOLOGIES.mkdir(parents=True, exist_ok=True)
             self.STEINER_TREE_SOLUTIONS.mkdir(parents=True, exist_ok=True)
             self.TUFT_FIGURES.mkdir(parents=True, exist_ok=True)
             self.TUFT_MORPHOLOGIES.mkdir(parents=True, exist_ok=True)

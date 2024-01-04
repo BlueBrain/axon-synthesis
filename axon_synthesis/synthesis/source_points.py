@@ -13,6 +13,7 @@ from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import DEFAULT_POPULATION
 from axon_synthesis.utils import CoordsCols
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ def map_population(
     """Find the population given the position of the morphology and the populations."""
     rng = np.random.default_rng(rng)
     if populations is None:
-        cells_df["population_id"] = "default"
+        cells_df["population_id"] = DEFAULT_POPULATION
     else:
         # Get all the parent IDs in the brain region hierarchy
         cells_region_parents = cells_df.merge(
@@ -80,7 +81,7 @@ def map_population(
             selected[["morphology", "source_brain_region_id", "population_id"]],
             on=["morphology", "source_brain_region_id"],
             how="left",
-        ).fillna({"population_id": "default"})
+        ).fillna({"population_id": DEFAULT_POPULATION})
 
     return cells_df
 

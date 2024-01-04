@@ -89,13 +89,6 @@ def build_and_graft_tufts(
 
     rng = np.random.default_rng(rng)
 
-    tuft_properties["use_parent"] = False
-    tuft_properties.loc[
-        (tuft_properties["source_is_terminal"] & ~tuft_properties["reversed_edge"])
-        | (tuft_properties["target_is_terminal"] & tuft_properties["reversed_edge"]),
-        "use_parent",
-    ] = True
-
     for _, row in tuft_properties.iterrows():
         # Create specific parameters
         params = deepcopy(parameters)

@@ -1,39 +1,21 @@
 """Post-process the Steiner solutions."""
-import json
 import logging
 from itertools import chain
-from pathlib import Path
 
-import luigi
-import luigi_tools
 import numpy as np
 import pandas as pd
-from data_validation_framework.target import TaggedOutputLocalTarget
-from morph_tool import resampling
-from neurom import load_morphology
 from neurom import morphmath
 from neurom.apps import morph_stats
 from neurom.core import Morphology
-from neurom.core.dataformat import COLS
-from neurom.core.morphology import Section
+from neurom.core import Neurite
 from neurots.morphmath import rotation
 from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
-from scipy.spatial import KDTree
 
-# from axon_synthesis import seed_param
-from axon_synthesis.create_tuft_props import CreateTuftTerminalProperties
-from axon_synthesis.main_trunk.steiner_morphologies import SteinerMorphologies
-from axon_synthesis.trunk_properties import LongRangeTrunkProperties
+from axon_synthesis.typing import FileType
+from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
-
-logger = logging.getLogger(__name__)
-
-
-class PostProcessingOutputLocalTarget(TaggedOutputLocalTarget):
-    """Target for post-processing outputs."""
-
-    __prefix = Path("steiner_post_processing")  # pylint: disable=unused-private-member
+from axon_synthesis.utils import sublogger
 
 
 def get_random_vector(
@@ -108,11 +90,15 @@ def random_walk(
     target_coeff=2,
     random_coeff=2,
     history_coeff=2,
+    *,
     rng=np.random,
     debug=False,
+    logger=None,
 ):
     """Perform a random walk guided by intermediate points."""
     # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    logger = sublogger(logger, __name__)
+
     length_norm = length_stats["norm"]
     length_std = length_stats["std"]
     # angle_norm = angle_stats["norm"]
@@ -222,13 +208,10 @@ def random_walk(
             + step_history_coeff * history_direction
         ).astype(dtype)
 
-        if np.dot(target_direction, non_random_direction) < 0:
-            # If the non random part of the direction does not head to the target direction
-            # (e.g. because of the history), then we don't care if the resulting direction
-            # does not head to the target direction
-            heading_target = False
-        else:
-            heading_target = True
+        # If the non random part of the direction does not head to the target direction
+        # (e.g. because of the history), then we don't care if the resulting direction
+        # does not head to the target direction
+        heading_target = not np.dot(target_direction, non_random_direction) < 0
 
         while np.dot(direction, target_direction) < 0 and nb_rand < max_rand:
             if nb_rand > 0:
@@ -342,216 +325,174 @@ def random_walk(
     return np.array(new_pts, dtype=dtype), (latest_lengths, latest_directions)
 
 
-class PostProcessSteinerMorphologies(luigi_tools.task.WorkflowTask):
-    """Task for morphology post-processing."""
+def post_process_trunk(
+    morph: Morphology,
+    trunk_section_id: int,
+    trunk_properties: pd.DataFrame,
+    tuft_barcodes: pd.DataFrame,
+    *,
+    rng: SeedType = None,
+    output_path: FileType | None = None,
+    figure_path: FileType | None = None,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
+):
+    """Post-process a trunk of the given morphology."""
+    logger = sublogger(logger, __name__)
 
-    input_dir = luigi.parameter.OptionalPathParameter(
-        description="Path to the input morphologies.",
-        default=None,
-        exists=True,
-    )
-    # seed = seed_param("The seed used by the random number generator for jittering.")
-    seed = 0
-    plot_debug = luigi.BoolParameter(
-        description=(
-            "If set to True, each group will create an interactive figure so it is possible to "
-            "check the clustering parameters."
-        ),
-        default=False,
-        parsing=luigi.parameter.BoolParameter.EXPLICIT_PARSING,
-    )
+    rng = np.random.default_rng(rng)
 
-    def requires(self):
-        return {
-            "trunk_properties": LongRangeTrunkProperties(),
-            "steiner_solutions": SteinerMorphologies(),
-            "terminal_properties": CreateTuftTerminalProperties(),
-        }
+    initial_morph = Morphology(morph) if figure_path is not None else None
 
-    def run(self):
-        # pylint: disable=too-many-locals,too-many-branches,too-many-statements
-        self.output()["figures"].mkdir(parents=True, exist_ok=True, is_dir=True)
-        self.output()["morphologies"].mkdir(parents=True, exist_ok=True, is_dir=True)
+    root_section = morph.section(trunk_section_id)
 
-        rng = np.random.default_rng(self.seed)
+    # Get some statistics
+    # TODO: Pick properties in a less random way? Maybe we could use the source region ID?
+    ref_trunk_props = trunk_properties.sample(random_state=rng).iloc[0]
 
-        with self.input()["terminal_properties"].open() as f:
-            cluster_props_df = pd.DataFrame.from_records(json.load(f))
-        trunk_props_df = pd.read_csv(
-            self.input()["trunk_properties"].path,
-            dtype={"morph_file": str},
+    if logger.getEffectiveLevel() <= logging.DEBUG:
+        logger.debug(
+            "Ref statistics of the trunk: %s",
+            ref_trunk_props.drop(
+                ["morph_file", "axon_id"]
+                + [row for row in ref_trunk_props.index if row.startswith("raw_")],
+            ).to_dict(),
         )
-        steiner_morphs = pd.read_csv(self.input()["steiner_solutions"]["morphology_paths"].path)
-        steiner_morphs["post_processed_morph_file"] = None
+        trunk_stats = morph_stats.extract_stats(
+            Neurite(root_section),
+            {
+                "neurite": {
+                    "segment_lengths": {"modes": ["mean", "std"]},
+                    "segment_meander_angles": {"modes": ["mean", "std"]},
+                },
+            },
+        )["axon"]
+        logger.debug("Current trunk statistics: %s", trunk_stats)
 
-        for index, row in steiner_morphs.iterrows():
-            morph_file = row.loc["steiner_morph_file"]
-            morph_name = Path(morph_file).name
-            morph = load_morphology(morph_file)
+    # Gather sections with unifurcations into future sections
+    sections_to_smooth = [[]]
+    sec_use_parent = {
+        tuple(i) for i in tuft_barcodes[["section_id", "use_parent"]].to_numpy().tolist()
+    }
+    for section in root_section.iter():
+        sections_to_smooth[-1].append(section)
+        if (
+            len(section.children) != 1
+            or (section.id, False) in sec_use_parent
+            or any((child.id, True) in sec_use_parent for child in section.children)
+        ):
+            sections_to_smooth.append([])
 
-            for axon_id, neurite in enumerate(morph.neurites):
-                # Get reference terminals
-                ref_terminal_props = cluster_props_df.loc[
-                    (cluster_props_df["morph_file"] == str(row.loc["morph_file"]))
-                    & (cluster_props_df["axon_id"] == axon_id)
-                ]
+    # Smooth the sections but do not move the tuft roots
+    parent_histories = {}
+    for i in sections_to_smooth:
+        if not i:
+            continue
+        pts = np.concatenate([i[0].points] + [sec.points[1:] for sec in i[1:]])
+        diams = np.concatenate([i[0].diameters] + [sec.diameters[1:] for sec in i[1:]])
 
-                # Get reference trunk
-                # TODO: Pick a trunk depending on the brain region or other variables?
-                ref_trunk_props = trunk_props_df.sample().iloc[0]
-                logger.debug(
-                    "Ref statistics of the trunk: %s",
-                    ref_trunk_props.drop(
-                        ["morph_file", "axon_id"]
-                        + [row for row in ref_trunk_props.index if row.startswith("raw_")],
-                    ).to_dict(),
-                )
-
-                trunk_stats = morph_stats.extract_stats(
-                    neurite,
-                    {
-                        "neurite": {
-                            "segment_lengths": {"modes": ["mean", "std"]},
-                            "segment_meander_angles": {"modes": ["mean", "std"]},
-                        },
-                    },
-                )["axon"]
-                logger.debug("Current statistics of the trunk: %s", trunk_stats)
-
-                # Find the root sections of the future tufts
-                # Gather sections with unifurcations into future sections
-                tree = KDTree(ref_terminal_props["common_ancestor_coords"].to_list())
-                sections_to_smooth = [[]]
-                for section in neurite.iter_sections(order=Section.ipreorder):
-                    close_pts = tree.query_ball_point(section.points[-1, COLS.XYZ], 1e-6)
-                    if len(close_pts) > 1:
-                        raise ValueError(f"Several points are close to {section.points[-1]}")
-                    sections_to_smooth[-1].append(section)
-                    if close_pts or len(section.children) != 1:
-                        sections_to_smooth.append([])
-
-                # Smooth the sections but do not move the tuft roots
-                parent_histories = {}
-                for i in sections_to_smooth:
-                    if not i:
-                        continue
-                    coords = np.concatenate([i[0].points] + [sec.points[1:] for sec in i[1:]])
-                    pts = coords[:, COLS.XYZ]
-                    radii = coords[:, COLS.R]
-
-                    length_stats = {
-                        "norm": ref_trunk_props["mean_segment_lengths"],
-                        "std": ref_trunk_props["std_segment_lengths"],
-                    }
-                    # angle_stats = {
-                    #     "norm": ref_trunk_props["mean_segment_meander_angles"],
-                    #     "std": ref_trunk_props["std_segment_meander_angles"],
-                    # }
-                    if i[0].parent:
-                        parent_history = parent_histories[i[0].parent]
-                    else:
-                        parent_history = None
-
-                    resampled_pts, last_history = random_walk(
-                        pts[0],
-                        pts[1:],
-                        length_stats,
-                        # angle_stats,
-                        parent_history,
-                        rng=rng,
-                    )
-                    parent_histories[i[-1]] = last_history
-
-                    path_lengths = np.insert(
-                        np.cumsum(np.linalg.norm(pts[1:] - pts[:-1], axis=1)),
-                        0,
-                        0,
-                    )
-                    new_path_lengths = np.insert(
-                        np.cumsum(np.linalg.norm(resampled_pts[1:] - resampled_pts[:-1], axis=1)),
-                        0,
-                        0,
-                    )
-                    resampled_radii = np.interp(
-                        new_path_lengths / new_path_lengths[-1],
-                        path_lengths / path_lengths[-1],
-                        radii,
-                    )
-
-                    # Update section points and diameters
-                    sec_pts = np.array_split(resampled_pts, len(i))
-                    sec_radii = np.array_split(resampled_radii, len(i))
-                    for num, sec in enumerate(i):
-                        if num == 0:
-                            s_pts = sec_pts[num]
-                            s_diams = sec_radii[num]
-                        else:
-                            s_pts = np.concatenate([[sec_pts[num - 1][-1]], sec_pts[num]])
-                            s_diams = np.concatenate([[sec_radii[num - 1][-1]], sec_radii[num]])
-
-                        sec.points = np.hstack([s_pts, s_diams.reshape((len(s_pts), 1))])
-
-                trunk_stats = morph_stats.extract_stats(
-                    neurite,
-                    {
-                        "neurite": {
-                            "segment_lengths": {"modes": ["mean", "std"]},
-                            "segment_meander_angles": {"modes": ["mean", "std"]},
-                        },
-                    },
-                )["axon"]
-                logger.debug("New statistics of the trunk: %s", trunk_stats)
-
-            # Export the new morphology
-            morph_path = (
-                (self.output()["morphologies"].pathlib_path / morph_name)
-                .with_suffix(".asc")
-                .as_posix()
-            )
-            morph.write(morph_path)
-            steiner_morphs.loc[index, "post_processed_morph_file"] = morph_path
-            logger.info("Exported morphology to %s", morph_path)
-
-            if self.plot_debug:
-                steiner_morph = load_morphology(morph_file)
-                steiner_morph = Morphology(resampling.resample_linear_density(steiner_morph, 0.005))
-
-                steiner_builder = NeuronBuilder(
-                    steiner_morph,
-                    "3d",
-                    line_width=4,
-                    title=f"{morph_name}",
-                )
-                fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
-
-                fig = make_subplots(
-                    cols=2,
-                    specs=[[{"type": "scene"}, {"type": "scene"}]],
-                    subplot_titles=["Post-processed morphology", "Raw Steiner morphology"],
-                )
-                all_data = [fig_builder.get_figure()["data"], steiner_builder.get_figure()["data"]]
-                fig.add_traces(list(chain(*all_data)), rows=[1, 1, 1, 1], cols=[1, 1, 2, 2])
-
-                fig.update_scenes({"aspectmode": "data"})
-
-                # Export figure
-                filepath = str(
-                    self.output()["figures"].pathlib_path
-                    / f"{Path(morph_name).with_suffix('').name}.html",
-                )
-                fig.write_html(filepath)
-
-                add_camera_sync(filepath)
-                logger.info("Exported figure to %s", filepath)
-
-        steiner_morphs.to_csv(self.output()["morphology_paths"].path, index=False)
-
-    def output(self):
-        return {
-            "figures": PostProcessingOutputLocalTarget("figures", create_parent=True),
-            "morphologies": PostProcessingOutputLocalTarget("morphologies", create_parent=True),
-            "morphology_paths": PostProcessingOutputLocalTarget(
-                "steiner_morph_paths.csv",
-                create_parent=True,
-            ),
+        length_stats = {
+            "norm": ref_trunk_props["mean_segment_lengths"],
+            "std": ref_trunk_props["std_segment_lengths"],
         }
+        # angle_stats = {
+        #     "norm": ref_trunk_props["mean_segment_meander_angles"],
+        #     "std": ref_trunk_props["std_segment_meander_angles"],
+        # }
+        if not i[0].is_root:
+            try:
+                parent_history = parent_histories[i[0].parent]
+            except KeyError:
+                parent_history = None
+        else:
+            parent_history = None
+
+        resampled_pts, last_history = random_walk(
+            pts[0],
+            pts[1:],
+            length_stats,
+            # angle_stats,
+            parent_history,
+            rng=rng,
+            logger=logger,
+        )
+        parent_histories[i[-1]] = last_history
+
+        path_lengths = np.insert(
+            np.cumsum(np.linalg.norm(pts[1:] - pts[:-1], axis=1)),
+            0,
+            0,
+        )
+        new_path_lengths = np.insert(
+            np.cumsum(np.linalg.norm(resampled_pts[1:] - resampled_pts[:-1], axis=1)),
+            0,
+            0,
+        )
+        resampled_diams = np.interp(
+            new_path_lengths / new_path_lengths[-1],
+            path_lengths / path_lengths[-1],
+            diams,
+        )
+
+        # Update section points and diameters
+        sec_pts = np.array_split(resampled_pts, len(i))
+        sec_diams = np.array_split(resampled_diams, len(i))
+        for num, sec in enumerate(i):
+            if num == 0:
+                s_pts = sec_pts[num]
+                s_diams = sec_diams[num]
+            else:
+                s_pts = np.concatenate([[sec_pts[num - 1][-1]], sec_pts[num]])
+                s_diams = np.concatenate([[sec_diams[num - 1][-1]], sec_diams[num]])
+            sec.points = s_pts
+            sec.diameters = s_diams
+
+    if logger.getEffectiveLevel() <= logging.DEBUG:
+        trunk_stats = morph_stats.extract_stats(
+            Neurite(root_section),
+            {
+                "neurite": {
+                    "segment_lengths": {"modes": ["mean", "std"]},
+                    "segment_meander_angles": {"modes": ["mean", "std"]},
+                },
+            },
+        )["axon"]
+        logger.debug("New trunk statistics: %s", trunk_stats)
+
+    # Export the new morphology
+    if output_path is not None:
+        morph.write(output_path)
+        logger.info("Exported morphology to %s", output_path)
+
+    # Create a figure of the new morphology
+    if figure_path is not None:
+        morph_name = figure_path.stem
+
+        steiner_builder = NeuronBuilder(
+            initial_morph,
+            "3d",
+            line_width=4,
+            title=f"{morph_name}",
+        )
+        fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
+
+        fig = make_subplots(
+            cols=2,
+            specs=[[{"type": "scene"}, {"type": "scene"}]],
+            subplot_titles=["Post-processed morphology", "Raw Steiner morphology"],
+        )
+        current_data = fig_builder.get_figure()["data"]
+        steiner_data = steiner_builder.get_figure()["data"]
+        all_data = list(chain(current_data, steiner_data))
+        fig.add_traces(
+            all_data,
+            rows=[1] * (len(current_data) + len(steiner_data)),
+            cols=[1] * len(current_data) + [2] * len(steiner_data),
+        )
+
+        fig.update_scenes({"aspectmode": "data"})
+
+        # Export figure
+        fig.write_html(figure_path)
+
+        add_camera_sync(figure_path)
+        logger.info("Exported figure to %s", figure_path)

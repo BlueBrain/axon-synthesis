@@ -313,6 +313,7 @@ def fetch_white_matter_recipe(**kwargs):
 def create_inputs(global_config: GlobalConfig, **kwargs):
     """The command to create inputs."""
     kwargs["debug"] = global_config.debug
+    kwargs["rng"] = global_config.seed
     kwargs["atlas_config"] = atlas_kwargs_to_config(kwargs)
     kwargs["wmr_config"] = wmr_kwargs_to_config(kwargs)
     input_creation.create_inputs(**kwargs)

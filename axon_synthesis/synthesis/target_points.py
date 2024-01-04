@@ -9,6 +9,7 @@ from axon_synthesis.synthesis.source_points import SOURCE_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import DEFAULT_POPULATION
 from axon_synthesis.utils import CoordsCols
 
 LOGGER = logging.getLogger(__name__)
@@ -31,9 +32,9 @@ def get_target_points(
 
     # Create default populations if missing
     if "population_id" not in source_points.columns:
-        source_points["population_id"] = "default"
+        source_points["population_id"] = DEFAULT_POPULATION
     if "source_population_id" not in target_probabilities.columns:
-        target_probabilities["source_population_id"] = "default"
+        target_probabilities["source_population_id"] = DEFAULT_POPULATION
 
     # Duplicated entries stand for different axons so we create axon IDs
     source_points["axon_id"] = source_points.groupby("morphology").cumcount()

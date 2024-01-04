@@ -23,7 +23,9 @@ from tmd.Topology.persistent_properties import PersistentAngles
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.typing import FileType
+from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import DEFAULT_POPULATION
 
 logger = logging.getLogger(__name__)
 
@@ -191,8 +193,10 @@ def reduce_clusters(
     shortest_paths,
     projection_pop_numbers,
     bouton_density,
+    atlas_region_id: int,
     export_tuft_morph_dir: FileType | None = None,
     config_name: str | None = None,
+    rng: SeedType = None,
 ):
     """Reduce clusters to one section from their common ancestors to their centers."""
     if not config_name:
@@ -201,7 +205,6 @@ def reduce_clusters(
     group = group.dropna(subset="tuft_id").astype({"tuft_id": int})
 
     root_point = axon.points[0, COLS.XYZ]
-    atlas_region_id = atlas.brain_regions.lookup(root_point)
     source_projections = projection_pop_numbers.loc[
         projection_pop_numbers["atlas_region_id"] == atlas_region_id
     ]
@@ -282,13 +285,13 @@ def reduce_clusters(
             source_projections["target_atlas_id"] == target_atlas_region_id
         ]
         if len(target_projection_number) > 0:
-            target_tmp = target_projection_number.sample()
+            target_tmp = target_projection_number.sample(random_state=rng)
             target_projection_number, volume, target_projection_name = target_tmp[
                 ["pop_neuron_numbers", "atlas_region_volume_target", "target_projection_name"]
             ].to_numpy()[0]
         else:
             target_projection_number = None
-            target_projection_name = "default"
+            target_projection_name = DEFAULT_POPULATION
             fraction = None
             strength = None
             volume = None

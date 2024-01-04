@@ -23,7 +23,7 @@ def build_and_graft_trunk(
     *,
     output_path: FileType | None = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
-):
+) -> int:
     """Build and graft a trunk to a morphology from a set of nodes and edges."""
     logger = sublogger(logger, __name__)
 
@@ -137,3 +137,5 @@ def build_and_graft_trunk(
         # Export the morphology
         morph.write(output_path)
         logger.info("Exported to %s", output_path)
+
+    return root_section.id
