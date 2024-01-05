@@ -10,6 +10,7 @@ class Outputs(BasePathBuilder):
 
     _filenames: ClassVar[dict] = {
         "GRAPH_CREATION": "CraphCreation",
+        "MAIN_TRUNK_FIGURES": "MainTrunkFigures",
         "MAIN_TRUNK_MORPHOLOGIES": "MainTrunkMorphologies",
         "MORPHOLOGIES": "Morphologies",
         "POSTPROCESS_TRUNK_FIGURES": "PostProcessTrunkFigures",
@@ -34,6 +35,7 @@ class Outputs(BasePathBuilder):
         self.MORPHOLOGIES.mkdir(parents=True, exist_ok=True)
         if file_selection == FILE_SELECTION.ALL:
             self.GRAPH_CREATION.mkdir(parents=True, exist_ok=True)
+            self.MAIN_TRUNK_FIGURES.mkdir(parents=True, exist_ok=True)
             self.MAIN_TRUNK_MORPHOLOGIES.mkdir(parents=True, exist_ok=True)
             self.POSTPROCESS_TRUNK_FIGURES.mkdir(parents=True, exist_ok=True)
             self.POSTPROCESS_TRUNK_MORPHOLOGIES.mkdir(parents=True, exist_ok=True)

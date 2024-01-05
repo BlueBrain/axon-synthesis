@@ -161,6 +161,7 @@ def synthesize_axons(  # noqa: PLR0913
                 favored_region_tree=create_graph_config.favored_region_tree,
                 rng=rng,
                 output_path=outputs.GRAPH_CREATION / morph_file_name if debug else None,
+                figure_path=outputs.GRAPH_CREATION / figure_file_name if debug else None,
                 logger=custom_logger,
             )
 
@@ -177,7 +178,8 @@ def synthesize_axons(  # noqa: PLR0913
                 morph,
                 axon_terminals["grafting_section_id"].to_numpy()[0],
                 solution_edges,
-                output_path=(outputs.MAIN_TRUNK_MORPHOLOGIES / morph_file_name if debug else None),
+                figure_path=outputs.MAIN_TRUNK_FIGURES / figure_file_name if debug else None,
+                output_path=outputs.MAIN_TRUNK_MORPHOLOGIES / morph_file_name if debug else None,
                 logger=custom_logger,
             )
 

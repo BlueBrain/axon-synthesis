@@ -45,6 +45,7 @@ examples/morphologies/out_*
 examples/morphologies/*_release
 examples/morphologies/raw_morphologies
 examples/morphologies/dataset.csv
+examples/out
 
 # Node
 node_modules

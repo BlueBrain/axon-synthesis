@@ -6,13 +6,53 @@ import pandas as pd
 from morphio import PointLevel
 from morphio import SectionType
 from neurom.core import Morphology
+from plotly.subplots import make_subplots
+from plotly_helper.neuron_viewer import NeuronBuilder
 
-# from axon_synthesis.synthesis.target_points import TARGET_COORDS_COLS
-# from axon_synthesis.synthesis.source_points import SOURCE_COORDS_COLS
 from axon_synthesis.synthesis.main_trunk.create_graph import FROM_COORDS_COLS
 from axon_synthesis.synthesis.main_trunk.create_graph import TO_COORDS_COLS
 from axon_synthesis.typing import FileType
+from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import sublogger
+
+
+def plot(morph, initial_morph, figure_path):
+    """Plot the Steiner morphology."""
+    morph_name = morph.name
+
+    # Build the generated figure
+    gen_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
+    gen_fig = gen_builder.get_figure()["data"]
+
+    # Build the initial figure
+    initial_builder = NeuronBuilder(initial_morph, "3d", line_width=4, title=f"{morph_name}")
+    initial_fig = initial_builder.get_figure()["data"]
+
+    # Export the solution
+    fig = make_subplots(
+        cols=2,
+        specs=[[{"is_3d": True}, {"is_3d": True}]],
+        subplot_titles=["Main trunk", "Initial morphology"],
+    )
+    fig.add_traces(
+        gen_fig,
+        rows=[1] * len(gen_fig),
+        cols=[1] * len(gen_fig),
+    )
+    fig.add_traces(
+        initial_fig,
+        rows=[1] * len(initial_fig),
+        cols=[2] * len(initial_fig),
+    )
+
+    fig.update_scenes({"aspectmode": "data"})
+
+    fig.layout.update(title=morph_name)
+
+    fig.write_html(figure_path)
+
+    # Update the HTML file to synchronize the cameras between the two plots
+    add_camera_sync(figure_path)
 
 
 def build_and_graft_trunk(
@@ -22,10 +62,13 @@ def build_and_graft_trunk(
     edges: pd.DataFrame,
     *,
     output_path: FileType | None = None,
+    figure_path: FileType | None = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ) -> int:
     """Build and graft a trunk to a morphology from a set of nodes and edges."""
     logger = sublogger(logger, __name__)
+
+    initial_morph = Morphology(morph) if figure_path is not None else None
 
     # Build the synthesized axon
     active_sections = []
@@ -137,5 +180,8 @@ def build_and_graft_trunk(
         # Export the morphology
         morph.write(output_path)
         logger.info("Exported to %s", output_path)
+
+    if figure_path is not None:
+        plot(morph, initial_morph, figure_path)
 
     return root_section.id

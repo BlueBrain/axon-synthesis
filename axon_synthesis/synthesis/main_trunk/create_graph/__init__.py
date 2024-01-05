@@ -11,6 +11,9 @@ from attrs import field
 from scipy.spatial import KDTree
 
 from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.synthesis.main_trunk.create_graph.plot import plot_triangulation
+from axon_synthesis.synthesis.main_trunk.create_graph.utils import FROM_COORDS_COLS
+from axon_synthesis.synthesis.main_trunk.create_graph.utils import TO_COORDS_COLS
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_bounding_box_pts
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_depth_penalty
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_favored_reward
@@ -27,12 +30,8 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
-from axon_synthesis.utils import CoordsCols
 from axon_synthesis.utils import check_min_max
 from axon_synthesis.utils import sublogger
-
-FROM_COORDS_COLS = CoordsCols("x_from", "y_from", "z_from")
-TO_COORDS_COLS = CoordsCols("x_to", "y_to", "z_to")
 
 
 @define
@@ -116,6 +115,7 @@ def one_graph(
     favored_region_tree: KDTree = None,
     *,
     output_path: FileType | None = None,
+    figure_path: FileType | None = None,
     rng: SeedType = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
@@ -240,14 +240,15 @@ def one_graph(
     logger.info("%s edges", len(edges_df))
 
     if output_path is not None:
-        pass
-    #     plot_triangulation(
-    #         edges_df,
-    #         FROM_COORDS_COLS,
-    #         TO_COORDS_COLS,
-    #         tri,
-    #         nodes_df[COORDS_COLS],
-    #         pts,
-    #     )
+        nodes_df.to_hdf(output_path, key="nodes", mode="w")
+        edges_df.to_hdf(output_path, key="edges", mode="a")
+
+    if figure_path is not None:
+        plot_triangulation(
+            edges_df,
+            source_coords,
+            pts,
+            figure_path,
+        )
 
     return nodes_df, edges_df

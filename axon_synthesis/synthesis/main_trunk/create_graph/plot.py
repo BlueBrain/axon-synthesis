@@ -1,77 +1,51 @@
 """Some plot utils for create graph."""
-import time
+from pathlib import Path
 
-import numpy as np
-from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import plotly.graph_objs as go
 
-from axon_synthesis.utils import disable_loggers
-from axon_synthesis.utils import use_matplotlib_backend
+from axon_synthesis.synthesis.main_trunk.create_graph.utils import FROM_COORDS_COLS
+from axon_synthesis.synthesis.main_trunk.create_graph.utils import TO_COORDS_COLS
 
 
-@disable_loggers("matplotlib.font_manager", "PIL.PngImagePlugin")
-def plot_triangulation(edges_df, from_coord_cols, to_coord_cols, tri, all_points, pts):
+def plot_triangulation(edges, source_point, target_points, figure_path):
     """Plot the given triangulation for debugging purpose."""
-    with use_matplotlib_backend("TkAgg"):
-        # Prepare data for plot
-        mask_from = (edges_df[from_coord_cols] < pts.min(axis=0)).any(axis=1) | (
-            edges_df[from_coord_cols] > pts.max(axis=0)
-        ).any(axis=1)
-        mask_to = (edges_df[to_coord_cols] < pts.min(axis=0)).any(axis=1) | (
-            edges_df[to_coord_cols] > pts.max(axis=0)
-        ).any(axis=1)
-        out_pts = np.unique(
-            np.concatenate(
-                [
-                    edges_df.loc[mask_from, "from"],
-                    edges_df.loc[mask_to, "to"],
-                ],
-            ),
-        )
+    segments = edges.copy(deep=False)
+    segments["cutter"] = None
 
-        masked_tri = tri.simplices[  # pylint: disable=no-member
-            # pylint: disable=no-member
-            ~np.isin(tri.simplices, out_pts).any(axis=1)
-        ]
-        triangles = np.unique(
-            np.apply_along_axis(
-                np.sort,
-                1,
-                np.vstack(
-                    np.stack(
-                        (
-                            masked_tri,
-                            np.roll(masked_tri, -1, axis=1),
-                            np.roll(masked_tri, -2, axis=1),
-                        ),
-                        axis=2,
-                    ),
-                ),
-            ),
-            axis=0,
-        )
-        tri_col = Poly3DCollection(
-            all_points.values[triangles],
-            edgecolors="k",
-            facecolors=None,
-            linewidths=0.5,
-            alpha=0,
-        )
+    fig = go.Figure()
 
-        # Create the figure
-        fig = plt.figure(figsize=(12, 9))
-        ax = fig.gca(projection="3d")
-        ax.add_collection3d(tri_col)
+    edges_trace = go.Scatter3d(
+        x=segments[[FROM_COORDS_COLS.X, TO_COORDS_COLS.X, "cutter"]].to_numpy().flatten().tolist(),
+        y=segments[[FROM_COORDS_COLS.Y, TO_COORDS_COLS.Y, "cutter"]].to_numpy().flatten().tolist(),
+        z=segments[[FROM_COORDS_COLS.Z, TO_COORDS_COLS.Z, "cutter"]].to_numpy().flatten().tolist(),
+        line={"width": 0.5, "color": "#888"},
+        mode="lines",
+        name="Steiner graph",
+    )
 
-        # Plot the terminal points
-        ax.scatter3D(*pts.T, c="red")
+    source_point_trace = go.Scatter3d(
+        x=[source_point[0]],
+        y=[source_point[1]],
+        z=[source_point[2]],
+        marker={"color": "rgb(255,0,0)", "size": 4},
+        name="Source point",
+    )
 
-        # Set rotation center
-        pts_center = pts.mean(axis=0)
-        half_delta = 0.5 * (pts.max(axis=0) - pts.min(axis=0))
-        ax.set_xbound(pts_center[0] - half_delta[0], pts_center[0] + half_delta[0])
-        ax.set_ybound(pts_center[1] - half_delta[1], pts_center[1] + half_delta[1])
-        ax.set_zbound(pts_center[2] - half_delta[2], pts_center[2] + half_delta[2])
+    target_points_trace = go.Scatter3d(
+        x=target_points[:, 0],
+        y=target_points[:, 1],
+        z=target_points[:, 2],
+        marker={"color": "rgb(0,0,255)", "size": 2},
+        name="Target points",
+    )
 
-        plt.show()
-        time.sleep(1)
+    fig.add_trace(edges_trace)
+    fig.add_trace(source_point_trace)
+    fig.add_trace(target_points_trace)
+
+    fig.update_scenes({"aspectmode": "data"})
+
+    fig.layout.update(title=Path(figure_path).stem)
+
+    # Export figure
+    fig.write_html(figure_path)

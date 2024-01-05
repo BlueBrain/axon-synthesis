@@ -9,8 +9,12 @@ from scipy.spatial import KDTree
 from scipy.spatial import Voronoi
 
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import CoordsCols
 
 logger = logging.getLogger(__name__)
+
+FROM_COORDS_COLS = CoordsCols("x_from", "y_from", "z_from")
+TO_COORDS_COLS = CoordsCols("x_to", "y_to", "z_to")
 
 
 def use_ancestors(terminals, tuft_properties_path):

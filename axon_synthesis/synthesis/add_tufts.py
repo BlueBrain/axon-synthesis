@@ -56,6 +56,8 @@ def plot_tuft(morph, title, output_path, morph_file=None, morph_title=None):
 
     fig.update_scenes({"aspectmode": "data"})
 
+    fig.layout.update(title=morph.name)
+
     # Export figure
     fig.write_html(output_path)
 

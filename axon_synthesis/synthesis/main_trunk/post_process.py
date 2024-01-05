@@ -17,9 +17,11 @@ from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import sublogger
 
+WEIGHT_DISTANCE_TOLERANCE = 1e-8
+
 
 def get_random_vector(
-    D=1.0,
+    distance=1.0,
     norm=None,
     std=None,
     initial_theta=None,
@@ -28,7 +30,7 @@ def get_random_vector(
 ):
     """Return 3-d coordinates of a new random point.
 
-    The distance between the produced point and (0,0,0) is given by the value D.
+    The distance between the produced point and (0,0,0) is given by the 'distance' argument.
     """
     # pylint: disable=assignment-from-no-return
     phi = rng.uniform(0.0, 2.0 * np.pi)
@@ -44,9 +46,9 @@ def get_random_vector(
 
     sn_theta = np.sin(theta)
 
-    x = D * np.cos(phi) * sn_theta
-    y = D * np.sin(phi) * sn_theta
-    z = D * np.cos(theta)
+    x = distance * np.cos(phi) * sn_theta
+    y = distance * np.sin(phi) * sn_theta
+    z = distance * np.cos(theta)
 
     return np.array((x, y, z))
 
@@ -63,7 +65,7 @@ def history(latest_lengths, latest_directions, history_path_length):
     weighted_history = np.dot(weights(latest_lengths, history_path_length), latest_directions)
 
     distance = np.linalg.norm(weighted_history)
-    if distance > 1e-8:
+    if distance > WEIGHT_DISTANCE_TOLERANCE:
         weighted_history /= distance
 
     return weighted_history
@@ -325,6 +327,80 @@ def random_walk(
     return np.array(new_pts, dtype=dtype), (latest_lengths, latest_directions)
 
 
+def plot(morph, initial_morph, figure_path):
+    """Plot the morphology after post-processing."""
+    morph_name = figure_path.stem
+
+    steiner_builder = NeuronBuilder(
+        initial_morph,
+        "3d",
+        line_width=4,
+        title=f"{morph_name}",
+    )
+    fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
+
+    fig = make_subplots(
+        cols=2,
+        specs=[[{"type": "scene"}, {"type": "scene"}]],
+        subplot_titles=["Post-processed morphology", "Raw Steiner morphology"],
+    )
+    current_data = fig_builder.get_figure()["data"]
+    steiner_data = steiner_builder.get_figure()["data"]
+    all_data = list(chain(current_data, steiner_data))
+    fig.add_traces(
+        all_data,
+        rows=[1] * (len(current_data) + len(steiner_data)),
+        cols=[1] * len(current_data) + [2] * len(steiner_data),
+    )
+
+    fig.update_scenes({"aspectmode": "data"})
+
+    fig.layout.update(title=morph_name)
+
+    # Export figure
+    fig.write_html(figure_path)
+
+    # Update the HTML file to synchronize the cameras between the two plots
+    add_camera_sync(figure_path)
+
+
+def gather_sections(root_section, tuft_barcodes):
+    """Gather the sections with unifurcations."""
+    sections_to_smooth = [[]]
+    sec_use_parent = {
+        tuple(i) for i in tuft_barcodes[["section_id", "use_parent"]].to_numpy().tolist()
+    }
+    for section in root_section.iter():
+        sections_to_smooth[-1].append(section)
+        if (
+            len(section.children) != 1
+            or (section.id, False) in sec_use_parent
+            or any((child.id, True) in sec_use_parent for child in section.children)
+        ):
+            sections_to_smooth.append([])
+
+    return sections_to_smooth
+
+
+def resample_diameters(pts, resampled_pts, diams):
+    """Resample the diameters on the new points."""
+    path_lengths = np.insert(
+        np.cumsum(np.linalg.norm(pts[1:] - pts[:-1], axis=1)),
+        0,
+        0,
+    )
+    new_path_lengths = np.insert(
+        np.cumsum(np.linalg.norm(resampled_pts[1:] - resampled_pts[:-1], axis=1)),
+        0,
+        0,
+    )
+    return np.interp(
+        new_path_lengths / new_path_lengths[-1],
+        path_lengths / path_lengths[-1],
+        diams,
+    )
+
+
 def post_process_trunk(
     morph: Morphology,
     trunk_section_id: int,
@@ -369,18 +445,7 @@ def post_process_trunk(
         logger.debug("Current trunk statistics: %s", trunk_stats)
 
     # Gather sections with unifurcations into future sections
-    sections_to_smooth = [[]]
-    sec_use_parent = {
-        tuple(i) for i in tuft_barcodes[["section_id", "use_parent"]].to_numpy().tolist()
-    }
-    for section in root_section.iter():
-        sections_to_smooth[-1].append(section)
-        if (
-            len(section.children) != 1
-            or (section.id, False) in sec_use_parent
-            or any((child.id, True) in sec_use_parent for child in section.children)
-        ):
-            sections_to_smooth.append([])
+    sections_to_smooth = gather_sections(root_section, tuft_barcodes)
 
     # Smooth the sections but do not move the tuft roots
     parent_histories = {}
@@ -417,21 +482,7 @@ def post_process_trunk(
         )
         parent_histories[i[-1]] = last_history
 
-        path_lengths = np.insert(
-            np.cumsum(np.linalg.norm(pts[1:] - pts[:-1], axis=1)),
-            0,
-            0,
-        )
-        new_path_lengths = np.insert(
-            np.cumsum(np.linalg.norm(resampled_pts[1:] - resampled_pts[:-1], axis=1)),
-            0,
-            0,
-        )
-        resampled_diams = np.interp(
-            new_path_lengths / new_path_lengths[-1],
-            path_lengths / path_lengths[-1],
-            diams,
-        )
+        resampled_diams = resample_diameters(pts, resampled_pts, diams)
 
         # Update section points and diameters
         sec_pts = np.array_split(resampled_pts, len(i))
@@ -465,34 +516,5 @@ def post_process_trunk(
 
     # Create a figure of the new morphology
     if figure_path is not None:
-        morph_name = figure_path.stem
-
-        steiner_builder = NeuronBuilder(
-            initial_morph,
-            "3d",
-            line_width=4,
-            title=f"{morph_name}",
-        )
-        fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
-
-        fig = make_subplots(
-            cols=2,
-            specs=[[{"type": "scene"}, {"type": "scene"}]],
-            subplot_titles=["Post-processed morphology", "Raw Steiner morphology"],
-        )
-        current_data = fig_builder.get_figure()["data"]
-        steiner_data = steiner_builder.get_figure()["data"]
-        all_data = list(chain(current_data, steiner_data))
-        fig.add_traces(
-            all_data,
-            rows=[1] * (len(current_data) + len(steiner_data)),
-            cols=[1] * len(current_data) + [2] * len(steiner_data),
-        )
-
-        fig.update_scenes({"aspectmode": "data"})
-
-        # Export figure
-        fig.write_html(figure_path)
-
-        add_camera_sync(figure_path)
+        plot(morph, initial_morph, figure_path)
         logger.info("Exported figure to %s", figure_path)
