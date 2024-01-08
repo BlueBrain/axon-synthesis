@@ -13,6 +13,7 @@ class BasePathBuilder:
 
     _filenames: ClassVar[dict] = {}
     _optional_keys: ClassVar[set[str]] = set()
+    _dir_keys: ClassVar[set[str]] = set()
 
     def __init__(self, path: FileType, *, exists: bool = False, create: bool = False):
         """Create a new BasePathBuilder object.
@@ -111,3 +112,14 @@ class BasePathBuilder:
         files = list(self.missing_files(file_selection).keys())
         if files:
             self.raise_missing_files(missing_files=files)
+
+    def is_subdir(self, key):
+        """Check if a given key is registered as a subdirectory."""
+        return key in self._dir_keys
+
+    def create_dirs(self, *, file_selection: FILE_SELECTION = FILE_SELECTION.REQUIRED_ONLY):
+        """Create sub-directories."""
+        files = self.filenames_from_type(file_selection=file_selection)
+        for k, v in files.items():
+            if self.is_subdir(k):
+                v.mkdir(parents=True, exist_ok=True)

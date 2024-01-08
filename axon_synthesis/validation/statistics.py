@@ -1,4 +1,5 @@
 """Compute and plot some statistics."""
+# ruff: noqa
 import json
 import logging
 from collections import defaultdict

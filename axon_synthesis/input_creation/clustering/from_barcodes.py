@@ -68,13 +68,13 @@ def barcode_mins(barcode, nb_bins=100, threshold=0.1):
 
 
 def compute_clusters(
-    config_str,
+    config_str,  # noqa: ARG001
     morph,
-    axon,
-    axon_id,
+    axon,  # noqa: ARG001
+    axon_id,  # noqa: ARG001
     group_name,
     group,
-    output_cols,
+    output_cols,  # noqa: ARG001
     *,
     debug=False,
     **kwargs,
@@ -82,7 +82,8 @@ def compute_clusters(
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
     # pylint: disable=unused-argument
-    raise NotImplementedError("This mode is not implemented yet.")
+    msg = "This mode is not implemented yet."
+    raise NotImplementedError(msg)
     # pylint: disable=unreachable
     # pylint: disable=unused-variable
     new_terminal_points = []

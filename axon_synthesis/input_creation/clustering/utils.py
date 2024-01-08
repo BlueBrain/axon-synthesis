@@ -142,30 +142,30 @@ def tuft_morph_path(root_path, group_name, axon_id, tuft_id):
 
 def compute_mean_tuft_length(
     volume,
-    N_pot,
+    n_pot,
     fraction,
     strength,
     bouton_density,
 ):
     """Compute properties for the cluster."""
-    N_act = N_pot * fraction
-    N_tot = volume * strength
-    n_syn_per = N_tot / N_act
+    n_act = n_pot * fraction
+    n_tot = volume * strength
+    n_syn_per = n_tot / n_act
     return n_syn_per / bouton_density
 
 
 def compute_common_section_properties(
-    first_axon_pt, section, N_pot, volume, fraction, strength, bouton_density
+    first_axon_pt, section, n_pot, volume, fraction, strength, bouton_density
 ):
     """Compute basic properties of the given section."""
     path_distance = sum(section_length(i.points) for i in section.iter(IterType.upstream))
     radial_distance = np.linalg.norm(first_axon_pt - section.points[-1])
     path_length = sum(section_length(i.points) for i in section.iter())
 
-    if all(i is not None for i in [N_pot, volume, fraction, strength, bouton_density]):
+    if all(i is not None for i in [n_pot, volume, fraction, strength, bouton_density]):
         mean_tuft_length = compute_mean_tuft_length(
             volume,
-            N_pot,
+            n_pot,
             fraction,
             strength,
             bouton_density,
@@ -177,7 +177,7 @@ def compute_common_section_properties(
     return path_distance, radial_distance, path_length, cluster_weight
 
 
-def reduce_clusters(
+def reduce_clusters(  # noqa: PLR0913
     atlas: AtlasHelper,
     # wmr: WhiteMatterRecipe,
     group,

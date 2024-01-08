@@ -95,6 +95,7 @@ select = ["ALL"]
 ignore = [
     "ANN001",  # TODO: Fix and remove this one
     "ANN201",  # TODO: Fix and remove this one
+    "ANN202",  # TODO: Fix and remove this one
     "ANN204",  # TODO: Fix and remove this one
     "ANN002",
     "ANN003",

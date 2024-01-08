@@ -27,6 +27,47 @@ def nodes_to_terminals_mapping(graph, source=None, shortest_paths=None):
     return node_to_terminals
 
 
+def _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_path_distance):
+    """Check that 2 points are in the same cluster."""
+    term_a = terminal_nodes.iloc[a].name
+    term_b = terminal_nodes.iloc[b].name
+    if term_a == -1 or term_b == -1:
+        return
+    try:
+        path = pair_paths[term_a][term_b]
+    except KeyError:
+        path = pair_paths[term_b][term_a]
+
+    if pdist(nodes.loc[path, COORDS_COLS].values).max() > max_path_distance:
+        # Skip if a point on the path exceeds the clustering distance
+        return
+
+    # TODO: Do not cluster the terminals if they are in different regions?
+    # Or if the path between them goes too far inside another region?
+
+    # Add points to clusters
+    term_a_cluster_id = cluster_ids.loc[term_a]
+    term_b_cluster_id = cluster_ids.loc[term_b]
+
+    # If term_a is already in a cluster
+    if term_a_cluster_id != -1:
+        # If term_b is also already in a cluster
+        if term_b_cluster_id != -1:
+            # Transfer all terminals from the cluster of term_b to the one of term_a
+            cluster_ids.loc[cluster_ids == term_b_cluster_id] = term_a_cluster_id
+        else:
+            # Add term_b to the cluster of term_a
+            cluster_ids.loc[term_b] = term_a_cluster_id
+    else:  # noqa: PLR5501
+        # If term_b is already in a cluster
+        if term_b_cluster_id != -1:
+            # Add term_a to the cluster of term_b
+            cluster_ids.loc[term_a] = term_b_cluster_id
+        else:
+            # Create new cluster
+            cluster_ids.loc[[term_a, term_b]] = cluster_ids.max() + 1
+
+
 def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kwargs):
     """All parents up to the common ancestor must be inside the sphere to be merged."""
     sphere_radius = config["sphere_radius"]
@@ -55,43 +96,7 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kw
 
     # Check that the paths between each pair do not exceed the given distance
     for a, b in terminal_pairs:
-        term_a = terminal_nodes.iloc[a].name
-        term_b = terminal_nodes.iloc[b].name
-        if term_a == -1 or term_b == -1:
-            continue
-        try:
-            path = pair_paths[term_a][term_b]
-        except KeyError:
-            path = pair_paths[term_b][term_a]
-
-        if pdist(nodes.loc[path, COORDS_COLS].values).max() > max_path_distance:
-            # Skip if a point on the path exceeds the clustering distance
-            continue
-
-        # TODO: Do not cluster the terminals if they are in different regions?
-        # Or if the path between them goes too far inside another region?
-
-        # Add points to clusters
-        term_a_cluster_id = cluster_ids.loc[term_a]
-        term_b_cluster_id = cluster_ids.loc[term_b]
-
-        # If term_a is already in a cluster
-        if term_a_cluster_id != -1:
-            # If term_b is also already in a cluster
-            if term_b_cluster_id != -1:
-                # Transfer all terminals from the cluster of term_b to the one of term_a
-                cluster_ids.loc[cluster_ids == term_b_cluster_id] = term_a_cluster_id
-            else:
-                # Add term_b to the cluster of term_a
-                cluster_ids.loc[term_b] = term_a_cluster_id
-        else:  # noqa: PLR5501
-            # If term_b is already in a cluster
-            if term_b_cluster_id != -1:
-                # Add term_a to the cluster of term_b
-                cluster_ids.loc[term_a] = term_b_cluster_id
-            else:
-                # Create new cluster
-                cluster_ids.loc[[term_a, term_b]] = cluster_ids.max() + 1
+        _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_path_distance)
 
     # Create cluster IDs for not clustered terminals
     not_clustered_mask = (nodes["is_terminal"]) & (cluster_ids == -1)
