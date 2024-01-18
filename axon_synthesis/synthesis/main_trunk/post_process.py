@@ -505,6 +505,7 @@ def post_process_trunk(
     rng: SeedType = None,
     output_path: FileType | None = None,
     figure_path: FileType | None = None,
+    initial_morph: Morphology | None = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
     """Post-process a trunk of the given morphology."""
@@ -512,8 +513,6 @@ def post_process_trunk(
     debug = logger.getEffectiveLevel() <= logging.DEBUG
 
     rng = np.random.default_rng(rng)
-
-    initial_morph = Morphology(morph) if figure_path is not None else None
 
     root_section = morph.section(trunk_section_id)
 

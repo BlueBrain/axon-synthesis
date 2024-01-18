@@ -298,15 +298,21 @@ class Clustering(BasePathBuilder):
         return obj
 
 
+def extract_morph_name_from_filename(df, file_col="morph_file", name_col="morphology"):
+    """Add a 'morphology' column in the given DataFrame computed from the 'morph_file' column."""
+    df[name_col] = df[file_col].apply(lambda x: Path(x).stem)
+    return df
+
+
 def cluster_morphologies(
-    atlas: AtlasHelper,
-    wmr: WhiteMatterRecipe,
     morph_dir: FileType,
     clustering_parameters: dict,
-    pop_neuron_numbers: pd.DataFrame,
-    bouton_density: float,
     output_path: FileType,
     *,
+    atlas: AtlasHelper | None,
+    wmr: WhiteMatterRecipe | None,
+    pop_neuron_numbers: pd.DataFrame | None,
+    bouton_density: float | None,
     debug: bool = False,
     nb_workers: int = 1,
     rng: SeedType = None,
@@ -318,23 +324,25 @@ def cluster_morphologies(
         clustering.parameters,
     )
 
-    projection_pop_numbers = wmr.projection_targets.merge(
-        pop_neuron_numbers[
-            ["pop_raw_name", "atlas_region_volume", "pop_neuron_numbers"]
-        ].drop_duplicates(),
-        left_on="target_population_name",
-        right_on="pop_raw_name",
-        how="left",
-        suffixes=("", "_target"),
+    brain_regions = atlas.brain_regions if atlas is not None else None
+    projection_pop_numbers = (
+        wmr.projection_targets.merge(
+            pop_neuron_numbers[
+                ["pop_raw_name", "atlas_region_volume", "pop_neuron_numbers"]
+            ].drop_duplicates(),
+            left_on="target_population_name",
+            right_on="pop_raw_name",
+            how="left",
+            suffixes=("", "_target"),
+        )
+        if wmr is not None
+        else None
     )
 
     terminals = extract_terminals.process_morphologies(morph_dir)
-    terminals["config"] = None
-    terminals["tuft_id"] = -1
+    terminals[["config", "tuft_id"]] = None, -1
 
-    all_terminal_points = []
-    cluster_props = []
-    trunk_props = []
+    all_terminal_points, cluster_props, trunk_props = [], [], []
     morph_paths = defaultdict(list)
     output_cols = [
         "morph_file",
@@ -360,7 +368,7 @@ def cluster_morphologies(
         morph = load_morphology(group_name)
 
         # Get the source brain region
-        atlas_region_id = atlas.brain_regions.lookup(morph.soma.center)
+        atlas_region_id = brain_regions.lookup(morph.soma.center) if atlas is not None else None
 
         # Get the list of axons of the morphology
         axons = get_axons(morph)
@@ -382,6 +390,12 @@ def cluster_morphologies(
             shortest_paths = nx.single_source_shortest_path(directed_graph, -1)
 
             for config_name, config in clustering.parameters.items():
+                if config["method"] == "brain_regions" and (atlas is None or wmr is None):
+                    msg = (
+                        "The atlas and wmr can not be None when the clustering method is "
+                        "'brain_regions'."
+                    )
+                    raise ValueError(msg)
                 axon_group = group.loc[group["axon_id"] == axon_id].copy(deep=True)
                 axon_group["config_name"] = config_name
                 suffix = f"_{config_name}_{axon_id}"
@@ -429,7 +443,6 @@ def cluster_morphologies(
                 # Reduce clusters to one section
                 sections_to_add = defaultdict(list)
                 kept_path = reduce_clusters(
-                    atlas,
                     axon_group,
                     group_name,
                     morph,
@@ -441,9 +454,10 @@ def cluster_morphologies(
                     morph_paths,
                     cluster_props,
                     shortest_paths,
-                    projection_pop_numbers,
                     bouton_density,
+                    brain_regions,
                     atlas_region_id,
+                    projection_pop_numbers=projection_pop_numbers,
                     export_tuft_morph_dir=clustering.TUFT_MORPHOLOGIES_DIRNAME if debug else None,
                     config_name=config_name,
                     rng=rng,
@@ -508,52 +522,56 @@ def cluster_morphologies(
                     )
 
     # Export long-range trunk properties
-    clustering.trunk_properties = pd.DataFrame(
-        trunk_props,
-        columns=[
-            "morph_file",
-            "config_name",
-            "axon_id",
-            "atlas_region_id",
-            "raw_segment_lengths",
-            "mean_segment_lengths",
-            "std_segment_lengths",
-            "raw_segment_meander_angles",
-            "mean_segment_meander_angles",
-            "std_segment_meander_angles",
-            "raw_segment_angles",
-            "raw_segment_path_lengths",
-        ],
-    ).sort_values(["morph_file", "config_name", "axon_id"])
+    clustering.trunk_properties = extract_morph_name_from_filename(
+        pd.DataFrame(
+            trunk_props,
+            columns=[
+                "morph_file",
+                "config_name",
+                "axon_id",
+                "atlas_region_id",
+                "raw_segment_lengths",
+                "mean_segment_lengths",
+                "std_segment_lengths",
+                "raw_segment_meander_angles",
+                "mean_segment_meander_angles",
+                "std_segment_meander_angles",
+                "raw_segment_angles",
+                "raw_segment_path_lengths",
+            ],
+        ).sort_values(["morph_file", "config_name", "axon_id"])
+    )
 
     # Export tuft properties
-    clustering.tuft_properties = pd.DataFrame(
-        cluster_props,
-        columns=[
-            "morph_file",
-            "config_name",
-            "axon_id",
-            "tuft_id",
-            "center_coords",
-            "common_ancestor_id",
-            "common_ancestor_coords",
-            "path_distance",
-            "radial_distance",
-            "path_length",
-            "size",
-            "orientation",
-            "weight",
-            "population_id",
-            "barcode",
-        ],
-    ).sort_values(["morph_file", "config_name", "axon_id"])
+    clustering.tuft_properties = extract_morph_name_from_filename(
+        pd.DataFrame(
+            cluster_props,
+            columns=[
+                "morph_file",
+                "config_name",
+                "axon_id",
+                "tuft_id",
+                "center_coords",
+                "common_ancestor_id",
+                "common_ancestor_coords",
+                "path_distance",
+                "radial_distance",
+                "path_length",
+                "size",
+                "orientation",
+                "mean_tuft_length",
+                "population_id",
+                "barcode",
+            ],
+        ).sort_values(["morph_file", "config_name", "axon_id"])
+    )
 
     # Plot cluster properties
     if debug:
         clustering.plot_cluster_properties()
 
     # Export the terminals
-    clustering.clustered_terminals = (
+    clustering.clustered_terminals = extract_morph_name_from_filename(
         pd.DataFrame(all_terminal_points, columns=output_cols)
         .fillna({"size": 1})
         .astype({"size": int})
@@ -588,7 +606,5 @@ def cluster_morphologies(
         ).sort_values(["morph_file", "config_name", "axon_id", "tuft_id"])
 
     # TODO: Should the 'use_ancestors' mode be moved here from the graph creation step?
-
-    clustering.save()
 
     return clustering

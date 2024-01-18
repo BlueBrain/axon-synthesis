@@ -1,6 +1,7 @@
 """Some plot utils for create graph."""
 from pathlib import Path
 
+import numpy as np
 import plotly.graph_objs as go
 
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import FROM_COORDS_COLS
@@ -28,6 +29,7 @@ def plot_triangulation(edges, source_point, target_points, figure_path):
         y=[source_point[1]],
         z=[source_point[2]],
         marker={"color": "rgb(255,0,0)", "size": 4},
+        mode="markers",
         name="Source point",
     )
 
@@ -36,6 +38,7 @@ def plot_triangulation(edges, source_point, target_points, figure_path):
         y=target_points[:, 1],
         z=target_points[:, 2],
         marker={"color": "rgb(0,0,255)", "size": 2},
+        mode="markers",
         name="Target points",
     )
 
@@ -45,7 +48,20 @@ def plot_triangulation(edges, source_point, target_points, figure_path):
 
     fig.update_scenes({"aspectmode": "data"})
 
-    fig.layout.update(title=Path(figure_path).stem)
+    pts = np.stack([source_point, *target_points])
+    bbox = np.stack([pts.min(axis=0), pts.max(axis=0)])
+    bbox_buffer = (bbox[1] - bbox[0]) * 0.1
+    bbox[0] -= bbox_buffer
+    bbox[1] += bbox_buffer
+
+    fig.layout.update(
+        title=Path(figure_path).stem,
+        scene={
+            "xaxis": {"range": bbox[:, 0]},
+            "yaxis": {"range": bbox[:, 1]},
+            "zaxis": {"range": bbox[:, 2]},
+        },
+    )
 
     # Export figure
     fig.write_html(figure_path)

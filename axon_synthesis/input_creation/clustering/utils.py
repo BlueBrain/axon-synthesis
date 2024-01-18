@@ -6,6 +6,7 @@ from pathlib import Path
 
 import networkx as nx
 import numpy as np
+import pandas as pd
 from jsonschema import Draft7Validator
 from jsonschema import ValidationError
 from jsonschema import validators
@@ -20,8 +21,8 @@ from neurom.morphmath import section_length
 from tmd.io.conversion import convert_morphio_trees
 from tmd.Topology.methods import tree_to_property_barcode
 from tmd.Topology.persistent_properties import PersistentAngles
+from voxcell import VoxelData
 
-from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
@@ -170,15 +171,13 @@ def compute_common_section_properties(
             strength,
             bouton_density,
         )
-        cluster_weight = mean_tuft_length
     else:
-        cluster_weight = 1
+        mean_tuft_length = None
 
-    return path_distance, radial_distance, path_length, cluster_weight
+    return path_distance, radial_distance, path_length, mean_tuft_length
 
 
 def reduce_clusters(  # noqa: PLR0913
-    atlas: AtlasHelper,
     # wmr: WhiteMatterRecipe,
     group,
     group_name,
@@ -191,9 +190,10 @@ def reduce_clusters(  # noqa: PLR0913
     morph_paths,
     cluster_props,
     shortest_paths,
-    projection_pop_numbers,
-    bouton_density,
-    atlas_region_id: int,
+    bouton_density: float | None,
+    brain_regions: VoxelData | None = None,
+    atlas_region_id: int | None = None,
+    projection_pop_numbers: pd.DataFrame | None = None,
     export_tuft_morph_dir: FileType | None = None,
     config_name: str | None = None,
     rng: SeedType = None,
@@ -205,9 +205,13 @@ def reduce_clusters(  # noqa: PLR0913
     group = group.dropna(subset="tuft_id").astype({"tuft_id": int})
 
     root_point = axon.points[0, COLS.XYZ]
-    source_projections = projection_pop_numbers.loc[
-        projection_pop_numbers["atlas_region_id"] == atlas_region_id
-    ]
+
+    if projection_pop_numbers is not None:
+        source_projections = projection_pop_numbers.loc[
+            projection_pop_numbers["atlas_region_id"] == atlas_region_id
+        ]
+    else:
+        source_projections = pd.DataFrame(columns=["target_atlas_id"])
 
     for tuft_id, cluster in group.groupby("tuft_id"):
         # Skip the root cluster
@@ -278,7 +282,7 @@ def reduce_clusters(  # noqa: PLR0913
         # Add tuft category data
         # TODO: Fix the WMR stuff
         try:
-            target_atlas_region_id = atlas.brain_regions.lookup(cluster_center)
+            target_atlas_region_id = brain_regions.lookup(cluster_center)
         except:  # noqa: E722
             target_atlas_region_id = 0
         target_projection_number = source_projections.loc[
@@ -300,7 +304,7 @@ def reduce_clusters(  # noqa: PLR0913
             path_distance,
             radial_distance,
             path_length,
-            cluster_weight,
+            mean_tuft_length,
         ) = compute_common_section_properties(
             root_point,
             common_section,
@@ -310,6 +314,8 @@ def reduce_clusters(  # noqa: PLR0913
             strength,
             bouton_density,
         )
+
+        # TODO: Compute the cluster weights somewhere else
 
         cluster_props.append(
             (
@@ -325,7 +331,7 @@ def reduce_clusters(  # noqa: PLR0913
                 path_length,
                 len(cluster),
                 tuft_orientation.tolist(),
-                cluster_weight,
+                mean_tuft_length,
                 target_projection_name,
                 np.array(tuft_barcode).tolist(),
             ),
@@ -356,11 +362,11 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add, s
     if not suffix:
         suffix = ""
     clustered_morph = Morphology(
-        deepcopy(morph),
+        morph,
         name=f"Clustered {Path(group_name).with_suffix('').name}{suffix}",
     )
     trunk_morph = Morphology(
-        deepcopy(morph),
+        morph,
         name=f"Clustered trunk {Path(group_name).with_suffix('').name}{suffix}",
     )
 

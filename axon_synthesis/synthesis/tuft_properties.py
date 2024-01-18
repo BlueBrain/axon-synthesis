@@ -24,6 +24,9 @@ def pick_barcodes(
     """Choose a barcode among the ones available."""
     logger = sublogger(logger, __name__)
 
+    if "weight" not in tuft_properties.columns:
+        tuft_properties["weight"] = 1
+
     tuft_properties = tuft_properties[["population_id", "weight", "orientation", "barcode"]].rename(
         columns={"orientation": "tuft_orientation"}
     )

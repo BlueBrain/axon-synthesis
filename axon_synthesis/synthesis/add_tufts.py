@@ -5,11 +5,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from morph_tool import resampling
 from morph_tool.converter import single_point_sphere_to_circular_contour
 from morphio import SomaType
 from morphio.mut import Morphology as MorphIoMorphology
-from neurom import load_morphology
 from neurom.core import Morphology
 from neurots.generate.tree import TreeGrower
 from plotly.subplots import make_subplots
@@ -24,23 +22,21 @@ from axon_synthesis.utils import sublogger
 logger = logging.getLogger(__name__)
 
 
-def plot_tuft(morph, title, output_path, morph_file=None, morph_title=None):
+def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None):
     """Plot the given morphology.
 
-    If `morph_file` is not None then the given morphology is also plotted for comparison.
+    If `initial_morph` is not None then the given morphology is also plotted for comparison.
     """
     morph = Morphology(morph)
     fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=title)
     fig_data = [fig_builder.get_figure()["data"]]
     left_title = "Morphology with tufts"
 
-    if morph_file is not None:
+    if initial_morph is not None:
         if morph_title is None:
-            morph_title = "Simplified raw morphology"
-        raw_morph = load_morphology(morph_file)
-        raw_morph = Morphology(resampling.resample_linear_density(raw_morph, 0.005))
+            morph_title = "Raw morphology"
 
-        raw_builder = NeuronBuilder(raw_morph, "3d", line_width=4, title=title)
+        raw_builder = NeuronBuilder(initial_morph, "3d", line_width=4, title=title)
 
         fig = make_subplots(
             cols=2,
@@ -61,7 +57,7 @@ def plot_tuft(morph, title, output_path, morph_file=None, morph_title=None):
     # Export figure
     fig.write_html(output_path)
 
-    if morph_file is not None:
+    if initial_morph is not None:
         add_camera_sync(output_path)
     logger.info("Exported figure to %s", output_path)
 
@@ -74,6 +70,7 @@ def build_and_graft_tufts(
     *,
     output_dir: FileType | None = None,
     figure_dir: FileType | None = None,
+    initial_morph: Morphology | None = None,
     rng: SeedType = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
@@ -136,6 +133,7 @@ def build_and_graft_tufts(
                 new_morph,
                 filename,
                 (figure_dir / filename).with_suffix(".html"),
+                initial_morph,
             )
 
         # Graft the tuft to the current terminal

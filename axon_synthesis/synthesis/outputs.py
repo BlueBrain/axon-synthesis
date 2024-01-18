@@ -8,7 +8,9 @@ class Outputs(BasePathBuilder):
     """Class to store the synthesis outputs."""
 
     _filenames: ClassVar[dict] = {
-        "GRAPH_CREATION": "GraphCreation",
+        "FINAL_FIGURES": "FinalFigures",
+        "GRAPH_CREATION_FIGURES": "GraphCreationFigures",
+        "GRAPH_CREATION_MORPHOLOGIES": "GraphCreationMorphologies",
         "MAIN_TRUNK_FIGURES": "MainTrunkFigures",
         "MAIN_TRUNK_MORPHOLOGIES": "MainTrunkMorphologies",
         "MORPHOLOGIES": "Morphologies",
@@ -21,16 +23,23 @@ class Outputs(BasePathBuilder):
     }
 
     _optional_keys: ClassVar[set[str]] = {
-        "GRAPH_CREATION",
+        "FINAL_FIGURES",
+        "GRAPH_CREATION_FIGURES",
+        "GRAPH_CREATION_MORPHOLOGIES",
+        "MAIN_TRUNK_FIGURES",
         "MAIN_TRUNK_MORPHOLOGIES",
+        "POSTPROCESS_TRUNK_FIGURES",
+        "POSTPROCESS_TRUNK_MORPHOLOGIES",
         "STEINER_TREE_SOLUTIONS",
         "TARGET_POINTS",
-        "TUFT_MORPHOLOGIES",
         "TUFT_FIGURES",
+        "TUFT_MORPHOLOGIES",
     }
 
     _dir_keys: ClassVar[set[str]] = {
-        "GRAPH_CREATION",
+        "FINAL_FIGURES",
+        "GRAPH_CREATION_FIGURES",
+        "GRAPH_CREATION_MORPHOLOGIES",
         "MAIN_TRUNK_FIGURES",
         "MAIN_TRUNK_MORPHOLOGIES",
         "MORPHOLOGIES",

@@ -20,6 +20,9 @@ classifiers = [
 ]
 dynamic = ["dependencies", "version"]
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 

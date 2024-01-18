@@ -9,6 +9,7 @@ import pandas as pd
 from neurots.validator import ValidationError
 from neurots.validator import validate_neuron_distribs
 from neurots.validator import validate_neuron_params
+from pkg_resources import resource_filename
 
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.atlas import AtlasHelper
@@ -18,11 +19,26 @@ from axon_synthesis.input_creation import pop_neuron_numbers
 from axon_synthesis.input_creation.clustering import Clustering
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import Self
+from axon_synthesis.utils import merge_json_files
 from axon_synthesis.utils import recursive_to_str
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
 from axon_synthesis.white_matter_recipe import WmrConfig
 
 LOGGER = logging.getLogger(__name__)
+
+DEFAULT_TUFT_DISTRIBUTIONS = Path(
+    resource_filename(
+        "axon_synthesis",
+        "data/tuft_distributions.json",
+    )
+)
+
+DEFAULT_TUFT_PARAMETERS = Path(
+    resource_filename(
+        "axon_synthesis",
+        "data/tuft_parameters.json",
+    )
+)
 
 
 class Inputs(BasePathBuilder):
@@ -44,8 +60,9 @@ class Inputs(BasePathBuilder):
         self,
         path: FileType,
         morphology_path: FileType | None = None,
-        pop_probabilities: FileType | None = None,
-        proj_probabilities: FileType | None = None,
+        *,
+        pop_probability_path: FileType | None = None,
+        proj_probability_path: FileType | None = None,
         neuron_density: float | None = None,
         **kwargs,
     ):
@@ -54,8 +71,8 @@ class Inputs(BasePathBuilder):
         Args:
             path: The base path used to build the relative paths.
             morphology_path: The path of the directory containing the input morphologies.
-            pop_probabilities: The path to the file containing the population probabilities.
-            proj_probabilities: The path to the file containing the projection probabilities.
+            pop_probability_path: The path to the file containing the population probabilities.
+            proj_probability_path: The path to the file containing the projection probabilities.
             neuron_density: The mean neuron density used to compute the expected total number of
                 neurons in target regions.
             **kwargs: The keyword arguments are passed to the base constructor.
@@ -67,8 +84,10 @@ class Inputs(BasePathBuilder):
         self.clustering_data = None
         self.neuron_density = neuron_density
         self._pop_neuron_numbers = None
-        self.pop_probabilities = None
-        self.proj_probabilities = None
+        self.pop_probability_path = None
+        self.population_probabilities = None
+        self.proj_probability_path = None
+        self.projection_probabilities = None
         self.tuft_distributions = None
         self.tuft_parameters = None
         self.wmr = None
@@ -84,10 +103,10 @@ class Inputs(BasePathBuilder):
             }
             if morphology_path is not None:
                 self._metadata["morphology_path"] = Path(morphology_path)
-            if pop_probabilities is not None:
-                self._metadata["population_probabilities"] = Path(pop_probabilities)
-            if proj_probabilities is not None:
-                self._metadata["projection_probabilities"] = Path(proj_probabilities)
+            if pop_probability_path is not None:
+                self._metadata["population_probabilities"] = Path(pop_probability_path)
+            if proj_probability_path is not None:
+                self._metadata["projection_probabilities"] = Path(proj_probability_path)
             self.metadata_to_attributes()
 
     @staticmethod
@@ -152,8 +171,9 @@ class Inputs(BasePathBuilder):
     def load_atlas(self, atlas_config=None):
         """Load the Atlas."""
         if "atlas" not in self.metadata and atlas_config is None:
-            msg = "Could not load the Atlas because no atlas configuration was provided."
-            raise ValueError(msg)
+            msg = "Did not load the Atlas because no atlas configuration was provided."
+            LOGGER.debug(msg)
+            return
         if atlas_config is None:
             atlas_config = AtlasConfig.from_dict(self.metadata["atlas"])
         elif isinstance(atlas_config, dict):
@@ -163,7 +183,13 @@ class Inputs(BasePathBuilder):
 
     def load_brain_regions_masks(self):
         """Load the brain region masks."""
-        self.brain_regions_mask_file = h5py.File(self.BRAIN_REGIONS_MASK_FILENAME)
+        if self.BRAIN_REGIONS_MASK_FILENAME.exists():
+            self.brain_regions_mask_file = h5py.File(self.BRAIN_REGIONS_MASK_FILENAME)
+        else:
+            LOGGER.debug(
+                "Did not load the brain region masks because the file %s does not exist.",
+                self.BRAIN_REGIONS_MASK_FILENAME,
+            )
 
     def load_wmr(self, wmr_config: WmrConfig | None = None):
         """Load the Atlas."""
@@ -202,56 +228,66 @@ class Inputs(BasePathBuilder):
         if self._pop_neuron_numbers is None:
             if self.POPULATION_NEURON_NUMBERS_FILENAME.exists():
                 self._pop_neuron_numbers = pd.read_csv(self.POPULATION_NEURON_NUMBERS_FILENAME)
-            else:
+            elif self.wmr is not None:
                 self._pop_neuron_numbers = pop_neuron_numbers.compute(
                     self.wmr.populations,
                     self.neuron_density,
                     self.POPULATION_NEURON_NUMBERS_FILENAME,
+                )
+            else:
+                return pd.DataFrame(
+                    columns=[
+                        "pop_raw_name",
+                        "atlas_region_id",
+                        "atlas_region_volume",
+                        "pop_neuron_numbers",
+                    ]
                 )
         return self._pop_neuron_numbers
 
     def load_probabilities(self):
         """Load the population and projection probabilities."""
         self.population_probabilities = pd.read_csv(self.POPULATION_PROBABILITIES_FILENAME)
+        self.population_probabilities = self.population_probabilities.astype(
+            {
+                "probability": float,
+                **{
+                    col: str
+                    for col in self.population_probabilities.columns
+                    if col.endswith("population_id")
+                },
+            }
+        )
         self.projection_probabilities = pd.read_csv(self.PROJECTION_PROBABILITIES_FILENAME)
+        self.projection_probabilities = self.projection_probabilities.astype(
+            {
+                "probability": float,
+                **{
+                    col: str
+                    for col in self.projection_probabilities.columns
+                    if col.endswith("population_id")
+                },
+            }
+        )
 
     def load_tuft_params_and_distrs(self):
-        """Load the parameters and distributions used to generate the tufts."""
-        missing_files = [
-            i
-            for i in [self.TUFT_DISTRIBUTIONS_FILENAME, self.TUFT_PARAMETERS_FILENAME]
-            if not i.exists()
-        ]
-        if missing_files:
-            msg = "The following file"
-            if len(missing_files) > 1:
-                msg += "s does"
-            else:
-                msg += " do"
-            msg += " not exist: {missing_files}"
-            raise FileNotFoundError(msg)
-        with self.TUFT_PARAMETERS_FILENAME.open() as f:
-            parameters = json.load(f)
-            # if "axon" in parameters:
-            #     parameters["basal_dendrite"] = parameters["axon"]
-        with self.TUFT_DISTRIBUTIONS_FILENAME.open() as f:
-            distributions = json.load(f)
-            # if "axon" in distributions:
-            #     distributions["basal_dendrite"] = distributions["axon"]
-
+        """Load and validate the parameters and distributions used to generate the tufts."""
+        parameters = merge_json_files(DEFAULT_TUFT_PARAMETERS, self.TUFT_PARAMETERS_FILENAME)
         try:
             validate_neuron_params(parameters)
         except ValidationError as exc:
             msg = "The given tuft parameters are not valid"
             raise ValidationError(msg) from exc
+        self.tuft_parameters = parameters
 
+        distributions = merge_json_files(
+            DEFAULT_TUFT_DISTRIBUTIONS, self.TUFT_DISTRIBUTIONS_FILENAME
+        )
         try:
             validate_neuron_distribs(distributions)
         except ValidationError as exc:
             msg = "The given tuft distributions are not valid"
             raise ValidationError(msg) from exc
-
-        self.tuft_parameters = parameters
         self.tuft_distributions = distributions
 
     @classmethod
@@ -259,17 +295,31 @@ class Inputs(BasePathBuilder):
         """Load all the inputs from the given path."""
         obj = cls(path)
         obj.load_atlas(atlas_config)
-        obj.load_wmr()
+        # obj.load_wmr()
         obj.load_clustering_data()
         obj.load_brain_regions_masks()
         obj.load_probabilities()
         obj.load_tuft_params_and_distrs()
         if obj.pop_neuron_numbers is None:
-            msg = "Could not load or compute the population numbers in target regions"
+            msg = "Could not load or build the population numbers in target regions"
             raise RuntimeError(msg)
         return obj
 
-    def compute_probabilities(self, source="WMR"):
+    def export_probabilities(self):
+        """Export the computed probabilities."""
+        # Export the population probabilities
+        if self.population_probabilities is not None:
+            self.population_probabilities.to_csv(
+                self.POPULATION_PROBABILITIES_FILENAME, index=False
+            )
+
+        # Export the projection probabilities
+        if self.projection_probabilities is not None:
+            self.projection_probabilities.to_csv(
+                self.PROJECTION_PROBABILITIES_FILENAME, index=False
+            )
+
+    def compute_probabilities(self, source="WMR", *, export=True):
         """Compute projection probabilities."""
         if (
             self.POPULATION_PROBABILITIES_FILENAME.exists()
@@ -293,12 +343,8 @@ class Inputs(BasePathBuilder):
             msg = f"The value '{source}' is not known."
             raise ValueError(msg)
 
-        # Export the population probabilities
-        self.population_probabilities.to_csv(self.POPULATION_PROBABILITIES_FILENAME, index=False)
-
-        # Export the projection probabilities
-        self.projection_probabilities.to_csv(self.PROJECTION_PROBABILITIES_FILENAME, index=False)
-
+        if export:
+            self.export_probabilities()
         return self.population_probabilities, self.projection_probabilities
 
     def compute_atlas_region_masks(self):

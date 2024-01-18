@@ -9,6 +9,7 @@ import pandas as pd
 from attrs import define
 from attrs import field
 from scipy.spatial import KDTree
+from voxcell import VoxelData
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.synthesis.main_trunk.create_graph.plot import plot_triangulation
@@ -41,43 +42,53 @@ class CreateGraphConfig:
     Attributes:
         intermediate_number: The number of intermediate points added before Voronoï process.
         min_intermediate_distance: The min distance between two successive intermediate points.
-        orientation_penalty_exponent: The exponent used for the orientation penalty.
-        orientation_penalty_amplitude: The amplitude of the orientation penalty.
+        min_random_point_distance: The min distance used to add random points.
+        random_point_bbox_buffer: The distance used to add a buffer around the bbox of the points.
         voronoi_steps: The number of Voronoi steps.
         duplicate_precision: The precision used to detect duplicated points.
-        min_random_point_distance: The minimal distance used to add random points.
-        random_point_bbox_buffer: The distance used to add a buffer around the bbox of the points.
-        use_terminal_penalty: If set to True, a penalty is added to edges that are connected to a
-            terminal.
         use_orientation_penalty: If set to True, a penalty is added to edges whose direction is not
             radial.
+        orientation_penalty_exponent: The exponent used for the orientation penalty.
+        orientation_penalty_amplitude: The amplitude of the orientation penalty.
         use_depth_penalty: If set to True, a penalty is added to edges whose direction is not
             parallel to the iso-depth curves.
         depth_penalty_sigma: The sigma used for depth penalty.
         depth_penalty_amplitude: The amplitude of the depth penalty.
-        favored_regions: Provide a list of brain regions in which the edge weights are divided by
-            the favoring factor.
+        favored_regions: The list of brain regions in which edge weights are divided by the
+            favoring factor.
+        favoring_sigma: The sigma used to favor the given regions.
         favoring_amplitude: The amplitude used to favor the given regions.
+        favored_region_tree: The KDTree object containing the favored region points.
+        use_terminal_penalty: If set to True, a penalty is added to edges that are connected to a
+            terminal.
     """
 
+    # Intermediate points
     intermediate_number: int = field(default=5, validator=check_min_max(min_value=0))
     min_intermediate_distance: float = field(default=1000, validator=check_min_max(min_value=0))
 
+    # Random points
     min_random_point_distance: float | None = field(
         default=None, validator=check_min_max(min_value=0)
     )
     random_point_bbox_buffer: float = field(default=0, validator=check_min_max(min_value=0))
 
+    # Voronoï points
     voronoi_steps: int = field(default=1, validator=check_min_max(min_value=1))
 
-    duplicate_precision: float = field(default=1e-3, validator=check_min_max(min_value=0))
+    # Duplicated points
+    duplicate_precision: float = field(
+        default=1e-3, validator=check_min_max(min_value=0, strict_min=True)
+    )
 
+    # Orientation penalty
     use_orientation_penalty: bool = field(default=True)
     orientation_penalty_exponent: float = field(default=0.1, validator=check_min_max(min_value=0))
     orientation_penalty_amplitude: float = field(
         default=1, validator=check_min_max(min_value=0, strict_min=True)
     )
 
+    # Depth penalty
     use_depth_penalty: bool = field(default=True)
     depth_penalty_sigma: float = field(
         default=100, validator=check_min_max(min_value=0, strict_min=True)
@@ -86,6 +97,7 @@ class CreateGraphConfig:
         default=1, validator=check_min_max(min_value=0, strict_min=True)
     )
 
+    # Favored regions
     favored_regions: RegionIdsType | None = field(default=None)
     favoring_sigma: float = field(
         default=100, validator=check_min_max(min_value=0, strict_min=True)
@@ -93,14 +105,14 @@ class CreateGraphConfig:
     favoring_amplitude: float = field(
         default=1, validator=check_min_max(min_value=0, strict_min=True)
     )
-
-    use_terminal_penalty: bool = field(default=False)
-
     favored_region_tree: KDTree | None = field(default=None)
+
+    # Terminal penalty
+    use_terminal_penalty: bool = field(default=False)
 
     def compute_region_tree(self, atlas: AtlasHelper, *, force: bool = False):
         """Compute the favored region tree using the given Atlas."""
-        if self.favored_regions and (self.favored_region_tree is None or force):
+        if self.favored_regions is not None and (self.favored_region_tree is None or force):
             favored_region_points = atlas.get_region_points(self.favored_regions)
             self.favored_region_tree = KDTree(favored_region_points)
         else:
@@ -108,11 +120,12 @@ class CreateGraphConfig:
 
 
 def one_graph(
-    atlas: AtlasHelper,
     source_coords: np.ndarray,
     target_points: pd.DataFrame,
     config: CreateGraphConfig,
     favored_region_tree: KDTree = None,
+    bbox: np.array = None,
+    depths: VoxelData = None,
     *,
     output_path: FileType | None = None,
     figure_path: FileType | None = None,
@@ -169,11 +182,12 @@ def one_graph(
     nodes_df = drop_close_points(nodes_df, config.duplicate_precision)
 
     # Remove outside points
-    nodes_df = drop_outside_points(
-        nodes_df,
-        # pts if config.use_ancestors else None,
-        atlas.brain_regions.bbox,
-    )
+    if bbox is not None:
+        nodes_df = drop_outside_points(
+            nodes_df,
+            # pts if config.use_ancestors else None,
+            bbox=bbox,
+        )
 
     # Reset index and set IDs
     nodes_df = nodes_df.reset_index(drop=True)
@@ -202,12 +216,12 @@ def one_graph(
         )
 
     # Increase the weight of edges which do not follow an iso-depth curve
-    if config.use_depth_penalty:
+    if config.use_depth_penalty and depths is not None:
         penalties *= add_depth_penalty(
             edges_df,
             FROM_COORDS_COLS,
             TO_COORDS_COLS,
-            atlas,
+            depths,
             config.depth_penalty_sigma,
             config.depth_penalty_amplitude,
         )

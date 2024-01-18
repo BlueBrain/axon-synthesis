@@ -3,3 +3,4 @@ graft tests
 global-exclude *.py[co] .DS_Store
 
 include requirements.txt
+recursive-include axon_synthesis/data *

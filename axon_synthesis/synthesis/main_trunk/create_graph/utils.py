@@ -276,7 +276,7 @@ def add_depth_penalty(
     edges_df,
     from_coord_cols,
     to_coord_cols,
-    atlas,
+    depths,
     sigma,
     amplitude,
 ):
@@ -293,8 +293,8 @@ def add_depth_penalty(
     # # and we want to take the cosine of the absolute value of the angle, so we can simplify.
     # penalty = np.abs((np.trace(dot_prod, axis1=1, axis2=2) - 1) * 0.5)
 
-    from_depths = np.nan_to_num(atlas.depths.lookup(edges_df[from_coord_cols].to_numpy()))
-    to_depths = np.nan_to_num(atlas.depths.lookup(edges_df[to_coord_cols].to_numpy()))
+    from_depths = np.nan_to_num(depths.lookup(edges_df[from_coord_cols].to_numpy()))
+    to_depths = np.nan_to_num(depths.lookup(edges_df[to_coord_cols].to_numpy()))
 
     relative_delta = np.clip(np.abs(from_depths - to_depths) / (edges_df["weight"]), 0, 1)
 

@@ -1,7 +1,9 @@
 """Some utils for the AxonSynthesis package."""
+import collections.abc
 import json
 import logging
 import re
+import warnings
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
@@ -235,6 +237,19 @@ def disable_loggers(*logger_names):
 
 
 @contextmanager
+def ignore_warnings(*ignored_warnings):
+    """A context manager that will ignore warnings raised during the body.
+
+    Args:
+        *ignored_warnings (Warning): The classes of the warnings to be ignored.
+    """
+    with warnings.catch_warnings():
+        for i in ignored_warnings:
+            warnings.filterwarnings("ignore", category=i)
+        yield
+
+
+@contextmanager
 def use_matplotlib_backend(new_backend):
     """A context manager to set a new temporary backend to matplotlib then restore the old one.
 
@@ -258,6 +273,30 @@ def recursive_to_str(data):
         elif isinstance(v, Path):
             new_data[k] = str(v)
     return new_data
+
+
+def recursive_update(data, updates):
+    """Update a dictionary with another with nested values."""
+    for k, v in updates.items():
+        if isinstance(v, collections.abc.Mapping):
+            data[k] = recursive_update(data.get(k, {}), v)
+        else:
+            data[k] = v
+    return data
+
+
+def merge_json_files(*files):
+    """Merge several JSON files together.
+
+    The order is important: the files will be updated by all the next files in the list.
+    """
+    result = {}
+    for i in files:
+        file = Path(i)
+        if file.exists():
+            with file.open() as f:
+                recursive_update(result, json.load(f))
+    return result
 
 
 def check_min_max(

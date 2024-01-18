@@ -20,30 +20,30 @@ def plot(morph, initial_morph, figure_path):
     """Plot the Steiner morphology."""
     morph_name = morph.name
 
-    # Build the generated figure
-    gen_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
-    gen_fig = gen_builder.get_figure()["data"]
-
-    # Build the initial figure
-    initial_builder = NeuronBuilder(initial_morph, "3d", line_width=4, title=f"{morph_name}")
-    initial_fig = initial_builder.get_figure()["data"]
-
-    # Export the solution
     fig = make_subplots(
         cols=2,
         specs=[[{"is_3d": True}, {"is_3d": True}]],
         subplot_titles=["Main trunk", "Initial morphology"],
     )
+
+    # Build the generated figure
+    gen_builder = NeuronBuilder(morph, "3d", line_width=4, title=f"{morph_name}")
+    gen_fig = gen_builder.get_figure()["data"]
     fig.add_traces(
         gen_fig,
         rows=[1] * len(gen_fig),
         cols=[1] * len(gen_fig),
     )
-    fig.add_traces(
-        initial_fig,
-        rows=[1] * len(initial_fig),
-        cols=[2] * len(initial_fig),
-    )
+
+    # Build the initial figure
+    if initial_morph.sections:
+        initial_builder = NeuronBuilder(initial_morph, "3d", line_width=4, title=f"{morph_name}")
+        initial_fig = initial_builder.get_figure()["data"]
+        fig.add_traces(
+            initial_fig,
+            rows=[1] * len(initial_fig),
+            cols=[2] * len(initial_fig),
+        )
 
     fig.update_scenes({"aspectmode": "data"})
 
@@ -63,12 +63,11 @@ def build_and_graft_trunk(
     *,
     output_path: FileType | None = None,
     figure_path: FileType | None = None,
+    initial_morph: Morphology | None = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ) -> int:
     """Build and graft a trunk to a morphology from a set of nodes and edges."""
     logger = sublogger(logger, __name__)
-
-    initial_morph = Morphology(morph) if figure_path is not None else None
 
     # Build the synthesized axon
     active_sections = []

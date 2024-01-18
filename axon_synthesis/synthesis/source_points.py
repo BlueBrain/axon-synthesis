@@ -44,6 +44,9 @@ def map_population(
     rng: SeedType = None,
 ):
     """Find the population given the position of the morphology and the populations."""
+    if "population_id" in cells_df.columns:
+        return cells_df
+
     rng = np.random.default_rng(rng)
     if populations is None:
         cells_df["population_id"] = DEFAULT_POPULATION
@@ -188,9 +191,10 @@ def set_source_points(
         )
 
     # Set atlas regions
-    cells_df["source_brain_region_id"] = atlas.brain_regions.lookup(
-        cells_df[COORDS_COLS].to_numpy()
-    )
+    if "source_brain_region_id" not in cells_df.columns:
+        cells_df["source_brain_region_id"] = atlas.brain_regions.lookup(
+            cells_df[COORDS_COLS].to_numpy()
+        )
 
     # Choose population
     return map_population(cells_df, atlas, population_probabilities, rng=rng)

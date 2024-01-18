@@ -103,6 +103,7 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
         rows=[1] * len(clustered_morph_data),
         cols=[2] * len(clustered_morph_data),
     )
+    cluster_trace.showlegend = False
     fig.add_trace(cluster_trace, row=1, col=2)
 
     fig.update_scenes({"aspectmode": "data"})

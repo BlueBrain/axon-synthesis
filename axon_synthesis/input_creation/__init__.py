@@ -12,48 +12,50 @@ LOGGER = logging.getLogger(__name__)
 
 
 def create_inputs(
-    morphology_path: FileType,
-    wmr_config: WmrConfig,
-    atlas_config: AtlasConfig,
-    neuron_density,
-    bouton_density,
-    clustering_parameters,
+    morphology_dir: FileType,
     output_dir: FileType,
+    clustering_parameters: dict,
+    wmr_config: WmrConfig | None = None,
+    atlas_config: AtlasConfig | None = None,
+    neuron_density: float | None = None,
+    bouton_density: float | None = None,
     *,
     nb_workers: int = 1,
     debug: bool = False,
     rng: SeedType = None,
 ):
     """Create all inputs required to synthesize long-range axons."""
-    inputs = Inputs(output_dir, morphology_path, neuron_density=neuron_density, create=True)
-    inputs.create_root()
+    inputs = Inputs(output_dir, morphology_dir, neuron_density=neuron_density, create=True)
 
-    # Load the Atlas
-    inputs.load_atlas(atlas_config)
+    if atlas_config is not None:
+        # Load the Atlas
+        inputs.load_atlas(atlas_config)
 
-    # Pre-compute atlas data
-    inputs.compute_atlas_region_masks()
+        # Pre-compute atlas data
+        inputs.compute_atlas_region_masks()
 
-    # Process the White Matter Recipe
-    inputs.load_wmr(wmr_config)
+    if wmr_config is not None:
+        # Process the White Matter Recipe
+        inputs.load_wmr(wmr_config)
 
-    # Compute the population and projection probabilities
-    inputs.compute_probabilities()
+        # Compute the population and projection probabilities
+        inputs.compute_probabilities()
 
     # Define the tufts and main trunks in input morphologies and compute the properties of the long
     # range trunk and the tufts of each morphology
     inputs.clustering_data = cluster_morphologies(
-        inputs.atlas,
-        inputs.wmr,
         inputs.MORPHOLOGY_DIRNAME,
         clustering_parameters,
-        inputs.pop_neuron_numbers,
-        bouton_density,
         inputs.CLUSTERING_DIRNAME,
+        atlas=inputs.atlas,
+        wmr=inputs.wmr,
+        pop_neuron_numbers=inputs.pop_neuron_numbers,
+        bouton_density=bouton_density,
         debug=debug,
         nb_workers=nb_workers,
         rng=rng,
     )
+    inputs.clustering_data.save()
 
     # Export the input metadata
     inputs.save_metadata()

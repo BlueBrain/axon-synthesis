@@ -1,28 +1,58 @@
 """Find the target points of the input morphologies."""
 import logging
-import warnings
 
 import numpy as np
 import pandas as pd
+from h5py import File
+from numpy.random import Generator
 
+from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.synthesis.source_points import SOURCE_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import DEFAULT_POPULATION
 from axon_synthesis.utils import CoordsCols
+from axon_synthesis.utils import ignore_warnings
 
 LOGGER = logging.getLogger(__name__)
 
 TARGET_COORDS_COLS = CoordsCols("target_x", "target_y", "target_z")
 
 
+def compute_coords(
+    target_points: pd.DataFrame, brain_regions_masks: File | None, rng: Generator = None
+) -> None:
+    """Compute the target coordinates if they are missing."""
+    if set(TARGET_COORDS_COLS).difference(target_points.columns):
+        if brain_regions_masks is not None:
+            mask_tmp = target_points.sort_values("target_brain_region_id").index
+            target_points.loc[mask_tmp, TARGET_COORDS_COLS] = (
+                target_points.groupby("target_brain_region_id")
+                .apply(
+                    lambda group: rng.choice(
+                        brain_regions_masks[str(group.name)][:], size=len(group)
+                    )
+                )
+                .explode()
+                .sort_index()
+                .apply(pd.Series)
+                .to_numpy()
+            )
+        else:
+            msg = (
+                "The target points should contain the {TARGET_COORDS_COLS} columns when no brain "
+                "region mask is given"
+            )
+            raise RuntimeError(msg)
+
+
 def get_target_points(
-    atlas,
-    brain_regions_masks,
     source_points,
     target_probabilities,
     *,
+    atlas: AtlasHelper | None = None,
+    brain_regions_masks: File | None = None,
     rng: SeedType | None = None,
     max_tries: int = 10,
     output_path: FileType | None = None,
@@ -40,12 +70,16 @@ def get_target_points(
     source_points["axon_id"] = source_points.groupby("morphology").cumcount()
 
     # Get ascendants in the hierarchy
-    cells_region_parents = source_points.merge(
-        atlas.brain_regions_and_ascendants,
-        left_on="source_brain_region_id",
-        right_on="id",
-        how="left",
-    )
+    if atlas is not None:
+        cells_region_parents = source_points.merge(
+            atlas.brain_regions_and_ascendants,
+            left_on="source_brain_region_id",
+            right_on="id",
+            how="left",
+        ).drop(columns=["id"])
+    else:
+        cells_region_parents = source_points.copy(deep=False)
+        cells_region_parents["st_level"] = 0
 
     # Get the probabilities
     probs = cells_region_parents.merge(
@@ -110,33 +144,29 @@ def get_target_points(
             ),
         )
 
+    probs_cols = [
+        "morphology",
+        "source_brain_region_id",
+        "target_population_id",
+        "target_brain_region_id",
+    ]
+    if not set(TARGET_COORDS_COLS).difference(probs.columns):
+        probs_cols.extend(TARGET_COORDS_COLS)
     target_points = source_points.merge(
         probs.loc[
             selected_mask,
-            [
-                "morphology",
-                "source_brain_region_id",
-                "target_population_id",
-                "target_brain_region_id",
-            ],
+            probs_cols,
         ],
         on=["morphology", "source_brain_region_id"],
         how="left",
     )
 
-    mask_tmp = target_points.sort_values("target_brain_region_id").index
-    target_points.loc[mask_tmp, TARGET_COORDS_COLS] = (
-        target_points.groupby("target_brain_region_id")
-        .apply(lambda group: rng.choice(brain_regions_masks[str(group.name)][:], size=len(group)))
-        .explode()
-        .sort_index()
-        .apply(pd.Series)
-        .to_numpy()
-    )
-    target_points[TARGET_COORDS_COLS] += atlas.brain_regions.indices_to_positions(
-        target_points[TARGET_COORDS_COLS].to_numpy()  # noqa: RUF005
-        + [0.5, 0.5, 0.5]
-    ) + atlas.get_random_voxel_shifts(len(target_points), rng=rng)
+    compute_coords(target_points, brain_regions_masks, rng)
+    if atlas is not None:
+        target_points[TARGET_COORDS_COLS] += atlas.brain_regions.indices_to_positions(
+            target_points[TARGET_COORDS_COLS].to_numpy()  # noqa: RUF005
+            + [0.5, 0.5, 0.5]
+        ) + atlas.get_random_voxel_shifts(len(target_points), rng=rng)
 
     # Build terminal IDs inside groups
     counter = target_points[["morphology", "axon_id"]].copy(deep=False)
@@ -168,8 +198,7 @@ def get_target_points(
 
     # Export the target points
     if output_path is not None:
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=pd.io.pytables.PerformanceWarning)
+        with ignore_warnings(pd.io.pytables.PerformanceWarning):
             target_points.to_hdf(output_path, "target_points")
 
     return target_points

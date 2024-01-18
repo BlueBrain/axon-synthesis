@@ -60,7 +60,16 @@ class BasePathBuilder:
     def build_paths(cls, path) -> dict[str, Path]:
         """Build the paths to the associated data files."""
         path = Path(path)
-        return {k: path / v for k, v in cls._filenames.items()}
+        paths = {}
+        for k, v in cls._filenames.items():
+            if v is not None:
+                paths[k] = path / v
+            elif k in cls._optional_keys:
+                paths[k] = None
+            else:
+                msg = f"Only optional keys can be set to None but {k} is not optional"
+                raise ValueError(msg)
+        return paths
 
     @property
     def filenames(self):
