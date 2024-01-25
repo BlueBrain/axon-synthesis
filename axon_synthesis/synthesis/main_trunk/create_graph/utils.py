@@ -8,32 +8,28 @@ from scipy.spatial import Delaunay
 from scipy.spatial import KDTree
 from scipy.spatial import Voronoi
 
-from axon_synthesis.utils import COORDS_COLS
-from axon_synthesis.utils import CoordsCols
+from axon_synthesis.constants import COORDS_COLS
 
 logger = logging.getLogger(__name__)
 
-FROM_COORDS_COLS = CoordsCols("x_from", "y_from", "z_from")
-TO_COORDS_COLS = CoordsCols("x_to", "y_to", "z_to")
 
-
-def use_ancestors(terminals, tuft_properties_path):
-    """Use ancestor coords instead of the center of the cluster."""
-    cluster_props_df = pd.read_json(tuft_properties_path)
-    tmp = pd.merge(
-        terminals,
-        cluster_props_df,
-        left_on=["morphology", "axon_id", "terminal_id"],
-        right_on=["morphology", "axon_id", "cluster_id"],
-        how="left",
-    )
-    mask = ~tmp["cluster_id"].isna()
-    new_terminal_coords = pd.DataFrame(
-        tmp.loc[mask, "common_ancestor_coords"].to_list(),
-        columns=COORDS_COLS,
-    )
-    tmp.loc[mask, COORDS_COLS] = new_terminal_coords.to_numpy()
-    terminals[COORDS_COLS] = tmp[COORDS_COLS]
+# def use_ancestors(terminals, tuft_properties_path):
+#     """Use ancestor coords instead of the center of the cluster."""
+#     cluster_props_df = pd.read_json(tuft_properties_path)
+#     tmp = pd.merge(
+#         terminals,
+#         cluster_props_df,
+#         left_on=["morphology", "axon_id", "terminal_id"],
+#         right_on=["morphology", "axon_id", "cluster_id"],
+#         how="left",
+#     )
+#     mask = ~tmp["cluster_id"].isna()
+#     new_terminal_coords = pd.DataFrame(
+#         tmp.loc[mask, "common_ancestor_coords"].to_list(),
+#         columns=COORDS_COLS,
+#     )
+#     tmp.loc[mask, COORDS_COLS] = new_terminal_coords.to_numpy()
+#     terminals[COORDS_COLS] = tmp[COORDS_COLS]
 
 
 def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermediate_number):
@@ -167,6 +163,9 @@ def drop_outside_points(all_points_df, ref_pts=None, bbox=None):
     if ref_pts is not None:
         min_pts = ref_pts.min(axis=0)
         max_pts = ref_pts.max(axis=0)
+        diff = (max_pts - min_pts) * 1.1
+        min_pts -= diff
+        max_pts += diff
         outside_pts = all_points_df.loc[
             ((all_points_df[COORDS_COLS] < min_pts).any(axis=1))
             | ((all_points_df[COORDS_COLS] > max_pts).any(axis=1))

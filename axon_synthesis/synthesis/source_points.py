@@ -10,15 +10,13 @@ from morphio import SectionType
 from neurom import COLS
 
 from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.constants import DEFAULT_POPULATION
+from axon_synthesis.constants import SOURCE_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
-from axon_synthesis.utils import COORDS_COLS
-from axon_synthesis.utils import DEFAULT_POPULATION
-from axon_synthesis.utils import CoordsCols
 
 logger = logging.getLogger(__name__)
-
-SOURCE_COORDS_COLS = CoordsCols("source_x", "source_y", "source_z")
 
 
 def section_id_to_position(morph, sec_id):
@@ -103,9 +101,11 @@ def set_source_points(
     """Extract source points from a cell collection."""
     if not ext.startswith("."):
         ext = "." + ext
-    cells_df["morph_file"] = (Path(morph_dir) / cells_df["morphology"]).apply(
-        lambda x: x.with_suffix(ext).resolve()
-    )
+
+    if "morph_file" not in cells_df.columns:
+        cells_df["morph_file"] = (Path(morph_dir) / cells_df["morphology"]).apply(
+            lambda x: x.with_suffix(ext).resolve()
+        )
 
     # Get source points from the axon_grafting_points file
     if axon_grafting_points is not None:

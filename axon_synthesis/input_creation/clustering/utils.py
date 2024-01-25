@@ -23,10 +23,10 @@ from tmd.Topology.methods import tree_to_property_barcode
 from tmd.Topology.persistent_properties import PersistentAngles
 from voxcell import VoxelData
 
+from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.constants import DEFAULT_POPULATION
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
-from axon_synthesis.utils import COORDS_COLS
-from axon_synthesis.utils import DEFAULT_POPULATION
 
 logger = logging.getLogger(__name__)
 
@@ -325,7 +325,7 @@ def reduce_clusters(  # noqa: PLR0913
                 tuft_id,
                 cluster_center.tolist(),
                 common_ancestor,
-                tuft_ancestor.points[-1].tolist(),
+                *tuft_ancestor.points[-1].tolist(),
                 path_distance,
                 radial_distance,
                 path_length,

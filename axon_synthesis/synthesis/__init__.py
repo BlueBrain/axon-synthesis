@@ -91,6 +91,18 @@ def create_one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=F
             "TUFT_MORPHOLOGIES": outputs.TUFT_MORPHOLOGIES if debug else None,
         }
 
+        _optional_keys: ClassVar[set[str]] = {
+            "GRAPH_CREATION_FIGURE",
+            "GRAPH_CREATION_MORPHOLOGY",
+            "MAIN_TRUNK_FIGURE",
+            "MAIN_TRUNK_MORPHOLOGY",
+            "POSTPROCESS_TRUNK_FIGURE",
+            "POSTPROCESS_TRUNK_MORPHOLOGY",
+            "STEINER_TREE_SOLUTION",
+            "TUFT_FIGURES",
+            "TUFT_MORPHOLOGIES",
+        }
+
     return AxonPaths("")
 
 
@@ -138,6 +150,12 @@ def synthesize_axons(  # noqa: PLR0913
     # Load the axon grafting points
     axon_grafting_points = load_axon_grafting_points(axon_grafting_points_file)
 
+    # Ensure the graph creation config is complete
+    if create_graph_config is None:
+        create_graph_config = CreateGraphConfig()
+    if inputs.atlas is not None:
+        create_graph_config.compute_region_tree(inputs.atlas)
+
     # Get source points for all axons
     source_points = set_source_points(
         cells_df,
@@ -154,6 +172,7 @@ def synthesize_axons(  # noqa: PLR0913
     target_points = get_target_points(
         source_points,
         inputs.projection_probabilities,
+        create_graph_config.duplicate_precision,
         atlas=inputs.atlas,
         brain_regions_masks=inputs.brain_regions_mask_file,
         rng=rng,
@@ -162,12 +181,6 @@ def synthesize_axons(  # noqa: PLR0913
     if rebuild_existing_axons:
         # If the existing axons are rebuilt all the new axons will be grafted to the soma
         target_points["grafting_section_id"] = -1
-
-    # Ensure the graph creation config is complete
-    if create_graph_config is None:
-        create_graph_config = CreateGraphConfig()
-    if inputs.atlas is not None:
-        create_graph_config.compute_region_tree(inputs.atlas)
 
     for morph_name, morph_terminals in target_points.groupby("morphology"):
         morph = Morphology(morph_terminals["morph_file"].to_numpy()[0])
@@ -178,15 +191,14 @@ def synthesize_axons(  # noqa: PLR0913
             Translation(morph_terminals[COORDS_COLS].to_numpy()[0] - morph.soma.center)
         )
 
+        morph.name = morph_name
+
         initial_morph = Morphology(morph) if debug else None
 
         if rebuild_existing_axons:
             # Remove existing axons
-            # TODO: Set grafting mode to soma
             morph_custom_logger.info("Removing existing axons")
             remove_existing_axons(morph)
-
-        morph.name = morph_name
 
         for axon_id, axon_terminals in morph_terminals.groupby("axon_id"):
             # Create a custom logger to add the morph name and axon ID in the log entries
@@ -236,7 +248,11 @@ def synthesize_axons(  # noqa: PLR0913
 
             # Choose a barcode for each tuft of the current axon
             barcodes = pick_barcodes(
-                axon_terminals, solution_edges, inputs.clustering_data.tuft_properties, rng=rng
+                axon_terminals,
+                solution_edges,
+                inputs.clustering_data.tuft_properties,
+                rng=rng,
+                logger=axon_custom_logger,
             )
 
             # Post-process the trunk

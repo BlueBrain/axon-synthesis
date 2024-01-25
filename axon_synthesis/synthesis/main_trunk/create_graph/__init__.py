@@ -12,9 +12,11 @@ from scipy.spatial import KDTree
 from voxcell import VoxelData
 
 from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.constants import FROM_COORDS_COLS
+from axon_synthesis.constants import TARGET_COORDS_COLS
+from axon_synthesis.constants import TO_COORDS_COLS
 from axon_synthesis.synthesis.main_trunk.create_graph.plot import plot_triangulation
-from axon_synthesis.synthesis.main_trunk.create_graph.utils import FROM_COORDS_COLS
-from axon_synthesis.synthesis.main_trunk.create_graph.utils import TO_COORDS_COLS
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_bounding_box_pts
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_depth_penalty
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_favored_reward
@@ -26,11 +28,9 @@ from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_voronoi_p
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import create_edges
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import drop_close_points
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import drop_outside_points
-from axon_synthesis.synthesis.target_points import TARGET_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
-from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import check_min_max
 from axon_synthesis.utils import sublogger
 
@@ -137,10 +137,12 @@ def one_graph(
 
     rng = np.random.default_rng(rng)
 
-    logger.debug("%s points", len(target_points))
+    unique_target_points = target_points.drop_duplicates(subset=["axon_id", "terminal_id"])
+
+    logger.debug("%s points", len(unique_target_points))
 
     # Terminal points
-    pts = target_points[TARGET_COORDS_COLS].to_numpy()
+    pts = np.concatenate([[source_coords], unique_target_points[TARGET_COORDS_COLS].to_numpy()])
 
     # Add intermediate points
     inter_pts = add_intermediate_points(
@@ -149,7 +151,7 @@ def one_graph(
         config.min_intermediate_distance,
         config.intermediate_number,
     )
-    all_pts = np.concatenate([[source_coords], pts, *[i[1] for i in inter_pts if i[0] > 0]])
+    all_pts = np.concatenate([pts, *[i[1] for i in inter_pts if i[0] > 0]])
 
     # Add random points
     all_pts = add_random_points(
@@ -169,25 +171,24 @@ def one_graph(
     nodes_df = pd.DataFrame(all_pts, columns=COORDS_COLS)
 
     # Mark the source and target points as terminals and the others as intermediates
-    nodes_df["is_terminal"] = [True] * (len(pts) + 1) + [False] * (len(all_pts) - len(pts) - 1)
+    nodes_df["is_terminal"] = [True] * len(pts) + [False] * (len(all_pts) - len(pts))
 
     # Associate the terminal IDs to the nodes
     nodes_df["terminal_id"] = (
         [-1]
-        + target_points["terminal_id"].to_numpy().tolist()
-        + [-1] * (len(all_pts) - len(pts) - 1)
+        + unique_target_points["terminal_id"].to_numpy().tolist()
+        + [-1] * (len(all_pts) - len(pts))
     )
 
     # Remove close points
     nodes_df = drop_close_points(nodes_df, config.duplicate_precision)
 
     # Remove outside points
-    if bbox is not None:
-        nodes_df = drop_outside_points(
-            nodes_df,
-            # pts if config.use_ancestors else None,
-            bbox=bbox,
-        )
+    nodes_df = drop_outside_points(
+        nodes_df,
+        pts,
+        bbox=bbox,
+    )
 
     # Reset index and set IDs
     nodes_df = nodes_df.reset_index(drop=True)
@@ -261,8 +262,9 @@ def one_graph(
         plot_triangulation(
             edges_df,
             source_coords,
-            pts,
+            pts[1:],  # The first one is the source
             figure_path,
+            logger=logger,
         )
 
     return nodes_df, edges_df

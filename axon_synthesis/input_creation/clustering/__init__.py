@@ -219,7 +219,8 @@ class Clustering(BasePathBuilder):
     def save(self):
         """Save the clustering data to the associated path."""
         # Export long-range trunk properties
-        self.trunk_properties.to_csv(self.TRUNK_PROPS_FILENAME, index=False)
+        with self.TRUNK_PROPS_FILENAME.open(mode="w") as f:
+            json.dump(self.trunk_properties.to_dict("records"), f, indent=4)
         LOGGER.info("Exported trunk properties to %s", self.TRUNK_PROPS_FILENAME)
 
         # Export tuft properties
@@ -281,10 +282,17 @@ class Clustering(BasePathBuilder):
         msg = "Some of the following files are missing: %s"
         if file_selection <= FILE_SELECTION.REQUIRED_ONLY:
             if obj.exists(file_selection=FILE_SELECTION.REQUIRED_ONLY):
-                obj.trunk_properties = pd.read_csv(obj.TRUNK_PROPS_FILENAME)
+                with obj.TRUNK_PROPS_FILENAME.open() as f:
+                    obj.trunk_properties = pd.read_json(
+                        obj.TRUNK_PROPS_FILENAME, dtype={"morphology": str, "population_id": str}
+                    )
                 with obj.TUFT_PROPS_FILENAME.open() as f:
-                    obj.tuft_properties = pd.read_json(f)
-                obj.clustered_terminals = pd.read_csv(obj.CLUSTERED_TERMINALS_FILENAME)
+                    obj.tuft_properties = pd.read_json(
+                        f, dtype={"morphology": str, "population_id": str}
+                    )
+                obj.clustered_terminals = pd.read_csv(
+                    obj.CLUSTERED_TERMINALS_FILENAME, dtype={"morphology": str}
+                )
                 obj.clustered_morph_paths = pd.read_csv(obj.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME)
                 obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
             elif not allow_missing:
@@ -553,7 +561,9 @@ def cluster_morphologies(
                 "tuft_id",
                 "center_coords",
                 "common_ancestor_id",
-                "common_ancestor_coords",
+                "common_ancestor_x",
+                "common_ancestor_y",
+                "common_ancestor_z",
                 "path_distance",
                 "radial_distance",
                 "path_length",

@@ -17,12 +17,13 @@ from axon_synthesis.synthesis.tuft_properties import TUFT_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
+from axon_synthesis.utils import compute_bbox
 from axon_synthesis.utils import sublogger
 
 logger = logging.getLogger(__name__)
 
 
-def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None):
+def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None, logger=None):
     """Plot the given morphology.
 
     If `initial_morph` is not None then the given morphology is also plotted for comparison.
@@ -31,6 +32,13 @@ def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None):
     fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=title)
     fig_data = [fig_builder.get_figure()["data"]]
     left_title = "Morphology with tufts"
+
+    bbox = compute_bbox(morph.points, 0.5)
+    ranges = {
+        "xaxis": {"range": bbox[:, 0]},
+        "yaxis": {"range": bbox[:, 1]},
+        "zaxis": {"range": bbox[:, 2]},
+    }
 
     if initial_morph is not None:
         if morph_title is None:
@@ -50,16 +58,24 @@ def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None):
     for col_num, data in enumerate(fig_data):
         fig.add_traces(data, rows=[1] * len(data), cols=[col_num + 1] * len(data))
 
-    fig.update_scenes({"aspectmode": "data"})
+    fig.layout.update(
+        title=morph.name,
+        scene=ranges,
+        scene1=ranges,
+        scene2=ranges,
+    )
+    # fig.update_layout(**ranges)
 
-    fig.layout.update(title=morph.name)
+    fig.update_scenes({"aspectmode": "data"})
 
     # Export figure
     fig.write_html(output_path)
 
     if initial_morph is not None:
         add_camera_sync(output_path)
-    logger.info("Exported figure to %s", output_path)
+
+    if logger is not None:
+        logger.info("Exported figure to %s", output_path)
 
 
 def build_and_graft_tufts(
@@ -134,6 +150,7 @@ def build_and_graft_tufts(
                 filename,
                 (figure_dir / filename).with_suffix(".html"),
                 initial_morph,
+                logger=logger,
             )
 
         # Graft the tuft to the current terminal

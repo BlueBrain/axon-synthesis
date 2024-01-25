@@ -252,10 +252,10 @@ def create_graph_options(func):
         help="If enabled, a penalty is added to edges that are connected to a",
     )
     @functools.wraps(func)
-    def wrapper_atlas_options(*args, **kwargs) -> Callable:
+    def wrapper_create_graph_options(*args, **kwargs) -> Callable:
         return func(*args, **kwargs)
 
-    return wrapper_atlas_options
+    return wrapper_create_graph_options
 
 
 def create_graph_kwargs_to_config(config) -> CreateGraphConfig:

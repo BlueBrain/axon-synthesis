@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 from morph_tool.utils import is_morphology
 from neurom import load_morphology
+from neurom.geom.transform import Translation
 
 from axon_synthesis.typing import FileType
 from axon_synthesis.utils import COORDS_COLS
@@ -18,6 +19,7 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
     morph_name = Path(morph_path).name
     morph_path_str = str(morph_path)
     morph = load_morphology(morph_path)
+    morph = morph.transform(Translation(-morph.soma.center))
     pts = []
     axons = get_axons(morph)
 

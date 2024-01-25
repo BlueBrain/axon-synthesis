@@ -5,23 +5,25 @@ import numpy as np
 import pandas as pd
 from h5py import File
 from numpy.random import Generator
+from scipy.spatial import KDTree
 
 from axon_synthesis.atlas import AtlasHelper
-from axon_synthesis.synthesis.source_points import SOURCE_COORDS_COLS
+from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.constants import DEFAULT_POPULATION
+from axon_synthesis.constants import SOURCE_COORDS_COLS
+from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
-from axon_synthesis.utils import COORDS_COLS
-from axon_synthesis.utils import DEFAULT_POPULATION
-from axon_synthesis.utils import CoordsCols
 from axon_synthesis.utils import ignore_warnings
 
 LOGGER = logging.getLogger(__name__)
 
-TARGET_COORDS_COLS = CoordsCols("target_x", "target_y", "target_z")
-
 
 def compute_coords(
-    target_points: pd.DataFrame, brain_regions_masks: File | None, rng: Generator = None
+    target_points: pd.DataFrame,
+    brain_regions_masks: File | None,
+    atlas: AtlasHelper | None = None,
+    rng: Generator = None,
 ) -> None:
     """Compute the target coordinates if they are missing."""
     if set(TARGET_COORDS_COLS).difference(target_points.columns):
@@ -45,11 +47,62 @@ def compute_coords(
                 "region mask is given"
             )
             raise RuntimeError(msg)
+        if atlas is not None:
+            target_points[TARGET_COORDS_COLS] += atlas.brain_regions.indices_to_positions(
+                target_points[TARGET_COORDS_COLS].to_numpy()  # noqa: RUF005
+                + [0.5, 0.5, 0.5]
+            ) + atlas.get_random_voxel_shifts(len(target_points), rng=rng)
+
+
+def drop_close_points(
+    all_points_df: pd.DataFrame, duplicate_precision: float | None
+) -> pd.DataFrame:
+    """Drop points that are closer to a given distance."""
+    if duplicate_precision is None:
+        return all_points_df
+
+    tree = KDTree(all_points_df[TARGET_COORDS_COLS])
+    close_pts = tree.query_pairs(duplicate_precision)
+
+    if not close_pts:
+        return all_points_df
+
+    # Find labels of duplicated points
+    to_update = {}
+    for a, b in close_pts:
+        label_a = all_points_df.index[a]
+        label_b = all_points_df.index[b]
+        if label_a in to_update:
+            to_update[label_a].add(label_b)
+        elif label_b in to_update:
+            to_update[label_b].add(label_a)
+        else:
+            to_update[label_a] = {label_b}
+
+    # Format the labels
+    skip = set()
+    items = list(to_update.items())
+    for num, (i, j) in enumerate(items):
+        if i in skip:
+            continue
+        for ii, jj in items[num + 1 :]:
+            if i in jj or ii in j:
+                j.update(jj)
+                skip.add(ii)
+                skip.update(jj)
+    new_to_update = [i for i in items if i[0] not in skip]
+
+    # Update the terminal IDs
+    for ref, changed in new_to_update:
+        all_points_df.loc[list(changed), "terminal_id"] = all_points_df.loc[ref, "terminal_id"]
+
+    return all_points_df
 
 
 def get_target_points(
     source_points,
     target_probabilities,
+    duplicate_precision: float | None = None,
     *,
     atlas: AtlasHelper | None = None,
     brain_regions_masks: File | None = None,
@@ -161,12 +214,7 @@ def get_target_points(
         how="left",
     )
 
-    compute_coords(target_points, brain_regions_masks, rng)
-    if atlas is not None:
-        target_points[TARGET_COORDS_COLS] += atlas.brain_regions.indices_to_positions(
-            target_points[TARGET_COORDS_COLS].to_numpy()  # noqa: RUF005
-            + [0.5, 0.5, 0.5]
-        ) + atlas.get_random_voxel_shifts(len(target_points), rng=rng)
+    compute_coords(target_points, brain_regions_masks, atlas=atlas, rng=rng)
 
     # Build terminal IDs inside groups
     counter = target_points[["morphology", "axon_id"]].copy(deep=False)
@@ -195,6 +243,8 @@ def get_target_points(
             "population_id": "source_population_id",
         },
     )
+
+    target_points = drop_close_points(target_points, duplicate_precision)
 
     # Export the target points
     if output_path is not None:

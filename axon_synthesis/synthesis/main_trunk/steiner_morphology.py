@@ -92,10 +92,9 @@ def build_and_graft_trunk(
         if len(roots) > 1:
             # Handle bifurcation at root
             from_pt = roots[FROM_COORDS_COLS].to_numpy()[0]
-            to_pt = np.concatenate(
-                [[roots[FROM_COORDS_COLS].to_numpy()[0]], roots[TO_COORDS_COLS].to_numpy()]
-            ).mean(axis=0)
-            edges.loc[roots.index][FROM_COORDS_COLS] = [to_pt] * len(roots)
+            to_pt = np.concatenate([[from_pt], roots[TO_COORDS_COLS].to_numpy()]).mean(axis=0)
+            # edges.loc[roots.index, FROM_COORDS_COLS] = [to_pt] * len(roots)
+            edges_tmp.loc[roots.index, FROM_COORDS_COLS] = [to_pt] * len(roots)
             target_idx = 0
             roots_is_terminal = False
         else:

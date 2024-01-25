@@ -10,7 +10,8 @@ from neurom.core import Morphology
 from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 
-from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.constants import COMMON_ANCESTOR_COORDS_COLS
+from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import disable_loggers
 
@@ -152,10 +153,11 @@ def plot_cluster_properties(cluster_props_df, output_path):
         ax = (
             plt.scatter(
                 x=cluster_props_df["radial_distance"],
-                y=(
-                    cluster_props_df["center_coords"].apply(np.array)
-                    - cluster_props_df["common_ancestor_coords"]
-                ).apply(np.linalg.norm),
+                y=np.linalg.norm(
+                    np.stack(cluster_props_df["center_coords"].to_numpy())
+                    - cluster_props_df[COMMON_ANCESTOR_COORDS_COLS].to_numpy(),
+                    axis=1,
+                ),
             )
             .get_figure()
             .gca()

@@ -1,5 +1,6 @@
 """Some utils for the AxonSynthesis package."""
 import collections.abc
+import inspect
 import json
 import logging
 import re
@@ -14,24 +15,7 @@ import numpy as np
 import pandas as pd
 from neurom import NeuriteType
 
-DEFAULT_POPULATION = "default"
-
-
-class CoordsCols(list):
-    """Class to associate column names to coordinates."""
-
-    def __init__(self, *args):
-        """Constructor of the CoordsCols class."""
-        if len(args) != 3:  # noqa: PLR2004
-            msg = "Exactly 3 column names should be given"
-            raise ValueError(msg)
-        super().__init__(args)
-        self.X = self[0]
-        self.Y = self[1]
-        self.Z = self[2]
-
-
-COORDS_COLS = CoordsCols("x", "y", "z")
+from axon_synthesis.constants import COORDS_COLS
 
 
 class MorphNameAdapter(logging.LoggerAdapter):
@@ -341,3 +325,21 @@ def check_min_max(
             raise ValueError(msg) from exc
 
     return range_validator
+
+
+def compute_bbox(points, relative_buffer=None):
+    """Compute the bounding box of the given point and optionally apply a buffer to it."""
+    bbox = np.vstack([points.min(axis=0), points.max(axis=0)])
+    if relative_buffer is not None:
+        bbox_buffer = (bbox[1] - bbox[0]) * 0.1
+        bbox[0] -= bbox_buffer
+        bbox[1] += bbox_buffer
+    return bbox
+
+
+def get_code_location(back_frames=1):
+    """Return the current file name and line number in the program."""
+    frame = inspect.currentframe()
+    for _ in range(back_frames):
+        frame = frame.f_back
+    return frame.f_code.co_filename, frame.f_lineno
