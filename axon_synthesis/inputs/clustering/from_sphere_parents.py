@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.spatial import KDTree
 from scipy.spatial.distance import pdist
 
-from axon_synthesis.input_creation.clustering.utils import common_path
+from axon_synthesis.inputs.clustering.utils import common_path
 from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import neurite_to_graph
 

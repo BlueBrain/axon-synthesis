@@ -13,26 +13,24 @@ from neurom import load_morphology
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
-from axon_synthesis.input_creation.clustering import extract_terminals
-from axon_synthesis.input_creation.clustering.from_barcodes import (
+from axon_synthesis.inputs.clustering import extract_terminals
+from axon_synthesis.inputs.clustering.from_barcodes import (
     compute_clusters as clusters_from_barcodes,
 )
-from axon_synthesis.input_creation.clustering.from_brain_regions import (
+from axon_synthesis.inputs.clustering.from_brain_regions import (
     compute_clusters as clusters_from_brain_regions,
 )
-from axon_synthesis.input_creation.clustering.from_sphere_parents import (
+from axon_synthesis.inputs.clustering.from_sphere_parents import (
     compute_clusters as clusters_from_sphere_parents,
 )
-from axon_synthesis.input_creation.clustering.from_spheres import (
-    compute_clusters as clusters_from_spheres,
-)
-from axon_synthesis.input_creation.clustering.plot import plot_cluster_properties
-from axon_synthesis.input_creation.clustering.plot import plot_clusters
-from axon_synthesis.input_creation.clustering.utils import DefaultValidatingValidator
-from axon_synthesis.input_creation.clustering.utils import create_clustered_morphology
-from axon_synthesis.input_creation.clustering.utils import export_morph
-from axon_synthesis.input_creation.clustering.utils import reduce_clusters
-from axon_synthesis.input_creation.trunk_properties import compute_trunk_properties
+from axon_synthesis.inputs.clustering.from_spheres import compute_clusters as clusters_from_spheres
+from axon_synthesis.inputs.clustering.plot import plot_cluster_properties
+from axon_synthesis.inputs.clustering.plot import plot_clusters
+from axon_synthesis.inputs.clustering.utils import DefaultValidatingValidator
+from axon_synthesis.inputs.clustering.utils import create_clustered_morphology
+from axon_synthesis.inputs.clustering.utils import export_morph
+from axon_synthesis.inputs.clustering.utils import reduce_clusters
+from axon_synthesis.inputs.trunk_properties import compute_trunk_properties
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.typing import Self

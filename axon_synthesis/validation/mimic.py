@@ -12,7 +12,7 @@ from axon_synthesis.constants import COMMON_ANCESTOR_COORDS_COLS
 from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import DEFAULT_POPULATION
 from axon_synthesis.constants import TARGET_COORDS_COLS
-from axon_synthesis.input_creation import create_inputs
+from axon_synthesis.inputs.create import create_inputs
 from axon_synthesis.synthesis import synthesize_axons
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.typing import FileType

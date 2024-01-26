@@ -15,8 +15,8 @@ from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
-from axon_synthesis.input_creation import pop_neuron_numbers
-from axon_synthesis.input_creation.clustering import Clustering
+from axon_synthesis.inputs import pop_neuron_numbers
+from axon_synthesis.inputs.clustering import Clustering
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import merge_json_files
