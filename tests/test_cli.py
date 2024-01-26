@@ -5,17 +5,19 @@ import axon_synthesis.cli
 def test_cli(cli_runner):
     # pylint: disable=unused-argument
     """Test the CLI."""
-    result = cli_runner.invoke(
-        axon_synthesis.cli.main,
-        [
-            "-x",
-            1,
-            "-y",
-            2,
-        ],
-    )
+    result = cli_runner.invoke(axon_synthesis.cli.main, ["--help"])
     assert result.exit_code == 0
-    assert result.output == "1 + 2 = 3\n"
+    assert result.output.startswith("Usage: ")
+
+    for command in axon_synthesis.cli.main.list_commands(None):
+        result = cli_runner.invoke(axon_synthesis.cli.main, [command, "--help"])
+        assert result.exit_code == 0
+        assert f"Usage: axon-synthesis {command}" in result.output
+
+    for command in axon_synthesis.cli.validation_group.list_commands(None):
+        result = cli_runner.invoke(axon_synthesis.cli.main, ["validation", command, "--help"])
+        assert result.exit_code == 0
+        assert f"Usage: axon-synthesis validation {command}" in result.output
 
 
 def test_entry_point(script_runner):

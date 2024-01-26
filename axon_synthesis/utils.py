@@ -9,7 +9,6 @@ from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 
-import matplotlib as mpl
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -231,21 +230,6 @@ def ignore_warnings(*ignored_warnings):
         for i in ignored_warnings:
             warnings.filterwarnings("ignore", category=i)
         yield
-
-
-@contextmanager
-def use_matplotlib_backend(new_backend):
-    """A context manager to set a new temporary backend to matplotlib then restore the old one.
-
-    Args:
-        new_backend (str): The name of the backend to use in this context.
-    """
-    old_backend = mpl.get_backend()
-    mpl.use(new_backend)
-    try:
-        yield
-    finally:
-        mpl.use(old_backend)
 
 
 def recursive_to_str(data):

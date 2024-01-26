@@ -20,7 +20,7 @@ seed_option = click.option(
 )
 
 
-@click.group()
+@click.group(name="axon-synthesis")
 @click.version_option()
 @click.option(
     "-c",
@@ -61,7 +61,7 @@ def main(ctx, *args, **kwargs):
 
     logger = logging.getLogger()
     logger.info("Running the following command: %s", " ".join(sys.argv))
-    logger.info("From the following folder: %s", Path.cwd())
+    logger.info("Running from the following folder: %s", Path.cwd())
 
 
 main.add_command(synthesis.synthesize)

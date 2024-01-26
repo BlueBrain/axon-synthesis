@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from axon_synthesis.main_trunk import clustering
+from axon_synthesis.inputs import clustering
 
 
 class TestFromBrainRegion:

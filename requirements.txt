@@ -2,15 +2,10 @@ attrs
 BluePyParallel
 click>=8
 click_option_group>=0.5
-dask[dataframe, distributed]
-data-validation-framework>=0.3.1
+configobj>=5
 gitpython
-luigi>=3.2.0
-luigi-tools
-matplotlib
 morph-tool
 morphio
-morphology-workflows>=0.2.0
 networkx
 NeuroM>3.2,<4
 NeuroTS>=3.5
@@ -23,4 +18,3 @@ scipy
 seaborn
 TMD
 voxcell>=3.1.3
-vtk!=9.2

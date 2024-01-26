@@ -3,8 +3,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as npt
 
-from axon_synthesis.main_trunk import post_process
-from axon_synthesis.utils import use_matplotlib_backend
+from axon_synthesis.synthesis.main_trunk import post_process
+
+from . import use_matplotlib_backend
 
 
 class TestRandomWalk:
@@ -43,7 +44,6 @@ class TestRandomWalk:
             random_coeff=2,
             history_coeff=2,
             rng=rng,
-            debug=True,
         )
 
         # ################################################################## #
