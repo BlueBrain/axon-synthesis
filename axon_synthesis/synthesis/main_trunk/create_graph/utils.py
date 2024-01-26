@@ -10,27 +10,6 @@ from scipy.spatial import Voronoi
 
 from axon_synthesis.constants import COORDS_COLS
 
-logger = logging.getLogger(__name__)
-
-
-# def use_ancestors(terminals, tuft_properties_path):
-#     """Use ancestor coords instead of the center of the cluster."""
-#     cluster_props_df = pd.read_json(tuft_properties_path)
-#     tmp = pd.merge(
-#         terminals,
-#         cluster_props_df,
-#         left_on=["morphology", "axon_id", "terminal_id"],
-#         right_on=["morphology", "axon_id", "cluster_id"],
-#         how="left",
-#     )
-#     mask = ~tmp["cluster_id"].isna()
-#     new_terminal_coords = pd.DataFrame(
-#         tmp.loc[mask, "common_ancestor_coords"].to_list(),
-#         columns=COORDS_COLS,
-#     )
-#     tmp.loc[mask, COORDS_COLS] = new_terminal_coords.to_numpy()
-#     terminals[COORDS_COLS] = tmp[COORDS_COLS]
-
 
 def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermediate_number):
     """Add intermediate points between each pair of points."""
@@ -60,7 +39,15 @@ def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermed
     return inter_pts
 
 
-def add_random_points(all_pts, min_random_point_distance, bbox_buffer, rng, *, max_tries: int = 10):
+def add_random_points(
+    all_pts,
+    min_random_point_distance,
+    bbox_buffer,
+    rng,
+    *,
+    max_tries: int = 10,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
+):
     """Add random points in the bounding box of the given points."""
     if min_random_point_distance is not None:
         n_fails = 0
@@ -96,10 +83,11 @@ def add_random_points(all_pts, min_random_point_distance, bbox_buffer, rng, *, m
             else:
                 n_fails += 1
 
-        logger.info("Random points added: %s", len(new_pts))
         if new_pts:
+            if logger is not None:
+                logger.info("Random points added: %s", len(new_pts))
             all_pts = np.concatenate([all_pts, np.array(new_pts)])
-        else:
+        elif logger is not None:
             logger.warning(
                 (
                     "Could not add random points! The current state is the following: "
@@ -297,7 +285,7 @@ def add_depth_penalty(
 
     relative_delta = np.clip(np.abs(from_depths - to_depths) / (edges_df["weight"]), 0, 1)
 
-    return 1 + amplitude * (1 - np.exp(-relative_delta / sigma))
+    return (1 + amplitude * (1 - np.exp(-relative_delta / sigma))).to_numpy()
 
 
 def add_favored_reward(

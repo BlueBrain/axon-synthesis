@@ -155,6 +155,7 @@ def synthesize_axons(  # noqa: PLR0913
         create_graph_config = CreateGraphConfig()
     if inputs.atlas is not None:
         create_graph_config.compute_region_tree(inputs.atlas)
+    LOGGER.debug("The following config is used for graph creation: %s", create_graph_config)
 
     # Get source points for all axons
     source_points = set_source_points(

@@ -91,10 +91,10 @@ class CreateGraphConfig:
     # Depth penalty
     use_depth_penalty: bool = field(default=True)
     depth_penalty_sigma: float = field(
-        default=100, validator=check_min_max(min_value=0, strict_min=True)
+        default=0.25, validator=check_min_max(min_value=0, strict_min=True)
     )
     depth_penalty_amplitude: float = field(
-        default=1, validator=check_min_max(min_value=0, strict_min=True)
+        default=10, validator=check_min_max(min_value=0, strict_min=True)
     )
 
     # Favored regions
