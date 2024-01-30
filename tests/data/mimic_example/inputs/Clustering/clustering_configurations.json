@@ -1,0 +1,7 @@
+{
+    "big_spheres": {
+        "method": "sphere_parents",
+        "sphere_radius": 300,
+        "max_path_distance": 1000
+    }
+}

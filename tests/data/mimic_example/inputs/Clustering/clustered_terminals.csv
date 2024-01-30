@@ -1,0 +1,9 @@
+morph_file,config_name,axon_id,terminal_id,size,x,y,z,morphology
+morphologies/repair_release/asc/172992.asc,big_spheres,0,0,1,0.0,0.0,0.0,172992
+morphologies/repair_release/asc/172992.asc,big_spheres,0,1,1,-32.771854400634766,108.76351928710938,103.8472900390625,172992
+morphologies/repair_release/asc/172992.asc,big_spheres,0,2,126,-143.62870620167445,370.981753697471,293.8157385001107,172992
+morphologies/repair_release/asc/172992.asc,big_spheres,0,3,17,-15.705853125628304,349.449265423943,468.0087459788603,172992
+morphologies/repair_release/asc/172993.asc,big_spheres,0,0,1,0.0,0.0,0.0,172993
+morphologies/repair_release/asc/172993.asc,big_spheres,0,1,28,384.4179831913539,602.5947211129325,380.52575411115373,172993
+morphologies/repair_release/asc/172993.asc,big_spheres,0,2,32,454.71627140045166,504.15997076034546,368.0503988265991,172993
+morphologies/repair_release/asc/172993.asc,big_spheres,0,3,2,951.2859191894531,941.0120239257812,269.5982360839844,172993

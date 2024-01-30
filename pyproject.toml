@@ -134,6 +134,9 @@ ignore-variadic-names = true
     "PLR2004",
     "S101",
 ]
+"docs/*" = [
+    "INP001",
+]
 
 [tool.ruff.lint.pylint]
 max-args=10

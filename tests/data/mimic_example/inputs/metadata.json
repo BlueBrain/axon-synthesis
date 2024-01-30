@@ -1,0 +1,7 @@
+{
+    "WMR": "/mnt/Data/Work/BBP/codes/AxonSynthesis/.tox/py310/tmp/test_mimic_example0/out/inputs/WhiteMatterRecipe",
+    "clustering": "/mnt/Data/Work/BBP/codes/AxonSynthesis/.tox/py310/tmp/test_mimic_example0/out/inputs/Clustering",
+    "morphology_path": "morphologies/repair_release/asc",
+    "neuron_density": null,
+    "path": "/mnt/Data/Work/BBP/codes/AxonSynthesis/.tox/py310/tmp/test_mimic_example0/out/inputs"
+}

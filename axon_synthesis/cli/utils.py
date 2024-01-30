@@ -1,5 +1,7 @@
 """Some utils for the CLI of axon-synthesis."""
 import json
+from collections.abc import Mapping
+from copy import deepcopy
 
 import click
 from configobj import ConfigObj
@@ -7,6 +9,20 @@ from configobj import ConfigObj
 
 def _format_value(data: dict, name: str) -> str:
     return {f"{name}_{key}": value for key, value in data.items()}
+
+
+def _recursive_merge(dict_1: dict, dict_2: dict) -> dict:
+    """Merge two dictionaries recursively.
+
+    The right one takes precedense in case of conflicting keys.
+    """
+    merged_dict = deepcopy(dict_1)
+    for k, v in dict_2.items():
+        if k in merged_dict and isinstance(v, Mapping):
+            merged_dict[k] = _recursive_merge(merged_dict[k], v)
+        else:
+            merged_dict[k] = v
+    return merged_dict
 
 
 def _flatten_command_subsections(ctx, command_group, command_defaults):
@@ -21,7 +37,9 @@ def _flatten_command_subsections(ctx, command_group, command_defaults):
                 if isinstance(subvalue, dict):
                     to_add.update(_format_value(subvalue, subkey))
                     to_remove.append(subkey)
-            command_defaults[command_name].update(to_add)
+            command_defaults[command_name] = _recursive_merge(
+                to_add, command_defaults[command_name]
+            )
             for i in to_remove:
                 del command_defaults[command_name][i]
 
@@ -34,7 +52,7 @@ def _process_command(ctx, command, defaults, global_values):
         if isinstance(subcommand, click.core.Group):
             _process_command(ctx, subcommand, defaults[subcommand_name], global_values)
             continue
-        defaults[subcommand_name].update(global_values)
+        defaults[subcommand_name] = _recursive_merge(global_values, defaults[subcommand_name])
 
 
 def configure(ctx: click.Context, _, filename: None | str):
