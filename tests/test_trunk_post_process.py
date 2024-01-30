@@ -66,7 +66,7 @@ class TestRandomWalk:
                     label="Intermediate targets",
                 )
                 for num, i in enumerate(intermediate_pts):
-                    ax.text(i[0], i[1], i[2], "%s" % (str(num)), size=20, zorder=1, color="k")
+                    ax.text(i[0], i[1], i[2], str(num), size=20, zorder=1, color="k")
                 ax.legend()
                 ax.set_xlim3d([-0.5, 1.5])
                 ax.set_ylim3d([-0.5, 1.5])

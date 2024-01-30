@@ -295,7 +295,7 @@ def compute_clusters(  # noqa: PLR0913
     figure_path,
     *,
     debug=False,
-    **kwargs,
+    **_kwargs,
 ):
     """Gather points according to connected components in brain regions."""
     nodes, edges, _ = neurite_to_graph(axon, keep_section_segments=True)

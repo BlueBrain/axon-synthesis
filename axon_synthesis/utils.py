@@ -262,7 +262,7 @@ def merge_json_files(*files):
     for i in files:
         file = Path(i)
         if file.exists():
-            with file.open() as f:
+            with file.open(encoding="utf-8") as f:
                 recursive_update(result, json.load(f))
     return result
 
@@ -272,7 +272,7 @@ def check_min_max(
 ) -> None:
     """Create a validator used by attrs to check a range."""
 
-    def range_validator(instance, attribute, value) -> None:  # noqa: ARG001
+    def range_validator(_instance, attribute, value) -> None:
         """The actual range validator used by attrs."""
         try:
             boundaries_msgs = []

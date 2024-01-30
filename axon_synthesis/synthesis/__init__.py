@@ -119,7 +119,7 @@ def synthesize_axons(  # noqa: PLR0913
     rebuild_existing_axons: bool = False,
     rng: SeedType = None,
     debug: bool = False,
-):
+):  # pylint: disable=too-many-arguments
     """Synthesize the long-range axons.
 
     Args:
@@ -229,7 +229,7 @@ def synthesize_axons(  # noqa: PLR0913
             )
 
             # Build the Steiner Tree for the current axon
-            solution_nodes, solution_edges = compute_solution(
+            _, solution_edges = compute_solution(
                 nodes,
                 edges,
                 output_path=one_axon_paths.STEINER_TREE_SOLUTION,

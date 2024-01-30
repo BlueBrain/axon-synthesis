@@ -20,8 +20,6 @@ from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import compute_bbox
 from axon_synthesis.utils import sublogger
 
-logger = logging.getLogger(__name__)
-
 
 def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None, logger=None):
     """Plot the given morphology.

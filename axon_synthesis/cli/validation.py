@@ -26,7 +26,7 @@ from axon_synthesis.validation.mimic import mimic_axons
 @clustering_parameters_option
 @create_graph_options
 @click.pass_obj
-def mimic(global_config: GlobalConfig, *args, **kwargs):
+def mimic(global_config: GlobalConfig, *_args, **kwargs):
     """The command to synthesize mimicking axons."""
     global_config.to_config(kwargs)
     create_graph_kwargs_to_config(kwargs)

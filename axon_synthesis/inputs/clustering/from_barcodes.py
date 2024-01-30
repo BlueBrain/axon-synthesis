@@ -77,7 +77,7 @@ def compute_clusters(
     output_cols,  # noqa: ARG001
     *,
     debug=False,
-    **kwargs,
+    **_kwargs,
 ):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals

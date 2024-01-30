@@ -228,13 +228,13 @@ def create_random_sources(
 
     dataset = pd.DataFrame(coords, columns=COORDS_COLS).reset_index()
     dataset.rename(columns={"index": "morph_file"}, inplace=True)
-    dataset["axon_id"] = 0
-    dataset["terminal_id"] = -1
-    dataset["section_id"] = -1
+    dataset.loc[:, "axon_id"] = 0
+    dataset.loc[:, "terminal_id"] = -1
+    dataset.loc[:, "section_id"] = -1
 
     if output_path is not None:
         # TODO: Should export a CellCollection to a MVD3 file?
-        dataset[["morph_file", "axon_id", "terminal_id", "section_id", *COORDS_COLS]].to_hdf(
+        dataset.loc[:, ["morph_file", "axon_id", "terminal_id", "section_id", *COORDS_COLS]].to_hdf(
             output_path,
             index=False,
         )

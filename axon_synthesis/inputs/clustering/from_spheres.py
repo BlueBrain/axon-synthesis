@@ -11,7 +11,7 @@ from axon_synthesis.utils import COORDS_COLS
 logger = logging.getLogger(__name__)
 
 
-def compute_clusters(config, config_name, axon_id, group_name, group, output_cols, **kwargs):
+def compute_clusters(config, config_name, axon_id, group_name, group, output_cols, **_kwargs):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
     new_terminal_points = []

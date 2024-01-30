@@ -217,12 +217,12 @@ class Clustering(BasePathBuilder):
     def save(self):
         """Save the clustering data to the associated path."""
         # Export long-range trunk properties
-        with self.TRUNK_PROPS_FILENAME.open(mode="w") as f:
+        with self.TRUNK_PROPS_FILENAME.open(mode="w", encoding="utf-8") as f:
             json.dump(self.trunk_properties.to_dict("records"), f, indent=4)
         LOGGER.info("Exported trunk properties to %s", self.TRUNK_PROPS_FILENAME)
 
         # Export tuft properties
-        with self.TUFT_PROPS_FILENAME.open(mode="w") as f:
+        with self.TUFT_PROPS_FILENAME.open(mode="w", encoding="utf-8") as f:
             json.dump(self.tuft_properties.to_dict("records"), f, indent=4)
         LOGGER.info("Exported tuft properties to %s", self.TUFT_PROPS_FILENAME)
 
@@ -253,7 +253,7 @@ class Clustering(BasePathBuilder):
             )
 
         # Export the clustering configurations so they can can be retrieved afterwards
-        with self.CLUSTERING_CONFIGURATIONS_FILENAME.open(mode="w") as f:
+        with self.CLUSTERING_CONFIGURATIONS_FILENAME.open(mode="w", encoding="utf-8") as f:
             json.dump(self.parameters, f, indent=4)
         LOGGER.info("Exported clustering parameters to %s", self.CLUSTERING_CONFIGURATIONS_FILENAME)
 
@@ -270,7 +270,7 @@ class Clustering(BasePathBuilder):
         paths = cls.build_paths(path)
 
         # Import the clustering configurations
-        with paths["CLUSTERING_CONFIGURATIONS_FILENAME"].open() as f:
+        with paths["CLUSTERING_CONFIGURATIONS_FILENAME"].open(encoding="utf-8") as f:
             parameters = json.load(f)
 
         # Create the object
@@ -280,11 +280,11 @@ class Clustering(BasePathBuilder):
         msg = "Some of the following files are missing: %s"
         if file_selection <= FILE_SELECTION.REQUIRED_ONLY:
             if obj.exists(file_selection=FILE_SELECTION.REQUIRED_ONLY):
-                with obj.TRUNK_PROPS_FILENAME.open() as f:
+                with obj.TRUNK_PROPS_FILENAME.open(encoding="utf-8") as f:
                     obj.trunk_properties = pd.read_json(
                         obj.TRUNK_PROPS_FILENAME, dtype={"morphology": str, "population_id": str}
                     )
-                with obj.TUFT_PROPS_FILENAME.open() as f:
+                with obj.TUFT_PROPS_FILENAME.open(encoding="utf-8") as f:
                     obj.tuft_properties = pd.read_json(
                         f, dtype={"morphology": str, "population_id": str}
                     )

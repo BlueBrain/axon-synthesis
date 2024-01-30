@@ -2,7 +2,7 @@
 import os
 
 try:
-    from typing import Self
+    from typing import Self  # pylint: disable=unused-import
 except ImportError:
     from typing_extensions import Self  # noqa: F401
 

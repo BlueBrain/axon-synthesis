@@ -158,7 +158,7 @@ def compute_step_direction(  # noqa: PLR0913
     # If the non random part of the direction does not head to the target direction
     # (e.g. because of the history), then we don't care if the resulting direction
     # does not head to the target direction
-    heading_target = not np.dot(target_direction, non_random_direction) < 0
+    heading_target = np.dot(target_direction, non_random_direction) >= 0
 
     while np.dot(direction, target_direction) < 0 and nb_rand < max_rand:
         if nb_rand > 0:

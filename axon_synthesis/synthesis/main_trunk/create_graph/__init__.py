@@ -192,12 +192,12 @@ def one_graph(
 
     # Reset index and set IDs
     nodes_df = nodes_df.reset_index(drop=True)
-    nodes_df["id"] = nodes_df.index
+    nodes_df.loc[:, "id"] = nodes_df.index
 
     # Create edges using the Delaunay triangulation of the union of the terminals,
     # intermediate and Voronoï points
-    edges_df, tri = create_edges(
-        nodes_df[COORDS_COLS],
+    edges_df, _ = create_edges(
+        nodes_df.loc[:, COORDS_COLS],
         FROM_COORDS_COLS,
         TO_COORDS_COLS,
     )

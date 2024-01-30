@@ -1,4 +1,5 @@
 """Configuration for the pytest test suite."""
+# pylint: disable=redefined-outer-name
 import logging
 import shutil
 from pathlib import Path

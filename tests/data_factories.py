@@ -11,13 +11,13 @@ from voxcell.nexus.voxelbrain import Atlas
 from . import DATA
 
 
-def generate_small_O1(atlas_dir):
+def generate_small_O1(atlas_dir):  # noqa: N802
     """Dump a small O1 atlas in folder path."""
     atlas_dir = Path(atlas_dir)
 
     # fmt: off
-    with open(os.devnull, "w") as f:
-        call(["brainbuilder", "atlases",
+    with Path(os.devnull).open("w", encoding="utf-8") as f:
+        call(["brainbuilder", "atlases",  # noqa: S603, S607
               "-n", "6,5,4,3,2,1",
               "-t", "200,100,100,100,100,200",
               "-d", "100",
@@ -38,7 +38,7 @@ def generate_small_O1(atlas_dir):
     brain_regions.save_nrrd(str(atlas_dir / "brain_regions.nrrd"))
 
     # Update the brain region hierarchy
-    with open(str(atlas_dir / "hierarchy.json")) as f:
+    with (atlas_dir / "hierarchy.json").open(encoding="utf-8") as f:
         region_map = json.load(f)
     region_map["children"][0]["acronym"] = "mc0"
     region_map["children"].append(
@@ -66,7 +66,7 @@ def generate_small_O1(atlas_dir):
 
     recursive_atlas_id(region_map)
 
-    with open(str(atlas_dir / "hierarchy.json"), "w") as f:
+    with (atlas_dir / "hierarchy.json").open("w", encoding="utf-8") as f:
         json.dump(region_map, f, indent=4, sort_keys=True)
 
     return atlas_dir

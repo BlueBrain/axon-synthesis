@@ -4,9 +4,9 @@ import logging
 import numpy as np
 import pandas as pd
 from neurom.morphmath import angle_between_vectors
-from scipy.spatial import Delaunay
+from scipy.spatial import Delaunay  # pylint: disable=no-name-in-module
 from scipy.spatial import KDTree
-from scipy.spatial import Voronoi
+from scipy.spatial import Voronoi  # pylint: disable=no-name-in-module
 
 from axon_synthesis.constants import COORDS_COLS
 

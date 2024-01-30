@@ -142,7 +142,7 @@ class WhiteMatterRecipe(BasePathBuilder):
         path,
         *,
         load=True,
-    ):
+    ):  # pylint: disable=redefined-outer-name
         """Create a new WhiteMatterRecipe object.
 
         Args:

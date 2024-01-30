@@ -113,12 +113,12 @@ class BasePathBuilder:
         """Raise a 'FileNotFoundError' exception with the relevant list of missing files."""
         msg = "The following files are missing: %s"
         if missing_files is None:
-            missing_files = list(self.missing_files(file_selection).keys())
+            missing_files = list(self.missing_files(file_selection=file_selection).keys())
         raise FileNotFoundError(msg, missing_files)
 
     def assert_exists(self, *, file_selection=FILE_SELECTION.REQUIRED_ONLY):
         """Raise a 'FileNotFoundError' exception if the relevant files do not exist."""
-        files = list(self.missing_files(file_selection).keys())
+        files = list(self.missing_files(file_selection=file_selection).keys())
         if files:
             self.raise_missing_files(missing_files=files)
 

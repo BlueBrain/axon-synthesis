@@ -46,7 +46,7 @@ seed_option = click.option(
 )
 @seed_option
 @click.pass_context
-def main(ctx, *args, **kwargs):
+def main(ctx, *_args, **kwargs):
     """A command line tool for axon-synthesis management."""
     debug = kwargs.get("debug", False)
     seed = kwargs.get("seed", None)

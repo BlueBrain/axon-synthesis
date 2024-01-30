@@ -34,7 +34,7 @@ def compute_solution(
     prizes = 100.0 * nodes["is_terminal"] * edges["weight"].sum()
 
     # Compute Steiner Tree
-    solution_nodes, solution_edges = pf.pcst_fast(
+    solution_nodes, solution_edges = pf.pcst_fast(  # pylint: disable=c-extension-no-member
         edges[["from", "to"]].values,
         prizes,
         edges["weight"].values,

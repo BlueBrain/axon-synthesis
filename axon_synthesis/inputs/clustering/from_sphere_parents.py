@@ -68,7 +68,7 @@ def _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_pat
             cluster_ids.loc[[term_a, term_b]] = cluster_ids.max() + 1
 
 
-def compute_clusters(config, config_name, axon, axon_id, group_name, group, **kwargs):
+def compute_clusters(config, config_name, axon, axon_id, group_name, group, **_kwargs):
     """All parents up to the common ancestor must be inside the sphere to be merged."""
     sphere_radius = config["sphere_radius"]
     max_path_distance = config.get("max_path_distance", sphere_radius)

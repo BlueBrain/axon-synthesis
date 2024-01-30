@@ -129,7 +129,7 @@ class Inputs(BasePathBuilder):
 
     def save_metadata(self):
         """Save the metadata."""
-        with self.METADATA_FILENAME.open("w") as f:
+        with self.METADATA_FILENAME.open("w", encoding="utf-8") as f:
             json.dump(
                 self._unformat_metadata(self.metadata),
                 f,
@@ -140,7 +140,7 @@ class Inputs(BasePathBuilder):
     def load_metadata(self):
         """Load the metadata."""
         try:
-            with self.METADATA_FILENAME.open() as f:
+            with self.METADATA_FILENAME.open(encoding="utf-8") as f:
                 self._metadata = self._format_metadata(json.load(f))
             self.metadata_to_attributes()
         except Exception as exc:  # noqa: BLE001
