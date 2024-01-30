@@ -10,7 +10,7 @@ class Outputs(BasePathBuilder):
     _filenames: ClassVar[dict] = {
         "FINAL_FIGURES": "FinalFigures",
         "GRAPH_CREATION_FIGURES": "GraphCreationFigures",
-        "GRAPH_CREATION_MORPHOLOGIES": "GraphCreationMorphologies",
+        "GRAPH_CREATION_DATA": "GraphCreationData",
         "MAIN_TRUNK_FIGURES": "MainTrunkFigures",
         "MAIN_TRUNK_MORPHOLOGIES": "MainTrunkMorphologies",
         "MORPHOLOGIES": "Morphologies",
@@ -25,7 +25,7 @@ class Outputs(BasePathBuilder):
     _optional_keys: ClassVar[set[str]] = {
         "FINAL_FIGURES",
         "GRAPH_CREATION_FIGURES",
-        "GRAPH_CREATION_MORPHOLOGIES",
+        "GRAPH_CREATION_DATA",
         "MAIN_TRUNK_FIGURES",
         "MAIN_TRUNK_MORPHOLOGIES",
         "POSTPROCESS_TRUNK_FIGURES",
@@ -39,7 +39,7 @@ class Outputs(BasePathBuilder):
     _dir_keys: ClassVar[set[str]] = {
         "FINAL_FIGURES",
         "GRAPH_CREATION_FIGURES",
-        "GRAPH_CREATION_MORPHOLOGIES",
+        "GRAPH_CREATION_DATA",
         "MAIN_TRUNK_FIGURES",
         "MAIN_TRUNK_MORPHOLOGIES",
         "MORPHOLOGIES",

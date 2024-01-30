@@ -3,15 +3,19 @@ import logging
 import shutil
 from pathlib import Path
 
+import dir_content_diff.pandas
 import pytest
 from voxcell.nexus.voxelbrain import Atlas
 
 from . import DATA
+from . import EXAMPLES
 from . import TEST_ROOT
 from .data_factories import generate_small_O1
 
 logging.getLogger("matplotlib").disabled = True
 logging.getLogger("matplotlib.font_manager").disabled = True
+
+dir_content_diff.pandas.register()
 
 
 def pytest_addoption(parser):
@@ -33,13 +37,19 @@ def interactive_plots(request):
 @pytest.fixture()
 def root_dir():
     """The root directory."""
-    return TEST_ROOT
+    return Path(TEST_ROOT)
 
 
 @pytest.fixture()
 def data_dir():
     """The data directory."""
-    return DATA
+    return Path(DATA)
+
+
+@pytest.fixture()
+def example_dir():
+    """The example directory."""
+    return Path(EXAMPLES)
 
 
 @pytest.fixture()

@@ -1,6 +1,7 @@
 """Define the class to store the inputs."""
 import json
 import logging
+from importlib import resources
 from pathlib import Path
 from typing import ClassVar
 
@@ -9,7 +10,6 @@ import pandas as pd
 from neurots.validator import ValidationError
 from neurots.validator import validate_neuron_distribs
 from neurots.validator import validate_neuron_params
-from pkg_resources import resource_filename
 
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.atlas import AtlasHelper
@@ -26,19 +26,8 @@ from axon_synthesis.white_matter_recipe import WmrConfig
 
 LOGGER = logging.getLogger(__name__)
 
-DEFAULT_TUFT_DISTRIBUTIONS = Path(
-    resource_filename(
-        "axon_synthesis",
-        "data/tuft_distributions.json",
-    )
-)
-
-DEFAULT_TUFT_PARAMETERS = Path(
-    resource_filename(
-        "axon_synthesis",
-        "data/tuft_parameters.json",
-    )
-)
+DEFAULT_TUFT_DISTRIBUTIONS = resources.files("axon_synthesis") / "data/tuft_distributions.json"
+DEFAULT_TUFT_PARAMETERS = resources.files("axon_synthesis") / "data/tuft_parameters.json"
 
 
 class Inputs(BasePathBuilder):

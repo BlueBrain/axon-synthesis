@@ -38,6 +38,9 @@ def create_cell_collection(
 
     morph_names = [i.stem for i in morph_files]
     morph_files = [str(i) for i in morph_files]
+    if not morph_files:
+        msg = f"No morphology file found in '{morphology_dir}'"
+        raise RuntimeError(msg)
     cells_df = pd.DataFrame({"morphology": morph_names, "morph_file": morph_files})
     cells_df["mtype"] = DEFAULT_POPULATION
     cells_df["region"] = DEFAULT_POPULATION

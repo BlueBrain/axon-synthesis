@@ -121,7 +121,7 @@ def set_source_points(
     # Find existing axons to rebuild them if required
     if rebuild_existing_axons:
         existing_axons = (
-            cells_df.groupby("morph_file")
+            cells_df.groupby("morph_file")["morph_file"]
             .apply(lambda group: find_existing_axons(group.name))
             .apply(pd.Series)
             .stack()

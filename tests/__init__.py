@@ -5,6 +5,7 @@ from pathlib import Path
 import matplotlib as mpl
 
 TEST_ROOT = Path(__file__).parent
+EXAMPLES = TEST_ROOT.parent / "examples"
 DATA = TEST_ROOT / "data"
 
 

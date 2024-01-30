@@ -30,12 +30,14 @@ dependencies = {file = ["requirements.txt"]}
 [project.optional-dependencies]
 docs = [
     "m2r2",
-    "sphinx<6",
+    "sphinx",
     "sphinx-bluebrain-theme",
     "sphinx-click",
 ]
 test = [
-    "brainbuilder",
+    "brainbuilder>=0.18.3",
+    "dir-content-diff>=1.6",
+    "dir-content-diff-plugins>=0.0.4",
     "mock>=3",
     "pytest>=6",
     "pytest-click>=1",
@@ -87,6 +89,8 @@ testpaths = [
     "tests",
 ]
 filterwarnings = [
+    "ignore:.*is a deprecated alias for.*:DeprecationWarning:nptyping",
+    "ignore::matplotlib.MatplotlibDeprecationWarning:tmd",
 ]
 
 [tool.ruff]

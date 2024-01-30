@@ -43,8 +43,8 @@ examples/*.yaml
 examples/inputs
 examples/mimic_validation
 examples/morphologies/out_*
-examples/morphologies/*_release
-examples/morphologies/raw_morphologies
+examples/morphologies/repair_release/h5
+examples/morphologies/repair_release/swc
 examples/morphologies/dataset.csv
 examples/out
 

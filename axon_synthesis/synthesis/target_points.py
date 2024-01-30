@@ -155,11 +155,11 @@ def get_target_points(
     probs = probs.dropna(axis=0, subset=["target_probability"])
     probs = probs.loc[
         probs["st_level"]
-        == probs.groupby(["morphology", "source_brain_region_id"])["st_level"].transform(max)
+        == probs.groupby(["morphology", "source_brain_region_id"])["st_level"].transform("max")
     ].reset_index(drop=True)
 
     # Ensure that at least one region is selected for each morphology
-    probs["random_number"] = -1
+    probs["random_number"] = pd.Series(-1, dtype=float)
     no_target_mask = probs["random_number"] < 0
     n_tries = 0
     mask_size = no_target_mask.sum()

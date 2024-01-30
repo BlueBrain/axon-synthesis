@@ -68,7 +68,7 @@ def create_one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=F
             "GRAPH_CREATION_FIGURE": (outputs.GRAPH_CREATION_FIGURES / figure_file_name)
             if debug
             else None,
-            "GRAPH_CREATION_MORPHOLOGY": (outputs.GRAPH_CREATION_MORPHOLOGIES / morph_file_name)
+            "GRAPH_CREATION_DATA": (outputs.GRAPH_CREATION_DATA / morph_file_name)
             if debug
             else None,
             "MAIN_TRUNK_FIGURE": (outputs.MAIN_TRUNK_FIGURES / figure_file_name) if debug else None,
@@ -93,7 +93,7 @@ def create_one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=F
 
         _optional_keys: ClassVar[set[str]] = {
             "GRAPH_CREATION_FIGURE",
-            "GRAPH_CREATION_MORPHOLOGY",
+            "GRAPH_CREATION_DATA",
             "MAIN_TRUNK_FIGURE",
             "MAIN_TRUNK_MORPHOLOGY",
             "POSTPROCESS_TRUNK_FIGURE",
@@ -223,7 +223,7 @@ def synthesize_axons(  # noqa: PLR0913
                 depths=inputs.atlas.depths if inputs.atlas is not None else None,
                 favored_region_tree=create_graph_config.favored_region_tree,
                 rng=rng,
-                output_path=one_axon_paths.GRAPH_CREATION_MORPHOLOGY,
+                output_path=one_axon_paths.GRAPH_CREATION_DATA,
                 figure_path=one_axon_paths.GRAPH_CREATION_FIGURE,
                 logger=axon_custom_logger,
             )
