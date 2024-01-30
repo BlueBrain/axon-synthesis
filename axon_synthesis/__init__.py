@@ -1,4 +1,4 @@
-"""Theaxon-synthesis package.
+"""The axon-synthesis package.
 
 A package to synthesize artificial axons.
 """

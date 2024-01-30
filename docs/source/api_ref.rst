@@ -15,7 +15,6 @@ This page presents the complete API documentation.
     axon_synthesis.validation
     axon_synthesis.validation.mimic
     axon_synthesis.validation.statistics
-    axon_synthesis.version
     axon_synthesis.white_matter_recipe
     axon_synthesis.cli
     axon_synthesis.cli.common

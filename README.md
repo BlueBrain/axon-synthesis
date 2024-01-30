@@ -1,13 +1,14 @@
 # Axon Synthesis
 
-A package to synthesize artificial axons
+A package to synthesize artificial axons.
+
+The main documentation, is available here: ?????????
 
 
 ## Installation
 
-TODO: Replace this text by proper installation instructions.
+It is recommended to install ``axon-synthesis`` using [pip](https://pip.pypa.io/en/stable/):
 
-
-## Examples
-
-TODO: Provide here some examples on how this software can be used.
+```bash
+pip install axon-synthesis
+```
