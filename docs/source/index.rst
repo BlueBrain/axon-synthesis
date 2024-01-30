@@ -6,5 +6,7 @@
    :maxdepth: 2
 
    Home <self>
+   cli
+   configfile
    api_ref
    changelog

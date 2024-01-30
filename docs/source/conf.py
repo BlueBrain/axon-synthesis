@@ -34,6 +34,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
     "sphinx.ext.todo",
+    "sphinx_click",
     "m2r2",
 ]
 
@@ -80,22 +81,7 @@ autodoc_default_options = {
 }
 
 intersphinx_mapping = {
-    # Uncomment these lines if you need them
-    # "numpy": ("https://numpy.org/doc/stable/", None),
-    # "pandas": ("https://pandas.pydata.org/docs", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "pandas": ("https://pandas.pydata.org/docs", None),
     "python": ("https://docs.python.org/3", None),
 }
-
-
-def autodoc_skip_member_callback(app, what, name, obj, skip, options):
-    """Check if an object should be skipped."""
-    if skip:
-        return skip
-    exclusions = ("requires", "run", "output")
-    exclude = name in exclusions
-    return exclude
-
-
-def setup(app):
-    """Connect functions to sphinx events."""
-    app.connect("autodoc-skip-member", autodoc_skip_member_callback)
