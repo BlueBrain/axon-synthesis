@@ -163,12 +163,6 @@ def create_graph_kwargs_to_config(config) -> CreateGraphConfig:
     help="The directory containing the input morphologies",
 )
 @click.option(
-    "--morphology-ext",
-    type=str,
-    required=True,
-    help="The extension used to filter the input morphologies",
-)
-@click.option(
     "--morphology-data-file",
     type=click.Path(exists=True, dir_okay=False),
     required=True,

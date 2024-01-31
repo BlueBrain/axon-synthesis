@@ -18,6 +18,8 @@ from axon_synthesis.typing import SeedType
 
 logger = logging.getLogger(__name__)
 
+_MAX_DISPLAYED = 100
+
 
 def section_id_to_position(morph, sec_id):
     """Find the position of the last point of the section from its ID."""
@@ -87,11 +89,37 @@ def map_population(
     return cells_df
 
 
+def fill_morph_file_col(cells_df, morph_dir):
+    """Find the files corresponding to the given morphology names.
+
+    .. warning::
+
+        The validity of the morphology files is not tested but only their existence.
+    """
+    cells_df.loc[:, "morph_file"] = None
+    for ext in [".asc", ".h5", ".swc"]:
+        new_paths = (Path(morph_dir) / cells_df["morphology"]).apply(
+            lambda x, ext=ext: x.with_suffix(ext).resolve()
+        )
+        existing_paths_mask = new_paths.apply(lambda x: x.exists())
+        cells_df.loc[existing_paths_mask, "morph_file"] = new_paths.loc[existing_paths_mask]
+    if cells_df["morph_file"].isna().any():
+        msg = "Could not find morphology files for the following morphologies: ["
+        missing_files = cells_df.loc[cells_df["morph_file"].isna(), "morphology"]
+        nb_tot = len(missing_files)
+        if nb_tot > _MAX_DISPLAYED:
+            missing_files = missing_files.head(_MAX_DISPLAYED)
+            suffix = f", ... ({nb_tot} morphologies in total but only {_MAX_DISPLAYED} displayed)]"
+        else:
+            suffix = "]"
+        msg += ", ".join(("'" + missing_files + "'").to_list()) + suffix
+        raise RuntimeError(msg)
+
+
 def set_source_points(
     cells_df: pd.DataFrame,
     atlas: AtlasHelper,
     morph_dir: FileType,
-    ext: str = ".h5",
     population_probabilities: pd.DataFrame | None = None,
     axon_grafting_points: pd.DataFrame | None = None,
     *,
@@ -99,13 +127,8 @@ def set_source_points(
     rebuild_existing_axons: bool = False,
 ):
     """Extract source points from a cell collection."""
-    if not ext.startswith("."):
-        ext = "." + ext
-
     if "morph_file" not in cells_df.columns:
-        cells_df["morph_file"] = (Path(morph_dir) / cells_df["morphology"]).apply(
-            lambda x: x.with_suffix(ext).resolve()
-        )
+        fill_morph_file_col(cells_df, morph_dir)
 
     # Get source points from the axon_grafting_points file
     if axon_grafting_points is not None:

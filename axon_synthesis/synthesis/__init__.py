@@ -57,7 +57,7 @@ def remove_existing_axons(morph):
             morph.delete_section(i)
 
 
-def create_one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=False):
+def one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=False):
     """Create a BasePathBuilder object to store the paths needed for a specific axon."""
 
     class AxonPaths(BasePathBuilder):
@@ -106,12 +106,11 @@ def create_one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=F
     return AxonPaths("")
 
 
-def synthesize_axons(  # noqa: PLR0913
+def synthesize_axons(
     input_dir: FileType,
     output_dir: FileType,
     morphology_data_file: FileType,
     morphology_dir: FileType,
-    morphology_ext: str,
     axon_grafting_points_file: FileType = None,
     *,
     atlas_config: AtlasConfig | None = None,
@@ -127,7 +126,6 @@ def synthesize_axons(  # noqa: PLR0913
         output_dir: The directory containing the outputs.
         morphology_data_file: The path to the MVD3/sonata file.
         morphology_dir: The directory containing the input morphologies.
-        morphology_ext: The extension of the input morphologies.
         axon_grafting_points_file: The file containing the grafting points.
         atlas_config: The config used to load the Atlas.
         create_graph_config: The config used to create the graph.
@@ -162,7 +160,6 @@ def synthesize_axons(  # noqa: PLR0913
         cells_df,
         inputs.atlas,
         morphology_dir,
-        morphology_ext,
         inputs.population_probabilities,
         axon_grafting_points,
         rng=rng,
@@ -207,7 +204,7 @@ def synthesize_axons(  # noqa: PLR0913
                 LOGGER, extra={"morph_name": morph_name, "axon_id": axon_id}
             )
 
-            one_axon_paths = create_one_axon_paths(
+            axon_paths = one_axon_paths(
                 outputs,
                 f"{morph_name}_{axon_id}.h5",
                 f"{morph_name}_{axon_id}.html",
@@ -223,8 +220,8 @@ def synthesize_axons(  # noqa: PLR0913
                 depths=inputs.atlas.depths if inputs.atlas is not None else None,
                 favored_region_tree=create_graph_config.favored_region_tree,
                 rng=rng,
-                output_path=one_axon_paths.GRAPH_CREATION_DATA,
-                figure_path=one_axon_paths.GRAPH_CREATION_FIGURE,
+                output_path=axon_paths.GRAPH_CREATION_DATA,
+                figure_path=axon_paths.GRAPH_CREATION_FIGURE,
                 logger=axon_custom_logger,
             )
 
@@ -232,7 +229,7 @@ def synthesize_axons(  # noqa: PLR0913
             _, solution_edges = compute_solution(
                 nodes,
                 edges,
-                output_path=one_axon_paths.STEINER_TREE_SOLUTION,
+                output_path=axon_paths.STEINER_TREE_SOLUTION,
                 logger=axon_custom_logger,
             )
 
@@ -241,8 +238,8 @@ def synthesize_axons(  # noqa: PLR0913
                 morph,
                 axon_terminals["grafting_section_id"].to_numpy()[0],
                 solution_edges,
-                output_path=one_axon_paths.MAIN_TRUNK_MORPHOLOGY,
-                figure_path=one_axon_paths.MAIN_TRUNK_FIGURE,
+                output_path=axon_paths.MAIN_TRUNK_MORPHOLOGY,
+                figure_path=axon_paths.MAIN_TRUNK_FIGURE,
                 initial_morph=initial_morph,
                 logger=axon_custom_logger,
             )
@@ -263,8 +260,8 @@ def synthesize_axons(  # noqa: PLR0913
                 inputs.clustering_data.trunk_properties,
                 barcodes,
                 rng=rng,
-                output_path=one_axon_paths.POSTPROCESS_TRUNK_MORPHOLOGY,
-                figure_path=one_axon_paths.POSTPROCESS_TRUNK_FIGURE,
+                output_path=axon_paths.POSTPROCESS_TRUNK_MORPHOLOGY,
+                figure_path=axon_paths.POSTPROCESS_TRUNK_FIGURE,
                 initial_morph=initial_morph,
                 logger=axon_custom_logger,
             )
@@ -276,8 +273,8 @@ def synthesize_axons(  # noqa: PLR0913
                 inputs.tuft_parameters,
                 inputs.tuft_distributions,
                 rng=rng,
-                output_dir=one_axon_paths.TUFT_MORPHOLOGIES,
-                figure_dir=one_axon_paths.TUFT_FIGURES,
+                output_dir=axon_paths.TUFT_MORPHOLOGIES,
+                figure_dir=axon_paths.TUFT_FIGURES,
                 initial_morph=initial_morph,
                 logger=axon_custom_logger,
             )
