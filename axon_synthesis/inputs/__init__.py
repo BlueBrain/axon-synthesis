@@ -174,9 +174,21 @@ class Inputs(BasePathBuilder):
         """Load the brain region masks."""
         if self.BRAIN_REGIONS_MASK_FILENAME.exists():
             self.brain_regions_mask_file = h5py.File(self.BRAIN_REGIONS_MASK_FILENAME)
+        elif self.atlas is not None:
+            LOGGER.debug(
+                (
+                    "Computing the brain regions masks because the file '%s' is missing but an "
+                    "atlas was provided."
+                ),
+                self.BRAIN_REGIONS_MASK_FILENAME,
+            )
+            self.compute_atlas_region_masks()
         else:
             LOGGER.debug(
-                "Did not load the brain region masks because the file %s does not exist.",
+                (
+                    "Did not load the brain region masks because the file %s does not exist and "
+                    "no atlas was provided."
+                ),
                 self.BRAIN_REGIONS_MASK_FILENAME,
             )
 
@@ -342,3 +354,4 @@ class Inputs(BasePathBuilder):
             msg = "The Atlas must be loaded before computing the region masks."
             raise RuntimeError(msg)
         self.atlas.compute_region_masks(self.BRAIN_REGIONS_MASK_FILENAME)
+        self.brain_regions_mask_file = h5py.File(self.BRAIN_REGIONS_MASK_FILENAME)

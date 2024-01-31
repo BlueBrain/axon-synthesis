@@ -7,7 +7,8 @@
 
    Home <self>
    cli
-   configfile
+   config_file
+   input_files
    api_ref
    changelog
 

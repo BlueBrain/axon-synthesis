@@ -30,6 +30,7 @@ release = version
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosectionlabel",
     "sphinx.ext.autosummary",
     "sphinx.ext.graphviz",
     "sphinx.ext.intersphinx",
@@ -38,6 +39,9 @@ extensions = [
     "sphinx_click",
     "m2r2",
 ]
+
+# Make sure the target is unique
+autosectionlabel_prefix_document = True
 
 todo_include_todos = True
 
@@ -83,6 +87,7 @@ autodoc_default_options = {
 
 intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable/", None),
+    "neurots": ("https://neurots.readthedocs.io/en/stable/", None),
     "pandas": ("https://pandas.pydata.org/docs", None),
     "python": ("https://docs.python.org/3", None),
 }

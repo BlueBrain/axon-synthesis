@@ -5,7 +5,8 @@ Configuration file
 
 
 The parameters can be stored in a configuration file which in then parsed by the CLI using the
-``-c/--config`` argument. This configuration file is organized in the following way:
+``-c/--config`` argument. This configuration file is a ``*.cfg`` file and is organized in the
+following way:
 
 * the root items are only used by the entry point.
 * the items in sections are used by the corresponding sub-command (e.g. the items of the
