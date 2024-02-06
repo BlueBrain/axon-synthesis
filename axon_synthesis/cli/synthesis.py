@@ -7,6 +7,8 @@ from click_option_group import optgroup
 
 from axon_synthesis.cli.common import atlas_kwargs_to_config
 from axon_synthesis.cli.common import atlas_options
+from axon_synthesis.cli.common import parallel_kwargs_to_config
+from axon_synthesis.cli.common import parallel_options
 from axon_synthesis.cli.utils import GlobalConfig
 from axon_synthesis.cli.utils import ListParam
 from axon_synthesis.synthesis import synthesize_axons
@@ -185,10 +187,12 @@ def create_graph_kwargs_to_config(config) -> CreateGraphConfig:
     ),
 )
 @create_graph_options
+@parallel_options
 @click.pass_obj
 def synthesize(global_config: GlobalConfig, **kwargs):
     """The command to synthesize axons."""
     global_config.to_config(kwargs)
     atlas_kwargs_to_config(kwargs)
     create_graph_kwargs_to_config(kwargs)
+    parallel_kwargs_to_config(kwargs)
     synthesize_axons(**kwargs)

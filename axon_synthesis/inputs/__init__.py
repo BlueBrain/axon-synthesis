@@ -68,11 +68,11 @@ class Inputs(BasePathBuilder):
         """
         super().__init__(path, **kwargs)
 
+        self._brain_regions_mask_file = None
+        self._pop_neuron_numbers = None
         self.atlas = None
-        self.brain_regions_mask_file = None
         self.clustering_data = None
         self.neuron_density = neuron_density
-        self._pop_neuron_numbers = None
         self.pop_probability_path = None
         self.population_probabilities = None
         self.proj_probability_path = None
@@ -143,7 +143,7 @@ class Inputs(BasePathBuilder):
             with self.METADATA_FILENAME.open(encoding="utf-8") as f:
                 self._metadata = self._format_metadata(json.load(f))
             self.metadata_to_attributes()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             msg = "Could not load the inputs"
             raise RuntimeError(msg) from exc
 
@@ -167,13 +167,16 @@ class Inputs(BasePathBuilder):
             atlas_config = AtlasConfig.from_dict(self.metadata["atlas"])
         elif isinstance(atlas_config, dict):
             atlas_config = AtlasConfig.from_dict(atlas_config)
+        # if not getattr(atlas_config, "load_region_map", True):
+        #     LOGGER.debug("The 'load_region_map' attribute is forced to 'True'")
+        #     atlas_config.load_region_map = True
         self.atlas = AtlasHelper(atlas_config)
         self._update_atlas_metadata()
 
     def load_brain_regions_masks(self):
         """Load the brain region masks."""
         if self.BRAIN_REGIONS_MASK_FILENAME.exists():
-            self.brain_regions_mask_file = h5py.File(self.BRAIN_REGIONS_MASK_FILENAME)
+            self._brain_regions_mask_file = h5py.File(self.BRAIN_REGIONS_MASK_FILENAME)
         elif self.atlas is not None:
             LOGGER.debug(
                 (
@@ -191,6 +194,17 @@ class Inputs(BasePathBuilder):
                 ),
                 self.BRAIN_REGIONS_MASK_FILENAME,
             )
+
+    def unload_brain_regions_masks(self):
+        """Unload the brain region masks."""
+        self._brain_regions_mask_file = None
+
+    @property
+    def brain_regions_mask_file(self):
+        """Return the brain_regions_mask_file attribute or load if it's None."""
+        if self._brain_regions_mask_file is None:
+            self.load_brain_regions_masks()
+        return self._brain_regions_mask_file
 
     def load_wmr(self, wmr_config: WmrConfig | None = None):
         """Load the Atlas."""
@@ -296,7 +310,6 @@ class Inputs(BasePathBuilder):
         """Load all the inputs from the given path."""
         obj = cls(path)
         obj.load_atlas(atlas_config)
-        # obj.load_wmr()
         obj.load_clustering_data()
         obj.load_brain_regions_masks()
         obj.load_probabilities()
@@ -354,4 +367,4 @@ class Inputs(BasePathBuilder):
             msg = "The Atlas must be loaded before computing the region masks."
             raise RuntimeError(msg)
         self.atlas.compute_region_masks(self.BRAIN_REGIONS_MASK_FILENAME)
-        self.brain_regions_mask_file = h5py.File(self.BRAIN_REGIONS_MASK_FILENAME)
+        self._brain_regions_mask_file = h5py.File(self.BRAIN_REGIONS_MASK_FILENAME)

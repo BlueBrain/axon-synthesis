@@ -1,6 +1,8 @@
 """Entries of the Command Line Interface dedicated to the validation."""
 import click
 
+from axon_synthesis.cli.common import parallel_kwargs_to_config
+from axon_synthesis.cli.common import parallel_options
 from axon_synthesis.cli.input_creation import clustering_parameters_option
 from axon_synthesis.cli.synthesis import create_graph_kwargs_to_config
 from axon_synthesis.cli.synthesis import create_graph_options
@@ -25,9 +27,11 @@ from axon_synthesis.validation.mimic import mimic_axons
 )
 @clustering_parameters_option
 @create_graph_options
+@parallel_options
 @click.pass_obj
 def mimic(global_config: GlobalConfig, *_args, **kwargs):
     """The command to synthesize mimicking axons."""
     global_config.to_config(kwargs)
     create_graph_kwargs_to_config(kwargs)
+    parallel_kwargs_to_config(kwargs)
     mimic_axons(**kwargs)

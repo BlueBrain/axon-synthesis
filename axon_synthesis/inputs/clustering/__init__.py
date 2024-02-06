@@ -62,6 +62,9 @@ class Clustering(BasePathBuilder):
         "TUFT_PROPS_PLOT_FILENAME": "tuft_properties.pdf",
     }
     _optional_keys: ClassVar[set[str]] = {
+        "CLUSTERED_TERMINALS_FILENAME",
+        "CLUSTERED_MORPHOLOGIES_PATHS_FILENAME",
+        "TRUNK_MORPHOLOGIES_PATHS_FILENAME",
         "TUFT_MORPHOLOGIES_DIRNAME",
         "TUFT_MORPHOLOGIES_PATHS_FILENAME",
         "TUFT_PROPS_PLOT_FILENAME",
@@ -166,12 +169,6 @@ class Clustering(BasePathBuilder):
             **kwargs: The keyword arguments are passed to the base constructor.
         """
         super().__init__(path, **kwargs)
-
-        if self.path.exists():
-            LOGGER.warning(
-                "The '%s' folder already exists, the new morpholgies will be added to it",
-                self.path,
-            )
 
         if kwargs.get("create", False):
             self.create_tree()
@@ -288,15 +285,15 @@ class Clustering(BasePathBuilder):
                     obj.tuft_properties = pd.read_json(
                         f, dtype={"morphology": str, "population_id": str}
                     )
+            elif not allow_missing:
+                raise FileNotFoundError(msg, list(obj.required_filenames.keys()))
+        if file_selection <= FILE_SELECTION.ALL or file_selection == FILE_SELECTION.OPTIONAL_ONLY:
+            if obj.exists(file_selection=FILE_SELECTION.OPTIONAL_ONLY):
                 obj.clustered_terminals = pd.read_csv(
                     obj.CLUSTERED_TERMINALS_FILENAME, dtype={"morphology": str}
                 )
                 obj.clustered_morph_paths = pd.read_csv(obj.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME)
                 obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
-            elif not allow_missing:
-                raise FileNotFoundError(msg, list(obj.required_filenames.keys()))
-        if file_selection <= FILE_SELECTION.ALL:
-            if obj.exists(file_selection=FILE_SELECTION.OPTIONAL_ONLY):
                 obj.tuft_morph_paths = pd.read_csv(obj.TUFT_MORPHOLOGIES_PATHS_FILENAME)
             elif not allow_missing:
                 raise FileNotFoundError(msg, list(obj.optional_filenames.keys()))
@@ -325,6 +322,13 @@ def cluster_morphologies(
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Compute the cluster of all morphologies of the given directory."""
     clustering = Clustering(output_path, clustering_parameters, create=True)
+
+    if clustering.path.exists():
+        LOGGER.warning(
+            "The '%s' folder already exists, the new morpholgies will be added to it",
+            clustering.path,
+        )
+
     LOGGER.info(
         "Clustering morphologies using the following configuration: %s",
         clustering.parameters,
@@ -376,11 +380,8 @@ def cluster_morphologies(
         # Get the source brain region
         atlas_region_id = brain_regions.lookup(morph.soma.center) if atlas is not None else None
 
-        # Get the list of axons of the morphology
-        axons = get_axons(morph)
-
         # Run the clustering function on each axon
-        for axon_id, axon in enumerate(axons):
+        for axon_id, axon in enumerate(get_axons(morph)):
             # Create a graph for each axon and compute the shortest paths from the soma to all
             # terminals
             if len(axon.points) < MIN_AXON_POINTS:

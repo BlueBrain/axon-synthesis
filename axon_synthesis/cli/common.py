@@ -6,7 +6,9 @@ import click
 from click_option_group import optgroup
 
 from axon_synthesis.atlas import AtlasConfig
+from axon_synthesis.cli.utils import DictParam
 from axon_synthesis.cli.utils import ListParam
+from axon_synthesis.synthesis import ParallelConfig
 
 
 def atlas_options(func):
@@ -47,3 +49,49 @@ def atlas_kwargs_to_config(config) -> AtlasConfig:
         config.pop("atlas_region_filename"),
         config.pop("atlas_layer_names", None),
     )
+
+
+def parallel_options(func):
+    """Decorate a click command to add parallel-specific options."""
+
+    @optgroup.group(
+        "Parallel computation parameters",
+        help="Parameters used to configure the parallel computation",
+    )
+    @optgroup.option(
+        "--nb-workers",
+        type=click.IntRange(min=0),
+        help="The number of workers",
+    )
+    @optgroup.option(
+        "--dask-config",
+        type=DictParam(),
+        help="The dask configuration given as a JSON string.",
+    )
+    @optgroup.option(
+        "--progress-bar/--no-progress-bar",
+        default=None,
+        help="If set to True, a progress bar is displayed during computation",
+    )
+    @optgroup.option(
+        "--use-mpi/--no-use-mpi",
+        default=None,
+        help="If set to True, MPI is used for parallel computation",
+    )
+    @functools.wraps(func)
+    def wrapper_parallel_options(*args, **kwargs) -> Callable:
+        return func(*args, **kwargs)
+
+    return wrapper_parallel_options
+
+
+def parallel_kwargs_to_config(config) -> ParallelConfig:
+    """Extract the parallel arguments from given config to create an ParallelConfig object."""
+    kwargs = {
+        "nb_processes": config.pop("nb_workers", None),
+        "dask_config": config.pop("dask_config", None),
+        "progress_bar": config.pop("progress_bar", None),
+        "use_mpi": config.pop("use_mpi", None),
+    }
+    kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    config["parallel_config"] = ParallelConfig(**kwargs)

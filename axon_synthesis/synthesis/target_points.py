@@ -251,4 +251,4 @@ def get_target_points(
         with ignore_warnings(pd.io.pytables.PerformanceWarning):
             target_points.to_hdf(output_path, "target_points")
 
-    return target_points
+    return target_points.sort_values("morphology").reset_index(drop=True)

@@ -107,7 +107,7 @@ def cut_edges(edges, nodes, brain_regions, nb_workers, group_name):
     logger.debug("%s: Computed brain regions for %s segments", group_name, len(edges))
 
     nb_intersected_regions = all_brain_regions["brain_regions"].apply(len)
-    cut_edge_mask = nb_intersected_regions >= 2  # noqa: PLR2004
+    cut_edge_mask = nb_intersected_regions >= 2
     one_region_mask = nb_intersected_regions == 1
 
     # Set brain regions to not cut edges

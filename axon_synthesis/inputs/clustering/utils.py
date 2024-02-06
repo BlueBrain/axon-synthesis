@@ -224,9 +224,7 @@ def reduce_clusters(  # noqa: PLR0913
             cluster["section_id"].tolist(),
             shortest_paths=shortest_paths,
         )
-        common_ancestor_shift = (
-            -2 if len(cluster) == 1 and len(cluster_common_path) > 2 else -1  # noqa: PLR2004
-        )
+        common_ancestor_shift = -2 if len(cluster) == 1 and len(cluster_common_path) > 2 else -1
         common_ancestor = cluster_common_path[common_ancestor_shift]
         common_section = morph.section(common_ancestor)
 

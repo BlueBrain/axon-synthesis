@@ -27,7 +27,7 @@ def nodes_to_terminals_mapping(graph, source=None, shortest_paths=None):
     return node_to_terminals
 
 
-def _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_path_distance):
+def _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_path_distance) -> None:
     """Check that 2 points are in the same cluster."""
     term_a = terminal_nodes.iloc[a].name
     term_b = terminal_nodes.iloc[b].name

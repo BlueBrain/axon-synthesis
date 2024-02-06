@@ -1,10 +1,13 @@
 [MESSAGES CONTROL]
 disable=
+	broad-exception-caught,
 	fixme,
 	invalid-name,
 	len-as-condition,
 	no-else-return,
-	no-member
+	no-member,
+	too-many-arguments,
+	too-many-locals
 
 [FORMAT]
 # Regexp for a line that is allowed to be longer than the limit.

@@ -73,7 +73,7 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
         points_not_clustered = group_with_label.loc[
             ~group_with_label["tuft_id"].isin([i[0] for i in real_clusters[: cluster_index + 1]])
         ]
-        if len(points_not_clustered) + cluster_index + 1 <= 3:  # noqa: PLR2004
+        if len(points_not_clustered) + cluster_index + 1 <= 3:
             points_in_current_cluster = group_with_label.loc[
                 group_with_label["tuft_id"] == real_cluster_id
             ].sort_values("distance", ascending=False)

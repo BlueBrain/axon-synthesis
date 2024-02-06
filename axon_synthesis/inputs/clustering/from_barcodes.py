@@ -36,7 +36,7 @@ def barcode_mins(barcode, nb_bins=100, threshold=0.1):
         minimas = minimas[der2[minimas] > 0]
         threshold *= 2.0  # if threshold was too small, increase and retry
 
-    def _get_min_indices(mins, der):
+    def _get_min_indices(mins, der) -> np.ndarray:
         # Compute where the derivative crosses the X axis
         der_zero_intervals = np.append(
             np.insert(

@@ -25,7 +25,7 @@ def _recursive_merge(dict_1: dict, dict_2: dict) -> dict:
     return merged_dict
 
 
-def _flatten_command_subsections(ctx, command_group, command_defaults):
+def _flatten_command_subsections(ctx, command_group, command_defaults) -> None:
     for command_name in command_group.list_commands(ctx):
         command = command_group.get_command(ctx, command_name)
         if isinstance(command, click.core.Group):
@@ -44,7 +44,7 @@ def _flatten_command_subsections(ctx, command_group, command_defaults):
                 del command_defaults[command_name][i]
 
 
-def _process_command(ctx, command, defaults, global_values):
+def _process_command(ctx, command, defaults, global_values) -> None:
     for subcommand_name in command.list_commands(ctx):
         subcommand = command.get_command(ctx, subcommand_name)
         if subcommand_name not in defaults:

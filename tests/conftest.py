@@ -169,7 +169,7 @@ def wmr_path(out_dir):
 
 
 @pytest.fixture()
-def _tuft_inputs(testing_dir):
+def _tuft_inputs(testing_dir) -> None:
     """Copy inputs for tuft generation in the testing directory."""
     shutil.copyfile(DATA / "tuft_distributions.json", testing_dir / "tuft_distributions.json")
     shutil.copyfile(DATA / "tuft_parameters.json", testing_dir / "tuft_parameters.json")

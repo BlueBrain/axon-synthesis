@@ -1,10 +1,16 @@
 """Base of the synthesis modules."""
+import json
 import logging
+import os
 from pathlib import Path
 from typing import ClassVar
 
+import dask.dataframe as dd
+import dask.distributed
 import numpy as np
 import pandas as pd
+from attrs import define
+from attrs import field
 from neurom import NeuriteType
 from neurom.core import Morphology
 from neurom.geom.transform import Translation
@@ -30,10 +36,28 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import MorphNameAdapter
+from axon_synthesis.utils import check_min_max
 
 LOGGER = logging.getLogger(__name__)
 
 _HDF_DEFAULT_GROUP = "axon_grafting_points"
+
+
+@define
+class ParallelConfig:
+    """Class to store the parallel configuration.
+
+    Attributes:
+        nb_processes: The number of processes.
+        dask_config: The dask configuration to use.
+        progress_bar: If set to True, a progress bar is displayed during computation.
+        use_mpi: Trigger the use of MPI.
+    """
+
+    nb_processes: int = field(default=0, validator=check_min_max(min_value=0))
+    dask_config: dict | None = field(default=None)
+    progress_bar: bool = field(default=True)
+    use_mpi: bool = field(default=False)
 
 
 def load_axon_grafting_points(path: FileType = None, key: str = _HDF_DEFAULT_GROUP):
@@ -106,83 +130,111 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=False):
     return AxonPaths("")
 
 
-def synthesize_axons(
-    input_dir: FileType,
-    output_dir: FileType,
-    morphology_data_file: FileType,
-    morphology_dir: FileType,
-    axon_grafting_points_file: FileType = None,
+def _init_parallel(
+    parallel_config, *, mpi_only=False, max_nb_processes=None
+) -> dask.distributed.Client | None:
+    """Initialize MPI workers if required or get the number of available processes."""
+    if mpi_only and not parallel_config.use_mpi:
+        return None
+
+    if parallel_config.nb_processes == 0:
+        return None
+
+    # Define a default configuration to disable some dask.distributed things
+    default_dask_config = {
+        "distributed": {
+            "worker": {
+                "use_file_locking": False,
+                "memory": {
+                    "target": False,
+                    "spill": False,
+                    "pause": 0.8,
+                    "terminate": 0.95,
+                },
+                "profile": {
+                    "enabled": False,
+                    "interval": "10s",
+                    "cycle": "10m",
+                },
+            },
+            "admin": {
+                "tick": {
+                    "limit": "1h",
+                },
+            },
+        },
+        "dataframe": {
+            "convert_string": False,
+        },
+    }
+
+    # Merge the default config with the existing config (keep conflicting values from defaults)
+    new_dask_config = dask.config.merge(dask.config.config, default_dask_config)
+
+    # Get temporary-directory from environment variables
+    _tmp = os.environ.get("SHMDIR", None) or os.environ.get("TMPDIR", None)
+    if _tmp is not None:
+        new_dask_config["temporary-directory"] = _tmp
+
+    # Merge the config with the one given as argument
+    if parallel_config.dask_config is not None:
+        new_dask_config = dask.config.merge(new_dask_config, parallel_config.dask_config)
+
+    # Set the dask config
+    dask.config.set(new_dask_config)
+
+    if parallel_config.use_mpi:  # pragma: no cover
+        # pylint: disable=import-outside-toplevel
+        import dask_mpi
+        from mpi4py import MPI
+
+        dask_mpi.initialize(dashboard=False)
+        comm = MPI.COMM_WORLD  # pylint: disable=c-extension-no-member
+        parallel_config.nb_processes = comm.Get_size()
+        client_kwargs = {}
+        LOGGER.debug(
+            "Initializing parallel workers using MPI (%s workers found)",
+            parallel_config.nb_processes,
+        )
+    elif mpi_only:
+        return None
+    else:
+        cpu_count = os.cpu_count()
+        parallel_config.nb_processes = min(
+            parallel_config.nb_processes if parallel_config.nb_processes is not None else cpu_count,
+            max_nb_processes if max_nb_processes is not None else cpu_count,
+        )
+
+        client_kwargs = {
+            "n_workers": parallel_config.nb_processes,
+            "dashboard_address": None,
+        }
+        LOGGER.debug("Initializing parallel workers using the following config: %s", client_kwargs)
+
+    LOGGER.debug("Using the following dask configuration: %s", json.dumps(dask.config.config))
+
+    # This is needed to make dask aware of the workers
+    return dask.distributed.Client(**client_kwargs)
+
+
+def synthesize_one_morph_axons(
+    morph_terminals,
+    inputs,
+    outputs,
+    create_graph_config,
     *,
-    atlas_config: AtlasConfig | None = None,
-    create_graph_config: CreateGraphConfig | None = None,
-    rebuild_existing_axons: bool = False,
-    rng: SeedType = None,
-    debug: bool = False,
-):  # pylint: disable=too-many-arguments
-    """Synthesize the long-range axons.
-
-    Args:
-        input_dir: The directory containing the inputs.
-        output_dir: The directory containing the outputs.
-        morphology_data_file: The path to the MVD3/sonata file.
-        morphology_dir: The directory containing the input morphologies.
-        axon_grafting_points_file: The file containing the grafting points.
-        atlas_config: The config used to load the Atlas.
-        create_graph_config: The config used to create the graph.
-        rebuild_existing_axons: Rebuild the axons if they already exist.
-        rng: The random seed or the random generator.
-        debug: Trigger the Debug mode.
-    """
-    rng = np.random.default_rng(rng)
-    outputs = Outputs(output_dir, create=True)
-    outputs.create_dirs(
-        file_selection=FILE_SELECTION.ALL if debug else FILE_SELECTION.REQUIRED_ONLY
-    )
-
-    # Load all inputs
-    inputs = Inputs.load(input_dir, atlas_config=atlas_config)
-
-    # Load the cell collection
-    cells_df = CellCollection.load(morphology_data_file).as_dataframe()
-
-    # Load the axon grafting points
-    axon_grafting_points = load_axon_grafting_points(axon_grafting_points_file)
-
-    # Ensure the graph creation config is complete
-    if create_graph_config is None:
-        create_graph_config = CreateGraphConfig()
-    if inputs.atlas is not None:
-        create_graph_config.compute_region_tree(inputs.atlas)
-    LOGGER.debug("The following config is used for graph creation: %s", create_graph_config)
-
-    # Get source points for all axons
-    source_points = set_source_points(
-        cells_df,
-        inputs.atlas,
-        morphology_dir,
-        inputs.population_probabilities,
-        axon_grafting_points,
-        rng=rng,
-        rebuild_existing_axons=rebuild_existing_axons,
-    )
-
-    # Find targets for all axons
-    target_points = get_target_points(
-        source_points,
-        inputs.projection_probabilities,
-        create_graph_config.duplicate_precision,
-        atlas=inputs.atlas,
-        brain_regions_masks=inputs.brain_regions_mask_file,
-        rng=rng,
-        output_path=outputs.TARGET_POINTS if debug else None,
-    )
-    if rebuild_existing_axons:
-        # If the existing axons are rebuilt all the new axons will be grafted to the soma
-        target_points["grafting_section_id"] = -1
-
-    for morph_name, morph_terminals in target_points.groupby("morphology"):
+    rebuild_existing_axons=False,
+    debug=False,
+    logger=None,
+):
+    """Synthesize the axons of one morphology."""
+    if logger is None:
+        logger = LOGGER
+    morph_name = morph_terminals.name
+    morph_custom_logger = MorphNameAdapter(logger, extra={"morph_name": morph_name})
+    morph_custom_logger.debug("Starting synthesis")
+    try:
         morph = Morphology(morph_terminals["morph_file"].to_numpy()[0])
-        morph_custom_logger = MorphNameAdapter(LOGGER, extra={"morph_name": morph_name})
 
         # Translate the morphology to its position in the atlas
         morph = morph.transform(
@@ -201,8 +253,10 @@ def synthesize_axons(
         for axon_id, axon_terminals in morph_terminals.groupby("axon_id"):
             # Create a custom logger to add the morph name and axon ID in the log entries
             axon_custom_logger = MorphNameAdapter(
-                LOGGER, extra={"morph_name": morph_name, "axon_id": axon_id}
+                logger, extra={"morph_name": morph_name, "axon_id": axon_id}
             )
+
+            rng = np.random.default_rng(axon_terminals["seed"].to_numpy()[0])
 
             axon_paths = one_axon_paths(
                 outputs,
@@ -291,3 +345,190 @@ def synthesize_axons(
                 initial_morph,
                 logger=morph_custom_logger,
             )
+        res = {
+            "file_path": final_morph_path,
+            "debug_infos": None,
+        }
+    except Exception as exc:
+        morph_custom_logger.error(  # noqa: TRY400
+            "Skip the morphology because of the following error: %s",
+            exc,
+        )
+        res = {
+            "file_path": None,
+            "debug_infos": str(exc),
+        }
+    return pd.Series(res, dtype=object)
+
+
+def synthesize_group_morph_axons(df, **func_kwargs):
+    """Synthesize all axons of each morphology."""
+    return df.groupby("morphology").apply(
+        lambda group: synthesize_one_morph_axons(group, **func_kwargs)
+    )
+
+
+def _partition_wrapper(
+    df,
+    input_path,
+    atlas_config,
+    **func_kwargs,
+) -> pd.DataFrame:
+    """Wrapper to process dask partitions."""
+    inputs = Inputs(input_path)
+    if atlas_config is not None:
+        atlas_config.load_region_map = False
+        inputs.load_atlas(atlas_config)
+    inputs.load_clustering_data()
+    inputs.load_probabilities()
+    inputs.load_tuft_params_and_distrs()
+
+    func_kwargs["inputs"] = inputs
+
+    return synthesize_group_morph_axons(df, **func_kwargs)
+
+
+def create_dask_dataframe(data, npartitions, group_col="morphology"):
+    """Ensure all rows of the same group belong to the same partition."""
+    ddf = dd.from_pandas(data, npartitions)
+    if len(ddf.divisions) > 2:
+        groups = np.array_split(data[group_col].unique(), npartitions)
+        new_divisions = [data.loc[data[group_col].isin(i)].index.min() for i in groups] + [
+            data.index.max()
+        ]
+        ddf = ddf.repartition(divisions=new_divisions)
+    return ddf
+
+
+def synthesize_axons(  # noqa: PLR0913
+    input_dir: FileType,
+    output_dir: FileType,
+    morphology_data_file: FileType,
+    morphology_dir: FileType,
+    axon_grafting_points_file: FileType = None,
+    *,
+    atlas_config: AtlasConfig | None = None,
+    create_graph_config: CreateGraphConfig | None = None,
+    rebuild_existing_axons: bool = False,
+    rng: SeedType = None,
+    debug: bool = False,
+    parallel_config: ParallelConfig | None = None,
+):  # pylint: disable=too-many-arguments
+    """Synthesize the long-range axons.
+
+    Args:
+        input_dir: The directory containing the inputs.
+        output_dir: The directory containing the outputs.
+        morphology_data_file: The path to the MVD3/sonata file.
+        morphology_dir: The directory containing the input morphologies.
+        axon_grafting_points_file: The file containing the grafting points.
+        atlas_config: The config used to load the Atlas.
+        create_graph_config: The config used to create the graph.
+        rebuild_existing_axons: Rebuild the axons if they already exist.
+        rng: The random seed or the random generator.
+        debug: Trigger the Debug mode.
+        parallel_config: The configuration for parallel computation.
+    """
+    if parallel_config is None:
+        parallel_config = ParallelConfig()
+    _parallel_client = _init_parallel(parallel_config)
+
+    rng = np.random.default_rng(rng)
+    outputs = Outputs(output_dir, create=True)
+    outputs.create_dirs(
+        file_selection=FILE_SELECTION.ALL if debug else FILE_SELECTION.REQUIRED_ONLY
+    )
+
+    # Load all inputs
+    if atlas_config is not None:
+        atlas_config.load_region_map = True
+    inputs = Inputs.load(input_dir, atlas_config=atlas_config)
+
+    # Load the cell collection
+    cells_df = CellCollection.load(morphology_data_file).as_dataframe()
+
+    # Load the axon grafting points
+    axon_grafting_points = load_axon_grafting_points(axon_grafting_points_file)
+
+    # Ensure the graph creation config is complete
+    if create_graph_config is None:
+        create_graph_config = CreateGraphConfig()
+    if inputs.atlas is not None:
+        create_graph_config.compute_region_tree(inputs.atlas)
+    LOGGER.debug("The following config is used for graph creation: %s", create_graph_config)
+
+    # Get source points for all axons
+    source_points = set_source_points(
+        cells_df,
+        inputs.atlas,
+        morphology_dir,
+        inputs.population_probabilities,
+        axon_grafting_points,
+        rng=rng,
+        rebuild_existing_axons=rebuild_existing_axons,
+    )
+
+    # Find targets for all axons
+    target_points = get_target_points(
+        source_points,
+        inputs.projection_probabilities,
+        create_graph_config.duplicate_precision,
+        atlas=inputs.atlas,
+        brain_regions_masks=inputs.brain_regions_mask_file,
+        rng=rng,
+        output_path=outputs.TARGET_POINTS if debug else None,
+    )
+    if rebuild_existing_axons:
+        # If the existing axons are rebuilt all the new axons will be grafted to the soma
+        target_points["grafting_section_id"] = -1
+
+    if "seed" not in target_points.columns:
+        # If no random seed is provided in the data, new ones are created for each morphologys
+        target_points = target_points.merge(
+            pd.Series(1, index=target_points["morphology"].unique(), name="seed")
+            .sample(frac=1, random_state=rng)
+            .cumsum()
+            - 1,
+            left_on="morphology",
+            right_index=True,
+            how="left",
+        )
+
+    func_kwargs = {
+        "outputs": outputs,
+        "create_graph_config": create_graph_config,
+        "rebuild_existing_axons": rebuild_existing_axons,
+        "debug": debug,
+        "logger": LOGGER,
+    }
+
+    if parallel_config.nb_processes == 0:
+        LOGGER.info("Start computation")
+        computed = synthesize_group_morph_axons(target_points, inputs=inputs, **func_kwargs)
+    else:
+        LOGGER.info("Start parallel computation using %s workers", parallel_config.nb_processes)
+        ddf = create_dask_dataframe(
+            target_points, parallel_config.nb_processes, group_col="morphology"
+        )
+        meta = pd.DataFrame(
+            {
+                name: pd.Series(dtype="object")
+                for name in [
+                    "file_path",
+                    "debug_infos",
+                ]
+            }
+        )
+        future = ddf.map_partitions(
+            _partition_wrapper,
+            meta=meta,
+            input_path=inputs.path,
+            atlas_config=inputs.atlas.config if inputs.atlas is not None else None,
+            **func_kwargs,
+        )
+        computed = future.compute()
+
+    LOGGER.info("Format results")
+    res = target_points.merge(computed, left_on="morphology", right_index=True, how="left")
+    del _parallel_client
+    return res

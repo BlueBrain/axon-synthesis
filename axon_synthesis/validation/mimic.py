@@ -13,6 +13,7 @@ from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import DEFAULT_POPULATION
 from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.inputs.create import create_inputs
+from axon_synthesis.synthesis import ParallelConfig
 from axon_synthesis.synthesis import synthesize_axons
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.typing import FileType
@@ -99,6 +100,7 @@ def mimic_axons(
     create_graph_config: CreateGraphConfig | None = None,
     rng: SeedType = None,
     debug: bool = False,
+    parallel_config: ParallelConfig | None = None,
 ):
     """Synthesize mimicking axons."""
     input_dir = Path(output_dir) / "inputs"
@@ -165,4 +167,5 @@ def mimic_axons(
         rebuild_existing_axons=True,
         rng=rng,
         debug=debug,
+        parallel_config=parallel_config,
     )

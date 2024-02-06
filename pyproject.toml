@@ -34,10 +34,14 @@ docs = [
     "sphinx-bluebrain-theme",
     "sphinx-click",
 ]
+mpi = [
+    "dask_mpi>=2022.4",
+    "mpi4py>=3.1.1",
+]
 test = [
     "brainbuilder>=0.18.3",
-    "dir-content-diff>=1.6",
-    "dir-content-diff-plugins>=0.0.4",
+    "dir-content-diff>=1.7",
+    "dir-content-diff-plugins>=0.0.6",
     "mock>=3",
     "pytest>=6",
     "pytest-click>=1",
@@ -104,12 +108,12 @@ select = ["ALL"]
 ignore = [
     "ANN001",  # TODO: Fix and remove this one
     "ANN201",  # TODO: Fix and remove this one
-    "ANN202",  # TODO: Fix and remove this one
     "ANN204",  # TODO: Fix and remove this one
     "ANN002",
     "ANN003",
     "ANN101",
     "ANN102",
+    "BLE001",
     "B905",
     "COM812",
     "ERA001",
@@ -119,6 +123,7 @@ ignore = [
     "PD002",
     "PD013",
     "PD015",
+    "PLR2004",
     "TD002",
     "TD003",
 ]

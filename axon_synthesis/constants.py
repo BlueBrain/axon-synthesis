@@ -6,7 +6,7 @@ class CoordsCols(list):
 
     def __init__(self, *args):
         """Constructor of the CoordsCols class."""
-        if len(args) != 3:  # noqa: PLR2004
+        if len(args) != 3:
             msg = "Exactly 3 column names should be given"
             raise ValueError(msg)
         super().__init__(args)

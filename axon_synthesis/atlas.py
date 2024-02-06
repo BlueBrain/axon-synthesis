@@ -45,7 +45,8 @@ class AtlasConfig:
     path: Path = field(converter=Path)
     region_filename: Path = field(converter=Path)
     # flatmap_filename: Path = field(converter=Path)
-    layer_names: LayerNamesType
+    layer_names: LayerNamesType | None
+    load_region_map: bool = field(default=False)
 
     def to_dict(self) -> dict:
         """Return all attribute values into a dictionary."""
@@ -78,22 +79,23 @@ class AtlasHelper:
 
         # Get atlas data
         LOGGER.info("Loading atlas from: %s", self.config.path)
-        self.atlas = Atlas.open(str(self.config.path.resolve()))
+        atlas = Atlas.open(str(self.config.path.resolve()))
 
         LOGGER.debug(
             "Loading brain regions from the atlas using: %s", self.config.region_filename.name
         )
-        self.brain_regions = self.atlas.load_data(self.config.region_filename.stem)
+        self.brain_regions = atlas.load_data(self.config.region_filename.stem)
+        self.orientations = atlas.load_data("orientation", cls=OrientationField)
 
-        LOGGER.debug("Loading region map from the atlas")
-        self.region_map = self.atlas.load_region_map()
-        self.region_map_df = self.region_map.as_dataframe()
+        if self.config.load_region_map:
+            LOGGER.debug("Loading region map from the atlas")
+            self.region_map = atlas.load_region_map()
+            self.region_map_df = self.region_map.as_dataframe()
 
         self.layers = (
             self.config.layer_names if self.config.layer_names is not None else list(range(1, 7))
         )
-        self.top_layer = self.atlas.load_data(f"[PH]{self.layers[0]}")
-        self.orientations = self.atlas.load_data("orientation", cls=OrientationField)
+        self.top_layer = atlas.load_data(f"[PH]{self.layers[0]}")
 
         # if config.atlas_flatmap_filename is None:
         #     # Create the flatmap of the atlas
@@ -115,9 +117,7 @@ class AtlasHelper:
         #     flatmap.save_nrrd(self.output()["flatmap"].path, encoding="raw")
 
         # TODO: Compute the depth for specific layers of each region (like in region-grower)
-        self.depths = VoxelData.reduce(
-            operator.sub, [self.pia_coord, self.atlas.load_data("[PH]y")]
-        )
+        self.depths = VoxelData.reduce(operator.sub, [self.pia_coord, atlas.load_data("[PH]y")])
 
     @cached_property
     def pia_coord(self) -> VoxelData:

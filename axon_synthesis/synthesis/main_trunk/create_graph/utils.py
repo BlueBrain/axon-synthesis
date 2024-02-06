@@ -110,7 +110,7 @@ def add_bounding_box_pts(all_pts):
 
 def add_voronoi_points(all_pts, voronoi_steps):
     """Add Voronoi points between the given points."""
-    if len(all_pts) < 5:  # noqa: PLR2004
+    if len(all_pts) < 5:
         return all_pts
     for _ in range(voronoi_steps):
         vor = Voronoi(all_pts, qhull_options="QJ")
@@ -169,7 +169,7 @@ def create_edges(all_points, from_coord_cols, to_coord_cols):
     .. note::
         The source-target order has no meaning.
     """
-    if len(all_points) < 5:  # noqa: PLR2004
+    if len(all_points) < 5:
         msg = ""
         raise RuntimeError(msg)
     tri = Delaunay(all_points, qhull_options="QJ")

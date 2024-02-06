@@ -57,7 +57,7 @@ def generate_small_O1(atlas_dir):  # noqa: N802
         },
     )
 
-    def recursive_atlas_id(data):
+    def recursive_atlas_id(data) -> None:
         if "id" in data:
             data["atlas_id"] = data["id"]
         if "children" in data:
