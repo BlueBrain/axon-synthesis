@@ -105,6 +105,17 @@ filterwarnings = [
     "ignore::matplotlib.MatplotlibDeprecationWarning:tmd",
 ]
 
+[tool.flake8]
+# ignore the following:
+#    E203: whitespace before ':'
+#    W503: line break before binary operator
+ignore = [
+    "E203",
+    "W503",
+]
+max-line-length = 115
+
+
 [tool.ruff]
 line-length = 100  # Same as Black.
 target-version = "py310"
