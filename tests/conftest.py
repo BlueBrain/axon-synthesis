@@ -35,6 +35,12 @@ def interactive_plots(request):
     return request.config.getoption("--interactive-plots")
 
 
+def pytest_configure(config):
+    """Add --check-untyped-defs option to the mypy plugin."""
+    plugin = config.pluginmanager.getplugin("mypy")
+    plugin.mypy_argv.append("--check-untyped-defs")
+
+
 @pytest.fixture()
 def root_dir():
     """The root directory."""

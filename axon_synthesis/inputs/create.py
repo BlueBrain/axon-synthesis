@@ -28,6 +28,8 @@ def create_inputs(
     inputs = Inputs(output_dir, morphology_dir, neuron_density=neuron_density, create=True)
 
     if atlas_config is not None:
+        atlas_config.load_region_map = True
+
         # Load the Atlas
         inputs.load_atlas(atlas_config)
 

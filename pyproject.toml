@@ -50,6 +50,14 @@ test = [
     "pytest-html>=2",
 ]
 
+mypy = [
+    "pandas-stubs",
+    "pytest-mypy>=0.10",
+    "types-jsonschema",
+    "types-networkx",
+    "types-PyYAML",
+]
+
 [project.urls]
 Homepage = "https://bbpteam.epfl.ch/documentation/projects/axon-synthesis"
 Repository = "https://bbpgitlab.epfl.ch/neuromath/axon-synthesis"
@@ -148,8 +156,36 @@ max-args=10
 # max-branches = 12
 # max-statements=50
 
+[tool.ruff.lint.pycodestyle]
+# E501 reports lines that exceed this length (lines may be longer than 100 in some cases,
+# especially because of comments).
+max-line-length = 115
+
 [tool.ruff.pydocstyle]
 convention = "google"
 
 [tool.ruff.isort]
 force-single-line = true
+
+[tool.mypy]
+
+[[tool.mypy.overrides]]
+module = [
+    "bluepyparallel.*",
+    "configobj.*",
+    "dask_mpi.*",
+    "dir_content_diff.*",
+    "dir_content_diff_plugins.*",
+    "h5py.*",
+    "morph_tool.*",
+    "morphio.*",
+    "neurom.*",
+    "neurots.*",
+    "pcst_fast.*",
+    "plotly.*",
+    "plotly_helper.*",
+    "scipy.*",
+    "tmd.*",
+    "voxcell.*",
+]
+ignore_missing_imports = true

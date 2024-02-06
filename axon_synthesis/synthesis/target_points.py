@@ -1,5 +1,6 @@
 """Find the target points of the input morphologies."""
 import logging
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -22,8 +23,9 @@ LOGGER = logging.getLogger(__name__)
 def compute_coords(
     target_points: pd.DataFrame,
     brain_regions_masks: File | None,
+    rng: Generator,
+    *,
     atlas: AtlasHelper | None = None,
-    rng: Generator = None,
 ) -> None:
     """Compute the target coordinates if they are missing."""
     if set(TARGET_COORDS_COLS).difference(target_points.columns):
@@ -32,7 +34,7 @@ def compute_coords(
             target_points.loc[mask_tmp, TARGET_COORDS_COLS] = (
                 target_points.groupby("target_brain_region_id")
                 .apply(
-                    lambda group: rng.choice(
+                    lambda group: rng.choice(  # type: ignore[arg-type, return-value]
                         brain_regions_masks[str(group.name)][:], size=len(group)
                     )
                 )
@@ -68,7 +70,7 @@ def drop_close_points(
         return all_points_df
 
     # Find labels of duplicated points
-    to_update = {}
+    to_update: dict[Any, Any] = {}
     for a, b in close_pts:
         label_a = all_points_df.index[a]
         label_b = all_points_df.index[b]
@@ -248,7 +250,7 @@ def get_target_points(
 
     # Export the target points
     if output_path is not None:
-        with ignore_warnings(pd.io.pytables.PerformanceWarning):
+        with ignore_warnings(pd.errors.PerformanceWarning):
             target_points.to_hdf(output_path, "target_points")
 
     return target_points.sort_values("morphology").reset_index(drop=True)

@@ -55,7 +55,7 @@ def add_random_points(
         bbox[0] -= bbox_buffer
         bbox[1] += bbox_buffer
         tree = KDTree(all_pts)
-        new_pts = []
+        new_pts: list[np.ndarray] = []
         while n_fails < max_tries:
             xyz = np.array(
                 [

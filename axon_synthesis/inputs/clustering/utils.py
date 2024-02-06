@@ -1,5 +1,6 @@
 """Some utils for clustering."""
 import logging
+from collections.abc import Iterator
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
@@ -39,7 +40,7 @@ def export_morph(root_path, morph_name, morph, morph_type, suffix=""):
     return morph_path
 
 
-def common_path(graph, nodes, source=None, shortest_paths=None):
+def common_path(graph, nodes, source=None, shortest_paths=None) -> list[int]:
     """Compute the common paths of the given nodes.
 
     Source should be given only if the graph if undirected.
@@ -69,10 +70,9 @@ def common_path(graph, nodes, source=None, shortest_paths=None):
         shortest_paths = nx.single_source_shortest_path(graph, source)
 
     # Compute the common ancestor
-    common_nodes = set(shortest_paths[nodes[0]])
+    common_nodes: set[int] = set(shortest_paths[nodes[0]])
     for i in nodes[1:]:
         common_nodes.intersection_update(set(shortest_paths[i]))
-    common_nodes = list(common_nodes)
 
     return [i for i in shortest_paths[nodes[0]] if i in common_nodes]
 
@@ -188,7 +188,7 @@ def reduce_clusters(  # noqa: PLR0913
     directed_graph,
     sections_to_add,
     morph_paths,
-    cluster_props,
+    cluster_props: list[tuple],
     shortest_paths,
     bouton_density: float | None,
     brain_regions: VoxelData | None = None,
@@ -197,11 +197,11 @@ def reduce_clusters(  # noqa: PLR0913
     export_tuft_morph_dir: FileType | None = None,
     config_name: str | None = None,
     rng: SeedType = None,
-):
+) -> set[int]:
     """Reduce clusters to one section from their common ancestors to their centers."""
     if not config_name:
         config_name = ""
-    kept_path = set()
+    kept_path: set[int] = set()
     group = group.dropna(subset="tuft_id").astype({"tuft_id": int})
 
     root_point = axon.points[0, COLS.XYZ]
@@ -280,7 +280,9 @@ def reduce_clusters(  # noqa: PLR0913
         # Add tuft category data
         # TODO: Fix the WMR stuff
         try:
-            target_atlas_region_id = brain_regions.lookup(cluster_center)
+            target_atlas_region_id = brain_regions.lookup(  # type: ignore[union-attr]
+                cluster_center
+            )
         except:  # noqa: E722 ; pylint: disable=bare-except
             target_atlas_region_id = 0
         target_projection_number = source_projections.loc[
@@ -421,7 +423,7 @@ def extend_validator_with_default(validator_class) -> Validator:
 
     def set_defaults_and_validate(
         validator, properties, instance, schema
-    ) -> ValidationError | None:
+    ) -> Iterator[ValidationError] | None:
         drop_if_empty = set()
         new_instance = deepcopy(instance)
         for prop, subschema in properties.items():

@@ -448,11 +448,11 @@ def compute_clusters(  # noqa: PLR0913
 
 def plot(region_component_subgraphs, region_acronyms, filepath):
     """Plot the resulting nodes and edges."""
-    total_num = sum(len(i) for i in region_component_subgraphs.values())
-    all_colors = np.arange(total_num)
     rng = np.random.default_rng()
+
+    total_num = sum(len(i) for i in region_component_subgraphs.values())
+    all_colors = np.arange(total_num).tolist()
     rng.shuffle(all_colors)
-    all_colors = all_colors.tolist()
     x = []
     y = []
     z = []

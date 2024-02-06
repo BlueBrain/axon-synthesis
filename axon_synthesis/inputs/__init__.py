@@ -68,18 +68,19 @@ class Inputs(BasePathBuilder):
         """
         super().__init__(path, **kwargs)
 
-        self._brain_regions_mask_file = None
-        self._pop_neuron_numbers = None
-        self.atlas = None
-        self.clustering_data = None
+        self._brain_regions_mask_file: h5py.File | None = None
+        self._pop_neuron_numbers: pd.DataFrame | None = None
+        self._metadata: dict
+        self.atlas: AtlasHelper | None = None
+        self.clustering_data: Clustering | None = None
         self.neuron_density = neuron_density
         self.pop_probability_path = None
-        self.population_probabilities = None
+        self.population_probabilities: pd.DataFrame | None = None
         self.proj_probability_path = None
-        self.projection_probabilities = None
-        self.tuft_distributions = None
-        self.tuft_parameters = None
-        self.wmr = None
+        self.projection_probabilities: pd.DataFrame | None = None
+        self.tuft_distributions: dict | None = None
+        self.tuft_parameters: dict | None = None
+        self.wmr: WhiteMatterRecipe | None = None
 
         if self.METADATA_FILENAME.exists():
             self.load_metadata()
@@ -348,7 +349,7 @@ class Inputs(BasePathBuilder):
             return None
 
         # TODO: For now we support only the WMR but latter other methods may come.
-        if source == "WMR":
+        if source == "WMR" and self.wmr is not None and self.atlas is not None:
             (
                 self.population_probabilities,
                 self.projection_probabilities,

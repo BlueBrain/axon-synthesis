@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import ClassVar
 
 import networkx as nx
@@ -38,6 +39,11 @@ from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import neurite_to_graph
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
+
+if TYPE_CHECKING:
+    from collections.abc import MutableMapping
+
+    from morphio import PointLevel
 
 LOGGER = logging.getLogger(__name__)
 
@@ -158,7 +164,7 @@ class Clustering(BasePathBuilder):
             },
         },
     }
-    PARAM_SCHEMA_VALIDATOR = DefaultValidatingValidator(PARAM_SCHEMA)
+    PARAM_SCHEMA_VALIDATOR = DefaultValidatingValidator(PARAM_SCHEMA)  # type: ignore[operator]
 
     def __init__(self, path: FileType, parameters: dict, **kwargs):
         """The Clustering constructor.
@@ -179,12 +185,12 @@ class Clustering(BasePathBuilder):
         self._parameters = parameters
 
         # Clustering results
-        self.clustered_terminals = None
-        self.clustered_morph_paths = None
-        self.trunk_properties = None
-        self.trunk_morph_paths = None
-        self.tuft_properties = None
-        self.tuft_morph_paths = None
+        self.clustered_terminals: pd.DataFrame | None = None
+        self.clustered_morph_paths: pd.DataFrame | None = None
+        self.trunk_properties: pd.DataFrame | None = None
+        self.trunk_morph_paths: pd.DataFrame | None = None
+        self.tuft_properties: pd.DataFrame | None = None
+        self.tuft_morph_paths: pd.DataFrame | None = None
 
     @property
     def parameters(self):
@@ -214,35 +220,42 @@ class Clustering(BasePathBuilder):
     def save(self):
         """Save the clustering data to the associated path."""
         # Export long-range trunk properties
-        with self.TRUNK_PROPS_FILENAME.open(mode="w", encoding="utf-8") as f:
-            json.dump(self.trunk_properties.to_dict("records"), f, indent=4)
-        LOGGER.info("Exported trunk properties to %s", self.TRUNK_PROPS_FILENAME)
+        if self.trunk_properties is not None:
+            with self.TRUNK_PROPS_FILENAME.open(mode="w", encoding="utf-8") as f:
+                json.dump(self.trunk_properties.to_dict("records"), f, indent=4)
+            LOGGER.info("Exported trunk properties to %s", self.TRUNK_PROPS_FILENAME)
 
         # Export tuft properties
-        with self.TUFT_PROPS_FILENAME.open(mode="w", encoding="utf-8") as f:
-            json.dump(self.tuft_properties.to_dict("records"), f, indent=4)
-        LOGGER.info("Exported tuft properties to %s", self.TUFT_PROPS_FILENAME)
+        if self.tuft_properties is not None:
+            with self.TUFT_PROPS_FILENAME.open(mode="w", encoding="utf-8") as f:
+                json.dump(self.tuft_properties.to_dict("records"), f, indent=4)
+            LOGGER.info("Exported tuft properties to %s", self.TUFT_PROPS_FILENAME)
 
         # Export the terminals
-        self.clustered_terminals.to_csv(self.CLUSTERED_TERMINALS_FILENAME, index=False)
-        LOGGER.info("Exported cluster terminals to %s", self.CLUSTERED_TERMINALS_FILENAME)
+        if self.clustered_terminals is not None:
+            self.clustered_terminals.to_csv(self.CLUSTERED_TERMINALS_FILENAME, index=False)
+            LOGGER.info("Exported cluster terminals to %s", self.CLUSTERED_TERMINALS_FILENAME)
 
         # Export morphology paths
-        self.clustered_morph_paths.to_csv(self.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME, index=False)
-        LOGGER.info(
-            "Exported clustered morphologies paths to %s",
-            self.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME,
-        )
+        if self.clustered_morph_paths is not None:
+            self.clustered_morph_paths.to_csv(
+                self.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME, index=False
+            )
+            LOGGER.info(
+                "Exported clustered morphologies paths to %s",
+                self.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME,
+            )
 
         # Export trunk morphology paths
-        self.trunk_morph_paths.to_csv(self.TRUNK_MORPHOLOGIES_PATHS_FILENAME, index=False)
-        LOGGER.info(
-            "Exported trunk morphologies paths to %s",
-            self.TRUNK_MORPHOLOGIES_PATHS_FILENAME,
-        )
+        if self.trunk_morph_paths is not None:
+            self.trunk_morph_paths.to_csv(self.TRUNK_MORPHOLOGIES_PATHS_FILENAME, index=False)
+            LOGGER.info(
+                "Exported trunk morphologies paths to %s",
+                self.TRUNK_MORPHOLOGIES_PATHS_FILENAME,
+            )
 
+        # Export trunk morphology paths
         if self.tuft_morph_paths is not None:
-            # Export trunk morphology paths
             self.tuft_morph_paths.to_csv(self.TUFT_MORPHOLOGIES_PATHS_FILENAME, index=False)
             LOGGER.info(
                 "Exported tuft morphologies paths to %s",
@@ -307,7 +320,7 @@ def extract_morph_name_from_filename(df, file_col="morph_file", name_col="morpho
     return df
 
 
-def cluster_morphologies(
+def cluster_morphologies(  # noqa: PLR0915
     morph_dir: FileType,
     clustering_parameters: dict,
     output_path: FileType,
@@ -319,7 +332,7 @@ def cluster_morphologies(
     debug: bool = False,
     nb_workers: int = 1,
     rng: SeedType = None,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> Clustering:
     """Compute the cluster of all morphologies of the given directory."""
     clustering = Clustering(output_path, clustering_parameters, create=True)
 
@@ -345,15 +358,18 @@ def cluster_morphologies(
             how="left",
             suffixes=("", "_target"),
         )
-        if wmr is not None
+        if wmr is not None and wmr.projection_targets is not None and pop_neuron_numbers is not None
         else None
     )
 
     terminals = extract_terminals.process_morphologies(morph_dir)
     terminals[["config", "tuft_id"]] = None, -1
 
+    all_terminal_points: list[tuple]
+    cluster_props: list[tuple]
+    trunk_props: list[tuple]
     all_terminal_points, cluster_props, trunk_props = [], [], []
-    morph_paths = defaultdict(list)
+    morph_paths: MutableMapping[str, list] = defaultdict(list)
     output_cols = [
         "morph_file",
         "config_name",
@@ -371,6 +387,8 @@ def cluster_morphologies(
     }
 
     for group_name, group in terminals.groupby("morph_file"):
+        # group_name = str(group_name)
+
         # TODO: Parallelize this loop?
         LOGGER.debug("%s: %s points", group_name, len(group))
 
@@ -427,7 +445,7 @@ def cluster_morphologies(
                     "nb_workers": nb_workers,
                     "debug": debug,
                 }
-                new_terminal_points, tuft_ids = clustering_funcs[config["method"]](
+                new_terminal_points, tuft_ids = clustering_funcs[config["method"]](  # type: ignore[operator]
                     **clustering_kwargs
                 )
 
@@ -448,7 +466,7 @@ def cluster_morphologies(
                 cluster_df = pd.DataFrame(new_terminal_points, columns=output_cols)
 
                 # Reduce clusters to one section
-                sections_to_add = defaultdict(list)
+                sections_to_add: MutableMapping[int, PointLevel] = defaultdict(list)
                 kept_path = reduce_clusters(
                     axon_group,
                     group_name,
@@ -482,7 +500,7 @@ def cluster_morphologies(
                 # Compute trunk properties
                 trunk_props.extend(
                     compute_trunk_properties(
-                        trunk_morph, group_name, axon_id, config_name, atlas_region_id
+                        trunk_morph, str(group_name), axon_id, config_name, atlas_region_id
                     ),
                 )
 
@@ -525,7 +543,7 @@ def cluster_morphologies(
                         group_name,
                         cluster_df,
                         clustering.FIGURE_DIRNAME
-                        / f"{Path(group_name).with_suffix('').name}{suffix}.html",
+                        / f"{Path(str(group_name)).with_suffix('').name}{suffix}.html",
                     )
 
     # Export long-range trunk properties

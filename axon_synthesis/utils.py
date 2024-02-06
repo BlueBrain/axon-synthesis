@@ -5,6 +5,8 @@ import json
 import logging
 import re
 import warnings
+from collections.abc import Callable
+from collections.abc import MutableMapping
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
@@ -20,20 +22,26 @@ from axon_synthesis.constants import COORDS_COLS
 class MorphNameAdapter(logging.LoggerAdapter):
     """Add the morphology name and optionally the axon ID to the log entries."""
 
-    def process(self, msg, kwargs) -> tuple[str, dict]:
+    def process(
+        self, msg: str, kwargs: MutableMapping[str, object]
+    ) -> tuple[str, MutableMapping[str, object]]:
         """Add extra information to the log entry."""
-        header = f"morphology {self.extra['morph_name']}"
-        if "axon_id" in self.extra:
-            header += f" (axon {self.extra['axon_id']})"
-        return f"{header}: {msg}", kwargs
+        if self.extra is not None:
+            header = f"morphology {self.extra['morph_name']}"
+            if "axon_id" in self.extra:
+                header += f" (axon {self.extra['axon_id']})"
+            return f"{header}: {msg}", kwargs
+        return "", kwargs
 
 
-def sublogger(logger, name):
+def sublogger(
+    logger: logging.Logger | logging.LoggerAdapter | None, name: str
+) -> logging.Logger | logging.LoggerAdapter:
     """Get a sub-logger with specific name."""
-    new_logger = logger.manager.getLogger(name) if logger is not None else logging.getLogger(name)
     if isinstance(logger, logging.LoggerAdapter):
-        new_logger = logger.__class__(new_logger, logger.extra)
-    return new_logger
+        new_logger = logger.manager.getLogger(name)
+        return logger.__class__(new_logger, logger.extra)
+    return logging.getLogger(name)
 
 
 def setup_logger(level="info", prefix="", suffix=""):
@@ -94,15 +102,19 @@ def get_layers(atlas, pos):
     for layer_id, (ids_set, layer) in enumerate(zip(ids, names)):
         layer_mapping[layer_id] = layer
         layers[np.isin(atlas.brain_regions.raw, list(ids_set))] = layer_id + 1
-    layers = atlas.brain_regions.with_data(layers)
-    return layers.lookup(pos, outer_value=0)
+    layer_field = atlas.brain_regions.with_data(layers)
+    return layer_field.lookup(pos, outer_value=0)
 
 
 def add_camera_sync(fig_path):
     """Update the HTML file to synchronize the cameras between the two plots."""
     with Path(fig_path).open(encoding="utf-8") as f:
         tmp = f.read()
-        fig_id = re.match('.*id="([^ ]*)" .*', tmp, flags=re.DOTALL).group(1)
+        id_match = re.match('.*id="([^ ]*)" .*', tmp, flags=re.DOTALL)
+        if id_match is None:
+            msg = f"Could not find the figure ID in {fig_path}"
+            raise ValueError(msg)
+        fig_id = id_match.group(1)
 
     js = f"""
     <script>
@@ -206,7 +218,9 @@ def disable_loggers(*logger_names):
     Args:
         *logger_names (str): The names of the loggers to be disabled.
     """
-    loggers = [logging.root] if not logger_names else [logging.getLogger(i) for i in logger_names]
+    loggers = (
+        [logging.getLogger()] if not logger_names else [logging.getLogger(i) for i in logger_names]
+    )
 
     disabled_loggers = [(i, i.disabled) for i in loggers]
 
@@ -258,7 +272,7 @@ def merge_json_files(*files):
 
     The order is important: the files will be updated by all the next files in the list.
     """
-    result = {}
+    result: dict = {}
     for i in files:
         file = Path(i)
         if file.exists():
@@ -268,8 +282,12 @@ def merge_json_files(*files):
 
 
 def check_min_max(
-    *, min_value=None, max_value=None, strict_min: bool = False, strict_max: bool = False
-) -> None:
+    *,
+    min_value: float | None = None,
+    max_value: float | None = None,
+    strict_min: bool = False,
+    strict_max: bool = False,
+) -> Callable:
     """Create a validator used by attrs to check a range."""
 
     def range_validator(_instance, attribute, value) -> None:
@@ -324,6 +342,12 @@ def compute_bbox(points, relative_buffer=None):
 def get_code_location(back_frames=1):
     """Return the current file name and line number in the program."""
     frame = inspect.currentframe()
-    for _ in range(back_frames):
+    if frame is None:
+        msg = "Could not find the current frame"
+        raise RuntimeError(msg)
+    for num in range(back_frames):
         frame = frame.f_back
+        if frame is None:
+            msg = f"Could not find the back frame number {num}"
+            raise RuntimeError(msg)
     return frame.f_code.co_filename, frame.f_lineno

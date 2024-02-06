@@ -74,10 +74,10 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **_k
     max_path_distance = config.get("max_path_distance", sphere_radius)
 
     # Get the complete morphology
-    new_terminal_points = []
+    new_terminal_points: list[list] = []
     nodes, edges, directed_graph = neurite_to_graph(axon)
 
-    graph = nx.Graph(directed_graph)
+    graph: nx.Graph = nx.Graph(directed_graph)
     terminal_ids = nodes.loc[nodes["is_terminal"]].index
 
     pair_paths = dict(i for i in nx.all_pairs_shortest_path(graph) if i[0] in terminal_ids)
@@ -88,10 +88,10 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **_k
     terminal_pairs = terminal_tree.query_pairs(sphere_radius)
 
     # Initialize cluster IDs
-    cluster_ids = pd.Series(-1, index=nodes.index)
+    cluster_ids = pd.Series(-1, index=nodes.index.to_numpy())
 
     # The root can not be part of a cluster so it is given a specific cluster ID
-    cluster_ids.loc[-1] = cluster_ids.max() + 1
+    cluster_ids.loc[-1] = cluster_ids.max() + 1  # type: ignore[call-overload]
     group.loc[group["terminal_id"] == 0, "tuft_id"] = cluster_ids.loc[-1]
 
     # Check that the paths between each pair do not exceed the given distance

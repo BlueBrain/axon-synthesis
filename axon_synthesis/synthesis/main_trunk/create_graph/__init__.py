@@ -123,9 +123,9 @@ def one_graph(
     source_coords: np.ndarray,
     target_points: pd.DataFrame,
     config: CreateGraphConfig,
-    favored_region_tree: KDTree = None,
-    bbox: np.array = None,
-    depths: VoxelData = None,
+    favored_region_tree: KDTree | None = None,
+    bbox: np.ndarray | None = None,
+    depths: VoxelData | None = None,
     *,
     output_path: FileType | None = None,
     figure_path: FileType | None = None,
@@ -192,7 +192,7 @@ def one_graph(
 
     # Reset index and set IDs
     nodes_df = nodes_df.reset_index(drop=True)
-    nodes_df.loc[:, "id"] = nodes_df.index
+    nodes_df.loc[:, "id"] = nodes_df.index.to_numpy()
 
     # Create edges using the Delaunay triangulation of the union of the terminals,
     # intermediate and Voronoï points

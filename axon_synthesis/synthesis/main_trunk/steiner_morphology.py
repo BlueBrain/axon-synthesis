@@ -148,7 +148,7 @@ def build_and_graft_trunk(
                     row["to"],
                 ),
             )
-            edges.loc[label, "section_id"] = new_section.id
+            edges.loc[label, "section_id"] = new_section.id  # type: ignore[index]
         for label, row in edges_tmp.loc[edges_tmp["to"] == target].iterrows():
             already_added.append(label)
             new_section = current_section.append_section(
@@ -167,7 +167,7 @@ def build_and_graft_trunk(
                     row["from"],
                 ),
             )
-            edges.loc[label, ["section_id", "reversed_edge"]] = [new_section.id, True]
+            edges.loc[label, ["section_id", "reversed_edge"]] = [new_section.id, True]  # type: ignore[index]
         edges_tmp = edges_tmp.drop(already_added)
 
     # At this point we do not merge consecutive sections that are not separated by a

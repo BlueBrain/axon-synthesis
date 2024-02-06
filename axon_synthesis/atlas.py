@@ -4,6 +4,8 @@ import logging
 import operator
 from functools import cached_property
 from pathlib import Path
+from typing import Literal
+from typing import overload
 
 import h5py
 import numpy as np
@@ -91,6 +93,9 @@ class AtlasHelper:
             LOGGER.debug("Loading region map from the atlas")
             self.region_map = atlas.load_region_map()
             self.region_map_df = self.region_map.as_dataframe()
+        else:
+            self.region_map = None
+            self.region_map_df = None
 
         self.layers = (
             self.config.layer_names if self.config.layer_names is not None else list(range(1, 7))
@@ -174,13 +179,89 @@ class AtlasHelper:
 
         LOGGER.info("Masks exported to %s", output_path)
 
+    @overload
     def get_region_ids(
         self,
         brain_region_names: RegionIdsType,
         *,
-        with_descendants=True,
+        with_descendants: Literal[True],
+    ) -> list[str | int]:
+        ...
+
+    @overload
+    def get_region_ids(
+        self,
+        brain_region_names: RegionIdsType,
+        *,
+        with_descendants: Literal[False],
+    ) -> list[str | int]:
+        ...
+
+    @overload
+    def get_region_ids(
+        self,
+        brain_region_names: RegionIdsType,
+        *,
+        return_missing: Literal[True],
+    ) -> tuple[list[str | int], list[str | int]]:
+        ...
+
+    @overload
+    def get_region_ids(
+        self,
+        brain_region_names: RegionIdsType,
+        *,
+        return_missing: Literal[False],
+    ) -> list[str | int]:
+        ...
+
+    @overload
+    def get_region_ids(
+        self,
+        brain_region_names: RegionIdsType,
+        *,
+        with_descendants: Literal[True],
+        return_missing: Literal[True],
+    ) -> tuple[list[str | int], list[str | int]]:
+        ...
+
+    @overload
+    def get_region_ids(
+        self,
+        brain_region_names: RegionIdsType,
+        *,
+        with_descendants: Literal[False],
+        return_missing: Literal[True],
+    ) -> tuple[list[str | int], list[str | int]]:
+        ...
+
+    @overload
+    def get_region_ids(
+        self,
+        brain_region_names: RegionIdsType,
+        *,
+        with_descendants: Literal[True],
+        return_missing: Literal[False],
+    ) -> list[str | int]:
+        ...
+
+    @overload
+    def get_region_ids(
+        self,
+        brain_region_names: RegionIdsType,
+        *,
+        with_descendants: Literal[False],
+        return_missing: Literal[False],
+    ) -> list[str | int]:
+        ...
+
+    def get_region_ids(
+        self,
+        brain_region_names: RegionIdsType,
+        *,
+        with_descendants: bool = True,
         return_missing: bool = False,
-    ):
+    ) -> list[str | int] | tuple[list[str | int], list[str | int]]:
         """Find brain region IDs from their names, acronyms or direct IDs.
 
         Args:
@@ -231,8 +312,10 @@ class AtlasHelper:
         *,
         inverse: bool = False,
         return_missing: bool = False,
-    ):
+    ) -> np.ndarray | tuple[np.ndarray, list[str | int]]:
         """Get the coordinates of the voxels located in the given regions from the atlas."""
+        brain_region_ids: list[str | int]
+        missing_ids: list[str | int]
         brain_region_ids, missing_ids = self.get_region_ids(brain_region_names, return_missing=True)
 
         brain_region_mask = np.isin(self.brain_regions.raw, list(set(brain_region_ids)))
@@ -259,7 +342,7 @@ class AtlasHelper:
         inverse: bool = False,
         rng: SeedType = None,
         return_missing: bool = False,
-    ) -> np.ndarray:
+    ) -> np.ndarray | tuple[np.ndarray, list[str | int]]:
         """Extract region points from the atlas.
 
         If 'rng' is not provided, the voxel centers are returned. If 'rng' is provided, one random
@@ -299,7 +382,7 @@ class AtlasHelper:
         return voxel_points
 
     @cached_property
-    def brain_regions_and_descendants(self):
+    def brain_regions_and_descendants(self) -> pd.DataFrame:
         """Return the brain regions and their descendants from the hierarchy."""
         return (
             self.region_map_df.index.to_series()
@@ -322,7 +405,7 @@ class AtlasHelper:
         )
 
     @cached_property
-    def brain_regions_and_ascendants(self):
+    def brain_regions_and_ascendants(self) -> pd.DataFrame:
         """Return the brain regions and their ascendants from the hierarchy."""
         return (
             self.region_map_df.index.to_series()

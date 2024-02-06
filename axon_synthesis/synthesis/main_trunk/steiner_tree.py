@@ -51,7 +51,9 @@ def compute_solution(
 
     group_edge_ids = edges.reset_index()["index"]
     edge_ids = pd.Series(-1, index=edges.index)
-    reverted_group_edge_ids = pd.Series(group_edge_ids.index, index=group_edge_ids.values)
+    reverted_group_edge_ids = pd.Series(
+        group_edge_ids.index.to_numpy(), index=group_edge_ids.to_numpy()
+    )
     edge_ids.loc[reverted_group_edge_ids.index] = reverted_group_edge_ids
     edges.loc[
         (edge_ids.isin(solution_edges)),

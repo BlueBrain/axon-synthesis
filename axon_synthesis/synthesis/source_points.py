@@ -38,7 +38,7 @@ def find_existing_axons(morph):
 
 def map_population(
     cells_df: pd.DataFrame,
-    atlas: AtlasHelper,
+    atlas: AtlasHelper | None,
     populations: pd.DataFrame | None = None,
     *,
     rng: SeedType = None,
@@ -50,6 +50,9 @@ def map_population(
     rng = np.random.default_rng(rng)
     if populations is None:
         cells_df["population_id"] = DEFAULT_POPULATION
+    elif atlas is None:
+        msg = "The 'populations' argument should not be None when an atlas is provided"
+        raise RuntimeError(msg)
     else:
         # Get all the parent IDs in the brain region hierarchy
         cells_region_parents = cells_df.merge(
@@ -118,7 +121,7 @@ def fill_morph_file_col(cells_df, morph_dir):
 
 def set_source_points(
     cells_df: pd.DataFrame,
-    atlas: AtlasHelper,
+    atlas: AtlasHelper | None,
     morph_dir: FileType,
     population_probabilities: pd.DataFrame | None = None,
     axon_grafting_points: pd.DataFrame | None = None,
@@ -148,12 +151,14 @@ def set_source_points(
             .apply(lambda group: find_existing_axons(group.name))
             .apply(pd.Series)
             .stack()
-            .rename("XYZ")
+            .rename("XYZ")  # type: ignore[call-overload]
         )
-        existing_axons.index.rename("axon_id", level=1, inplace=True)
+        existing_axons.index.rename("axon_id", level=1, inplace=True)  # type: ignore[call-arg]
         existing_axons = existing_axons.reset_index()
         existing_axons["grafting_section_id"] = -1
-        existing_axons[SOURCE_COORDS_COLS] = np.stack(existing_axons["XYZ"].to_numpy())
+        existing_axons[SOURCE_COORDS_COLS] = np.stack(
+            existing_axons["XYZ"].to_numpy()  # type: ignore[arg-type]
+        )
         new_axons = (
             cells_df[
                 [
@@ -215,6 +220,9 @@ def set_source_points(
 
     # Set atlas regions
     if "source_brain_region_id" not in cells_df.columns:
+        if atlas is None:
+            msg = "The 'source_brain_region_id' column is missing and no atlas is provided"
+            raise ValueError(msg)
         cells_df["source_brain_region_id"] = atlas.brain_regions.lookup(
             cells_df[COORDS_COLS].to_numpy()
         )
@@ -227,7 +235,7 @@ def create_random_sources(
     atlas,
     source_regions: list[int | str],
     nb_points: int,
-    output_path: FileType = None,
+    output_path: FileType | None = None,
     seed: int | None = None,
 ):
     """Create some random source points."""
@@ -246,7 +254,7 @@ def create_random_sources(
 
     if len(coords) < nb_points:
         logger.error(
-            "Not enough voxels found to place source points, foune only %s voxels", len(coords)
+            "Not enough voxels found to place source points, found only %s voxels", len(coords)
         )
 
     dataset = pd.DataFrame(coords, columns=COORDS_COLS).reset_index()
@@ -259,6 +267,7 @@ def create_random_sources(
         # TODO: Should export a CellCollection to a MVD3 file?
         dataset.loc[:, ["morph_file", "axon_id", "terminal_id", "section_id", *COORDS_COLS]].to_hdf(
             output_path,
+            "cell_locations",
             index=False,
         )
 

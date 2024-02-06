@@ -13,7 +13,7 @@ from axon_synthesis.white_matter_recipe import WmrConfig
 from axon_synthesis.white_matter_recipe import fetch
 
 
-def wmr_kwargs_to_config(config) -> WmrConfig:
+def wmr_kwargs_to_config(config) -> None:
     """Extract the atlas arguments from given config to create an AtlasConfig object."""
     config["wmr_config"] = WmrConfig(
         config.pop("wmr_path"),

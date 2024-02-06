@@ -151,64 +151,72 @@ class WhiteMatterRecipe(BasePathBuilder):
         """
         super().__init__(path)
 
+        self.populations: pd.DataFrame | None = None
+        self.projections: pd.DataFrame | None = None
+        self.targets: pd.DataFrame | None = None
+        self.fractions: dict | None = None
+        self.interaction_strengths: dict | None = None
+        self.projection_targets: pd.DataFrame | None = None
+        self.layer_profiles: pd.DataFrame | None = None
+        self.region_data: pd.DataFrame | None = None
+
         if load:
             self.assert_exists()
             self.load()
-        else:
-            self.populations = None
-            self.projections = None
-            self.targets = None
-            self.fractions = None
-            self.interaction_strengths = None
-            self.projection_targets = None
-            self.layer_profiles = None
-            self.region_data = None
 
     def save(self):
         """Save the White Matter Recipe into the given directory."""
         self.path.mkdir(parents=True, exist_ok=True)
 
         # Export the population DataFrame
-        populations = cols_to_json(self.populations, ["atlas_region", "filters"])
-        populations.to_csv(self.POPULATIONS_FILENAME, index=False)
+        if self.populations is not None:
+            populations = cols_to_json(self.populations, ["atlas_region", "filters"])
+            populations.to_csv(self.POPULATIONS_FILENAME, index=False)
 
         # Export the projection DataFrame
-        projections = cols_to_json(
-            self.projections,
-            ["mapping_coordinate_system", "targets", "atlas_region", "filters"],
-        )
-        projections.to_csv(self.PROJECTIONS_FILENAME, index=False)
+        if self.projections is not None:
+            projections = cols_to_json(
+                self.projections,
+                ["mapping_coordinate_system", "targets", "atlas_region", "filters"],
+            )
+            projections.to_csv(self.PROJECTIONS_FILENAME, index=False)
 
         # Export the targets DataFrame
-        targets = cols_to_json(self.targets, ["target"])
-        targets.to_csv(self.TARGETS_FILENAME, index=False)
+        if self.targets is not None:
+            targets = cols_to_json(self.targets, ["target"])
+            targets.to_csv(self.TARGETS_FILENAME, index=False)
 
         # Export the projection DataFrame
-        projection_targets = cols_to_json(
-            self.projection_targets,
-            ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
-        )
-        projection_targets.to_csv(self.PROJECTION_TARGETS_FILENAME, index=False)
+        if self.projection_targets is not None:
+            projection_targets = cols_to_json(
+                self.projection_targets,
+                ["targets", "atlas_region", "filters", "target", "topographical_mapping"],
+            )
+            projection_targets.to_csv(self.PROJECTION_TARGETS_FILENAME, index=False)
 
         # Export the fractions
-        with (self.FRACTIONS_FILENAME).open("w", encoding="utf-8") as f:
-            json.dump(self.fractions, f, indent=4, sort_keys=True)
+        if self.fractions is not None:
+            with (self.FRACTIONS_FILENAME).open("w", encoding="utf-8") as f:
+                json.dump(self.fractions, f, indent=4, sort_keys=True)
 
         # Export the interaction strengths
-        with (self.INTERACTION_STRENGTHS_FILENAME).open("w", encoding="utf-8") as f:
-            json.dump(
-                {k: v.to_dict("index") for k, v in self.interaction_strengths.items()},
-                f,
-                indent=4,
-                sort_keys=True,
-            )
+        if self.interaction_strengths is not None:
+            with (self.INTERACTION_STRENGTHS_FILENAME).open("w", encoding="utf-8") as f:
+                json.dump(
+                    {k: v.to_dict("index") for k, v in self.interaction_strengths.items()},
+                    f,
+                    indent=4,
+                    sort_keys=True,
+                )
 
         # Export the layer profiles
-        layer_profiles = cols_to_json(self.layer_profiles, ["layers"])
-        layer_profiles.to_csv(self.LAYER_PROFILES_FILENAME, index=False)
+        if self.layer_profiles is not None:
+            layer_profiles = cols_to_json(self.layer_profiles, ["layers"])
+            layer_profiles.to_csv(self.LAYER_PROFILES_FILENAME, index=False)
 
         # Export the region data
-        self.region_data.to_csv(self.REGION_DATA_FILENAME, index=False)
+        if self.region_data is not None:
+            self.region_data.to_csv(self.REGION_DATA_FILENAME, index=False)
 
     def load(self):
         """Load the White Matter Recipe from the associated directory."""
@@ -249,6 +257,13 @@ class WhiteMatterRecipe(BasePathBuilder):
         """Compute projection probabilities from the White Matter Recipe."""
         LOGGER.info("Computing the probabilities from the white matter")
 
+        if self.projection_targets is None:
+            msg = (
+                "The 'projection_targets' DataFrame is not loaded yet so it is not possible to "
+                "compute the probabilities"
+            )
+            raise RuntimeError(msg)
+
         projection_targets = self.projection_targets.loc[
             ~self.projection_targets["target_region_atlas_id"].isna()
         ]
@@ -258,7 +273,7 @@ class WhiteMatterRecipe(BasePathBuilder):
 
         # Get the projection matrix
         projection_matrix = (
-            pd.DataFrame.from_records(self.fractions)
+            pd.DataFrame.from_records(self.fractions)  # type: ignore[call-overload]
             .stack()
             .rename("target_projection_strength")
             .reset_index()
@@ -346,7 +361,7 @@ class WhiteMatterRecipe(BasePathBuilder):
         ]
         if not wm_populations_sub.empty:
             wm_populations_sub = (
-                wm_populations_sub.apply(pd.Series)
+                wm_populations_sub.apply(pd.Series)  # type: ignore[call-overload]
                 .stack()
                 .dropna()
                 .rename("atlas_region_split")
@@ -364,7 +379,7 @@ class WhiteMatterRecipe(BasePathBuilder):
             lambda row: row["name"],
         )
         wm_populations_sub = (
-            wm_populations["atlas_region"]
+            wm_populations["atlas_region"]  # type: ignore[call-overload]
             .apply(lambda row: pd.Series(row.get("subregions", []), dtype=object))
             .stack()
             .dropna()
@@ -451,7 +466,7 @@ class WhiteMatterRecipe(BasePathBuilder):
         LOGGER.debug("Extracting layer profiles from white matter recipe")
         wm_layer_profiles = pd.DataFrame.from_records(wmr["layer_profiles"])
         layer_profiles = (
-            wm_layer_profiles["relative_densities"]
+            wm_layer_profiles["relative_densities"]  # type: ignore[call-overload]
             .apply(pd.Series)
             .stack()
             .rename("layer_profile")
@@ -470,7 +485,7 @@ class WhiteMatterRecipe(BasePathBuilder):
         )
         wm_layer_profiles.drop(columns=["relative_densities", "layer_profile"], inplace=True)
         wm_layer_profiles = wm_layer_profiles.join(
-            wm_layer_profiles["layers"]
+            wm_layer_profiles["layers"]  # type: ignore[call-overload]
             .apply(pd.Series)
             .stack()
             .rename("layer")
@@ -499,7 +514,7 @@ class WhiteMatterRecipe(BasePathBuilder):
         )
 
         wm_targets = (
-            wm_projections["targets"]
+            wm_projections["targets"]  # type: ignore[call-overload]
             .apply(pd.Series)
             .stack()
             .rename("target")
@@ -522,7 +537,7 @@ class WhiteMatterRecipe(BasePathBuilder):
         wm_projection_targets["target_layer_profiles"] = wm_projection_targets["target"].apply(
             lambda row: row["target_layer_profiles"],
         )
-        wm_projection_targets.index.rename("proj_index", level=0, inplace=True)
+        wm_projection_targets.index.rename("proj_index", level=0, inplace=True)  # type: ignore[call-arg]
 
         # Get target sub regions
         region_map_df = region_map.as_dataframe()
@@ -588,7 +603,7 @@ class WhiteMatterRecipe(BasePathBuilder):
         )
 
         selected_sub_region_acronyms = (
-            wm_projection_targets["subregion_acronyms"]
+            wm_projection_targets["subregion_acronyms"]  # type: ignore[call-overload]
             .apply(pd.Series)
             .stack()
             .rename("subregion_acronym")

@@ -42,7 +42,7 @@ def atlas_options(func):
     return wrapper_atlas_options
 
 
-def atlas_kwargs_to_config(config) -> AtlasConfig:
+def atlas_kwargs_to_config(config) -> None:
     """Extract the atlas arguments from given config to create an AtlasConfig object."""
     config["atlas_config"] = AtlasConfig(
         config.pop("atlas_path"),
@@ -85,7 +85,7 @@ def parallel_options(func):
     return wrapper_parallel_options
 
 
-def parallel_kwargs_to_config(config) -> ParallelConfig:
+def parallel_kwargs_to_config(config) -> None:
     """Extract the parallel arguments from given config to create an ParallelConfig object."""
     kwargs = {
         "nb_processes": config.pop("nb_workers", None),

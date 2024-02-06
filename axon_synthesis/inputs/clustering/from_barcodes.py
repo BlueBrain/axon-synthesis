@@ -1,4 +1,5 @@
 """Clustering from barcodes."""
+# mypy: ignore-errors
 # import json
 from collections import defaultdict
 from itertools import pairwise

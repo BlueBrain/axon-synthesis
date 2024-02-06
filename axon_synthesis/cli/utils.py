@@ -1,24 +1,25 @@
 """Some utils for the CLI of axon-synthesis."""
 import json
-from collections.abc import Mapping
+from collections.abc import MutableMapping
 from copy import deepcopy
+from typing import Any
 
 import click
 from configobj import ConfigObj
 
 
-def _format_value(data: dict, name: str) -> str:
+def _format_value(data: dict, name: str) -> dict[str, Any]:
     return {f"{name}_{key}": value for key, value in data.items()}
 
 
-def _recursive_merge(dict_1: dict, dict_2: dict) -> dict:
+def _recursive_merge(dict_1: MutableMapping, dict_2: MutableMapping) -> MutableMapping:
     """Merge two dictionaries recursively.
 
     The right one takes precedense in case of conflicting keys.
     """
     merged_dict = deepcopy(dict_1)
     for k, v in dict_2.items():
-        if k in merged_dict and isinstance(v, Mapping):
+        if k in merged_dict and isinstance(v, MutableMapping):
             merged_dict[k] = _recursive_merge(merged_dict[k], v)
         else:
             merged_dict[k] = v

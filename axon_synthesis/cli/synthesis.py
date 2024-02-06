@@ -112,7 +112,7 @@ def create_graph_options(func):
     return wrapper_create_graph_options
 
 
-def create_graph_kwargs_to_config(config) -> CreateGraphConfig:
+def create_graph_kwargs_to_config(config) -> None:
     """Extract the atlas arguments from given config to create an AtlasConfig object."""
     kwargs = {
         "intermediate_number": config.pop("create_graph_intermediate_number", None),

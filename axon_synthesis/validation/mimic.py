@@ -21,7 +21,7 @@ from axon_synthesis.typing import SeedType
 
 
 def create_cell_collection(
-    morphology_dir, output_path: FileType = None, convert_to: FileType | None = None
+    morphology_dir, output_path: FileType | None = None, convert_to: FileType | None = None
 ) -> CellCollection:
     """Create a CellCollection object from a directory containing morphologies."""
     morphology_dir = Path(morphology_dir)

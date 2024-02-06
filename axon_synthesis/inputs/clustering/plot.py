@@ -160,7 +160,7 @@ def plot_cluster_properties(cluster_props_df, output_path):
                 ),
             )
             .get_figure()
-            .gca()
+            .gca()  # type: ignore[union-attr]
         )
         ax.set_title("Cluster radial length vs radial distance")
         pdf.savefig()

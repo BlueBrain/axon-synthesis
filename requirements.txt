@@ -17,5 +17,6 @@ plotly-helper
 scipy
 seaborn
 tables
+typing_extensions
 TMD
 voxcell>=3.1.3

@@ -1,6 +1,7 @@
 """Module to define a base class for relative paths storage and processing."""
 from enum import IntEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import ClassVar
 
 from axon_synthesis.typing import FileType
@@ -55,6 +56,16 @@ class BasePathBuilder:
         """Reset path attributes."""
         for k, v in self:
             setattr(self, k, v)
+
+    if TYPE_CHECKING:
+
+        def __getattr__(self, name: str) -> Path:
+            """Custom __getattr__ operator.
+
+            This is only to tell mypy that the dynamically assigned attributes will all return
+            Path objects
+            """
+            ...
 
     @classmethod
     def build_paths(cls, path) -> dict[str, Path]:

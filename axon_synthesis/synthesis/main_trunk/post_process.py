@@ -1,8 +1,11 @@
 """Post-process the Steiner solutions."""
 import logging
+from collections.abc import Sequence
 from itertools import chain
+from typing import TYPE_CHECKING
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from neurom import morphmath
 from neurom.apps import morph_stats
@@ -17,27 +20,33 @@ from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import sublogger
 
+if TYPE_CHECKING:
+    from morphio.mut import Section
+
 WEIGHT_DISTANCE_TOLERANCE = 1e-8
+
+HistoryType = tuple[list[float], list[list[float]]]
 
 
 def get_random_vector(
-    distance=1.0,
-    norm=None,
-    std=None,
-    initial_theta=None,
-    initial_phi=None,
+    distance: float = 1.0,
+    norm: float | None = None,
+    std: float | None = None,
+    initial_theta: float | None = None,
+    initial_phi: float | None = None,
     rng=np.random,
-):
+) -> npt.NDArray[np.floating]:
     """Return 3-d coordinates of a new random point.
 
     The distance between the produced point and (0,0,0) is given by the 'distance' argument.
     """
     # pylint: disable=assignment-from-no-return
     phi = rng.uniform(0.0, 2.0 * np.pi)
-    if norm is not None and std is not None:
-        theta = rng.normal(norm, std)
-    else:
-        theta = np.arccos(rng.uniform(-1.0, 1.0))
+    theta = (
+        rng.normal(norm, std)
+        if norm is not None and std is not None
+        else np.arccos(rng.uniform(-1.0, 1.0))
+    )
 
     if initial_theta:
         theta += initial_theta
@@ -284,20 +293,20 @@ def check_next_target(  # noqa: PLR0913
 
 
 def random_walk(  # noqa: PLR0913
-    starting_pt,
-    intermediate_pts,
-    length_stats,
+    starting_pt: Sequence[float],
+    intermediate_pts: Sequence[Sequence[float]],
+    length_stats: dict[str, float],
     # angle_stats,
-    previous_history=None,
-    history_path_length=None,
-    global_target_coeff=0,
-    target_coeff=2,
-    random_coeff=2,
-    history_coeff=2,
+    previous_history: HistoryType | None = None,
+    history_path_length: float | None = None,
+    global_target_coeff: float = 0,
+    target_coeff: float = 2,
+    random_coeff: float = 2,
+    history_coeff: float = 2,
     *,
     rng=np.random,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
-):
+) -> tuple[npt.NDArray[np.floating], HistoryType]:
     """Perform a random walk guided by intermediate points."""
     logger = sublogger(logger, __name__)
 
@@ -312,18 +321,18 @@ def random_walk(  # noqa: PLR0913
         history_path_length = 5.0 * length_norm
 
     current_pt = np.array(starting_pt, dtype=float)
-    intermediate_pts = np.array(intermediate_pts, dtype=float)
-    new_pts = [current_pt]
+    new_intermediate_pts = np.array(intermediate_pts, dtype=float)
+    new_pts: list[npt.NDArray[np.floating]] = [current_pt]
 
     total_length = 0
 
     # Compute the direction to the last target
     global_target_direction, global_target_dist = compute_direction(
-        current_pt, intermediate_pts[-1]
+        current_pt, new_intermediate_pts[-1]
     )
 
     # Compute the direction to the first target
-    target_direction, target_dist = compute_direction(current_pt, intermediate_pts[0])
+    target_direction, target_dist = compute_direction(current_pt, new_intermediate_pts[0])
 
     # Setup initial history
     if previous_history:
@@ -333,7 +342,7 @@ def random_walk(  # noqa: PLR0913
         latest_lengths = [length_norm] * nb_hist
         latest_directions = [target_direction] * nb_hist
 
-    nb_intermediate_pts = len(intermediate_pts)
+    nb_intermediate_pts = len(new_intermediate_pts)
 
     min_target_dist = global_target_dist * 2
 
@@ -351,13 +360,13 @@ def random_walk(  # noqa: PLR0913
             global_target_direction,
             target_direction,
             current_pt,
-            intermediate_pts.tolist(),
+            new_intermediate_pts,
         )
 
     target_index = 0
-    target = intermediate_pts[target_index]
+    target = new_intermediate_pts[target_index]
     next_target_index = min(nb_intermediate_pts - 1, 1)
-    next_target = intermediate_pts[next_target_index]
+    next_target = new_intermediate_pts[next_target_index]
 
     while global_target_dist >= length_norm:
         step_length = rng.normal(length_norm, length_std)
@@ -365,7 +374,7 @@ def random_walk(  # noqa: PLR0913
         history_direction = history(latest_lengths, latest_directions, history_path_length)
 
         direction, target_dist, global_target_dist = compute_step_direction(
-            intermediate_pts,
+            new_intermediate_pts,
             current_pt,
             target,
             target_index,
@@ -391,7 +400,7 @@ def random_walk(  # noqa: PLR0913
             next_target,
             min_target_dist,
         ) = check_next_target(
-            intermediate_pts,
+            new_intermediate_pts,
             nb_intermediate_pts,
             target_index,
             target,
@@ -417,7 +426,7 @@ def random_walk(  # noqa: PLR0913
             latest_lengths.pop(0)
             latest_directions.pop(0)
 
-    new_pts.append(intermediate_pts[-1])
+    new_pts.append(new_intermediate_pts[-1])
 
     return np.array(new_pts, dtype=float), (latest_lengths, latest_directions)
 
@@ -461,7 +470,7 @@ def plot(morph, initial_morph, figure_path):
 
 def gather_sections(root_section, tuft_barcodes):
     """Gather the sections with unifurcations."""
-    sections_to_smooth = [[]]
+    sections_to_smooth: list[list[Section]] = [[]]
     sec_use_parent = {
         tuple(i) for i in tuft_barcodes[["section_id", "use_parent"]].to_numpy().tolist()
     }
@@ -543,7 +552,7 @@ def post_process_trunk(
     sections_to_smooth = gather_sections(root_section, tuft_barcodes)
 
     # Smooth the sections but do not move the tuft roots
-    parent_histories = {}
+    parent_histories: dict[int, HistoryType] = {}
     for i in sections_to_smooth:
         pts = np.concatenate([i[0].points] + [sec.points[1:] for sec in i[1:]])
         diams = np.concatenate([i[0].diameters] + [sec.diameters[1:] for sec in i[1:]])

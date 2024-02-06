@@ -29,7 +29,7 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
     for axon_id, axon in enumerate(axons):
         # Add root point
         pts.append(
-            [morph_path_str, axon_id, 0, axon.root_node.id, *axon.root_node.points[0][:3].tolist()],
+            (morph_path_str, axon_id, 0, axon.root_node.id, *axon.root_node.points[0][:3].tolist()),
         )
 
         # Add terminal points

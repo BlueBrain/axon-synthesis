@@ -60,7 +60,7 @@ class ParallelConfig:
     use_mpi: bool = field(default=False)
 
 
-def load_axon_grafting_points(path: FileType = None, key: str = _HDF_DEFAULT_GROUP):
+def load_axon_grafting_points(path: FileType | None = None, key: str = _HDF_DEFAULT_GROUP):
     """Load the axon mapping from the given file."""
     cols = ["morphology", "grafting_section_id"]
     if path is not None:
@@ -405,7 +405,7 @@ def synthesize_axons(  # noqa: PLR0913
     output_dir: FileType,
     morphology_data_file: FileType,
     morphology_dir: FileType,
-    axon_grafting_points_file: FileType = None,
+    axon_grafting_points_file: FileType | None = None,
     *,
     atlas_config: AtlasConfig | None = None,
     create_graph_config: CreateGraphConfig | None = None,
