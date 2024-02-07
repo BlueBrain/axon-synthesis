@@ -1,7 +1,7 @@
 include:
    - project: nse/ci
      file:
-        - /ci/lib/tox-docker.yml
+        - /ci/lib/tox-bb5.yml
         - /ci/jobs/check-version.yml
         - /ci/jobs/check-packaging.yml
         - /ci/jobs/lint.yml
@@ -22,13 +22,17 @@ include:
 
 .tox-template:
   variables:
-    EXTRA_MODULES: archive/2021-05:py-mpi4py
+    EXTRA_MODULES: archive/2024-01:py-mpi4py
     MPI_LAUNCH_TIMEOUT: 120
-    bb5_cpus_per_task: 5
+    bb5_cpus_per_task: 3
 
 docs:
   variables:
-    EXTRA_MODULES: archive/2021-05:py-mpi4py
+    EXTRA_MODULES: archive/2024-01:py-mpi4py
+
+lint:
+  variables:
+    EXTRA_MODULES: archive/2024-01:py-mpi4py
 
 # py38-MPI:
 #   extends: .tox-template

@@ -13,7 +13,7 @@ disable=
 # Regexp for a line that is allowed to be longer than the limit.
 ignore-long-lines=\bhttps?://\S
 # Maximum number of characters on a single line.
-max-line-length=100
+max-line-length=115
 
 [DESIGN]
 # Maximum number of arguments for function / method

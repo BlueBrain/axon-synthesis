@@ -38,7 +38,7 @@ class TestRandomWalk:
             length_stats,
             # angle_stats,
             history_path_length=None,
-            previous_history=[[length_stats["norm"]] * 10, [np.array([0, -1, 0])] * 10],
+            previous_history=([length_stats["norm"]] * 10, [[0, -1, 0]] * 10),
             global_target_coeff=0,
             target_coeff=2,
             random_coeff=2,
@@ -51,7 +51,7 @@ class TestRandomWalk:
         if interactive_plots:
             with use_matplotlib_backend("QtAgg"):
                 fig = plt.figure()
-                ax = fig.gca(projection="3d")
+                ax = fig.add_subplot(projection="3d")
                 ax.plot(
                     points[:, 0],
                     points[:, 1],
@@ -66,11 +66,11 @@ class TestRandomWalk:
                     label="Intermediate targets",
                 )
                 for num, i in enumerate(intermediate_pts):
-                    ax.text(i[0], i[1], i[2], str(num), size=20, zorder=1, color="k")
+                    ax.text(i[0], i[1], i[2], str(num), size=20, zorder=1, color="k")  # type: ignore[arg-type]
                 ax.legend()
-                ax.set_xlim3d([-0.5, 1.5])
-                ax.set_ylim3d([-0.5, 1.5])
-                ax.set_zlim3d([-0.5, 1.5])
+                ax.set(xlim3d=(-0.5, 1.5), xlabel="X")
+                ax.set(ylim3d=(-0.5, 1.5), ylabel="Y")
+                ax.set(zlim3d=(-0.5, 1.5), zlabel="Z")
                 plt.show()
         # ################################################################## #
 

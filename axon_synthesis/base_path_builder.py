@@ -65,7 +65,6 @@ class BasePathBuilder:
             This is only to tell mypy that the dynamically assigned attributes will all return
             Path objects
             """
-            ...
 
     @classmethod
     def build_paths(cls, path) -> dict[str, Path]:

@@ -4,8 +4,6 @@ import logging
 import operator
 from functools import cached_property
 from pathlib import Path
-from typing import Literal
-from typing import overload
 
 import h5py
 import numpy as np
@@ -179,95 +177,17 @@ class AtlasHelper:
 
         LOGGER.info("Masks exported to %s", output_path)
 
-    @overload
-    def get_region_ids(
-        self,
-        brain_region_names: RegionIdsType,
-        *,
-        with_descendants: Literal[True],
-    ) -> list[str | int]:
-        ...
-
-    @overload
-    def get_region_ids(
-        self,
-        brain_region_names: RegionIdsType,
-        *,
-        with_descendants: Literal[False],
-    ) -> list[str | int]:
-        ...
-
-    @overload
-    def get_region_ids(
-        self,
-        brain_region_names: RegionIdsType,
-        *,
-        return_missing: Literal[True],
-    ) -> tuple[list[str | int], list[str | int]]:
-        ...
-
-    @overload
-    def get_region_ids(
-        self,
-        brain_region_names: RegionIdsType,
-        *,
-        return_missing: Literal[False],
-    ) -> list[str | int]:
-        ...
-
-    @overload
-    def get_region_ids(
-        self,
-        brain_region_names: RegionIdsType,
-        *,
-        with_descendants: Literal[True],
-        return_missing: Literal[True],
-    ) -> tuple[list[str | int], list[str | int]]:
-        ...
-
-    @overload
-    def get_region_ids(
-        self,
-        brain_region_names: RegionIdsType,
-        *,
-        with_descendants: Literal[False],
-        return_missing: Literal[True],
-    ) -> tuple[list[str | int], list[str | int]]:
-        ...
-
-    @overload
-    def get_region_ids(
-        self,
-        brain_region_names: RegionIdsType,
-        *,
-        with_descendants: Literal[True],
-        return_missing: Literal[False],
-    ) -> list[str | int]:
-        ...
-
-    @overload
-    def get_region_ids(
-        self,
-        brain_region_names: RegionIdsType,
-        *,
-        with_descendants: Literal[False],
-        return_missing: Literal[False],
-    ) -> list[str | int]:
-        ...
-
     def get_region_ids(
         self,
         brain_region_names: RegionIdsType,
         *,
         with_descendants: bool = True,
-        return_missing: bool = False,
-    ) -> list[str | int] | tuple[list[str | int], list[str | int]]:
+    ) -> tuple[list[str | int], list[str | int]]:
         """Find brain region IDs from their names, acronyms or direct IDs.
 
         Args:
             brain_region_names: The names of the brain regions to get IDs.
             with_descendants: If set to True, all the descendants are included.
-            return_missing: If True, the brain regions that could not be found are also returned.
         """
         if isinstance(brain_region_names, int | str):
             brain_region_names = [brain_region_names]
@@ -300,23 +220,18 @@ class AtlasHelper:
             else:
                 brain_region_ids.extend(new_ids)
 
-        sorted_brain_region_ids = sorted(set(brain_region_ids))
-
-        if return_missing:
-            return sorted_brain_region_ids, sorted(set(missing_ids))
-        return sorted_brain_region_ids
+        return sorted(set(brain_region_ids)), sorted(set(missing_ids))
 
     def get_region_voxels(
         self,
         brain_region_names: RegionIdsType,
         *,
         inverse: bool = False,
-        return_missing: bool = False,
     ) -> np.ndarray | tuple[np.ndarray, list[str | int]]:
         """Get the coordinates of the voxels located in the given regions from the atlas."""
         brain_region_ids: list[str | int]
         missing_ids: list[str | int]
-        brain_region_ids, missing_ids = self.get_region_ids(brain_region_names, return_missing=True)
+        brain_region_ids, missing_ids = self.get_region_ids(brain_region_names)
 
         brain_region_mask = np.isin(self.brain_regions.raw, list(set(brain_region_ids)))
         if inverse:
@@ -324,9 +239,7 @@ class AtlasHelper:
 
         brain_regions_coords = np.argwhere(brain_region_mask)
 
-        if return_missing:
-            return brain_regions_coords, missing_ids
-        return brain_regions_coords
+        return brain_regions_coords, missing_ids
 
     def get_random_voxel_shifts(self, size, *, rng: SeedType = None):
         """Pick random shifts from voxel centers according to the voxel sizes."""
@@ -341,7 +254,6 @@ class AtlasHelper:
         size: int | None = None,
         inverse: bool = False,
         rng: SeedType = None,
-        return_missing: bool = False,
     ) -> np.ndarray | tuple[np.ndarray, list[str | int]]:
         """Extract region points from the atlas.
 
@@ -354,14 +266,13 @@ class AtlasHelper:
             size: The number of points to return (they are chosen randomly along the possible ones).
             inverse: If True, choose points that are NOT located in the given regions.
             rng: The random number generator (can be an int used as seed or a numpy Generator).
-            return_missing: If True, the brain regions that could not be found are also returned.
         """
         if size is not None and size <= 0:
             msg = "The 'size' argument must be a positive integer."
             raise ValueError(msg)
 
         brain_regions_coords, missing_ids = self.get_region_voxels(
-            brain_region_names, inverse=inverse, return_missing=True
+            brain_region_names, inverse=inverse
         )
 
         voxel_points = self.brain_regions.indices_to_positions(
@@ -377,9 +288,7 @@ class AtlasHelper:
             rng = np.random.default_rng(rng)
             voxel_points = rng.choice(voxel_points, size)
 
-        if return_missing:
-            return voxel_points, missing_ids
-        return voxel_points
+        return voxel_points, missing_ids
 
     @cached_property
     def brain_regions_and_descendants(self) -> pd.DataFrame:

@@ -1,5 +1,4 @@
 """Compute the long-range trunk properties after clustering."""
-import json
 import logging
 from functools import partial
 
@@ -102,14 +101,14 @@ def compute_trunk_properties(
                 config_name,
                 axon_id,
                 atlas_region_id,
-                json.dumps(np.array(trunk_stats["raw_segment_lengths"]).tolist()),
+                np.array(trunk_stats["raw_segment_lengths"]).tolist(),
                 trunk_stats["mean_segment_lengths"],
                 trunk_stats["std_segment_lengths"],
-                json.dumps(np.array(trunk_stats["raw_segment_meander_angles"]).tolist()),
+                np.array(trunk_stats["raw_segment_meander_angles"]).tolist(),
                 trunk_stats["mean_segment_meander_angles"],
                 trunk_stats["std_segment_meander_angles"],
-                json.dumps(np.array(trunk_stats["raw_segment_angles"]).tolist()),
-                json.dumps(np.array(trunk_stats["raw_segment_path_lengths"]).tolist()),
+                np.array(trunk_stats["raw_segment_angles"]).tolist(),
+                np.array(trunk_stats["raw_segment_path_lengths"]).tolist(),
             ),
         )
 

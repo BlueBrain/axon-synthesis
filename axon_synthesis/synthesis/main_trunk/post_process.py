@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 WEIGHT_DISTANCE_TOLERANCE = 1e-8
 
-HistoryType = tuple[list[float], list[list[float]]]
+HistoryType = tuple[list[float], (list[list[float] | npt.NDArray[np.floating]])]
 
 
 def get_random_vector(
@@ -69,7 +69,7 @@ def weights(lengths, history_path_length):
 
 def history(latest_lengths, latest_directions, history_path_length):
     """Returns a combination of the segments history."""
-    if not latest_directions:
+    if len(latest_directions) == 0:
         return np.zeros(3)
     weighted_history = np.dot(weights(latest_lengths, history_path_length), latest_directions)
 
@@ -293,8 +293,8 @@ def check_next_target(  # noqa: PLR0913
 
 
 def random_walk(  # noqa: PLR0913
-    starting_pt: Sequence[float],
-    intermediate_pts: Sequence[Sequence[float]],
+    starting_pt: Sequence[float] | npt.NDArray[np.floating],
+    intermediate_pts: Sequence[Sequence[float]] | npt.NDArray[np.floating],
     length_stats: dict[str, float],
     # angle_stats,
     previous_history: HistoryType | None = None,

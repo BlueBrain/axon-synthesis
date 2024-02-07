@@ -90,6 +90,12 @@ def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_worker
                     },
                 }
             },
+            "inputs/Clustering/trunk_properties.json": {
+                "tolerance": 1e-4,
+            },
+            "inputs/Clustering/tuft_properties.json": {
+                "tolerance": 1e-4,
+            },
             "inputs/projection_probabilities.csv": {
                 "format_data_kwargs": {
                     "replace_pattern": {

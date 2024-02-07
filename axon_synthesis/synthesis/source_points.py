@@ -242,15 +242,11 @@ def create_random_sources(
     rng = np.random.default_rng(seed)
 
     if source_regions:
-        coords, missing_ids = atlas.get_region_points(
-            source_regions, size=nb_points, return_missing=True, rng=rng
-        )
+        coords, missing_ids = atlas.get_region_points(source_regions, size=nb_points, rng=rng)
         if missing_ids:
             logger.warning("Could not find the following regions in the atlas: %s", missing_ids)
     else:
-        coords = atlas.get_region_points(
-            [0], size=nb_points, inverse=True, return_missing=True, rng=rng
-        )
+        coords, _missing_ids = atlas.get_region_points([0], size=nb_points, inverse=True, rng=rng)
 
     if len(coords) < nb_points:
         logger.error(
