@@ -19,3 +19,27 @@ include:
         - /ci/jobs/py311.yml
         - /ci/jobs/min_versions.yml
         - /ci/jobs/coverage.yml
+
+.tox-template:
+  variables:
+    EXTRA_MODULES: archive/2021-05:py-mpi4py
+    MPI_LAUNCH_TIMEOUT: 120
+    bb5_cpus_per_task: 5
+
+docs:
+  variables:
+    EXTRA_MODULES: archive/2021-05:py-mpi4py
+
+# py38-MPI:
+#   extends: .tox-template
+#   variables:
+#     TOXENV: py38-MPI
+#     bb5_ntasks: 5
+#     bb5_constraint: cpu
+
+# py310-MPI:
+#   extends: .tox-template
+#   variables:
+#     TOXENV: py310-MPI
+#     bb5_ntasks: 5
+#     bb5_constraint: cpu
