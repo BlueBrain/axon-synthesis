@@ -6,6 +6,7 @@
    :maxdepth: 2
 
    Home <self>
+   general_principles
    cli
    config_file
    input_files

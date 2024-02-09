@@ -2,7 +2,7 @@
 
 A package to synthesize artificial axons.
 
-The main documentation, is available here: ?????????
+The main documentation, is available here: ????????? (TODO: Add proper link)
 
 
 ## Installation

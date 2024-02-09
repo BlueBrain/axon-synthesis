@@ -50,8 +50,11 @@ def map_population(
     rng = np.random.default_rng(rng)
     if populations is None:
         cells_df["population_id"] = DEFAULT_POPULATION
-    elif atlas is None:
-        msg = "The 'populations' argument should not be None when an atlas is provided"
+    elif atlas is None or populations is None:
+        msg = (
+            "The 'populations' and 'atlas' arguments should not be None when the 'population_id' "
+            "column is not given"
+        )
         raise RuntimeError(msg)
     else:
         # Get all the parent IDs in the brain region hierarchy
@@ -139,7 +142,8 @@ def set_source_points(
             [
                 col
                 for col in axon_grafting_points.columns
-                if col in ["morphology", "grafting_section_id", *SOURCE_COORDS_COLS]
+                if col
+                in ["morphology", "grafting_section_id", *SOURCE_COORDS_COLS, "population_id"]
             ]
         ]
         cells_df = cells_df.merge(axon_grafting_points, on="morphology", how="left")

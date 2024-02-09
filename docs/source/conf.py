@@ -30,7 +30,6 @@ release = version
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.autosectionlabel",
     "sphinx.ext.autosummary",
     "sphinx.ext.graphviz",
     "sphinx.ext.intersphinx",
@@ -39,9 +38,6 @@ extensions = [
     "sphinx_click",
     "m2r2",
 ]
-
-# Make sure the target is unique
-autosectionlabel_prefix_document = True
 
 todo_include_todos = True
 
