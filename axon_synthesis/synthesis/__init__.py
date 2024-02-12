@@ -19,6 +19,8 @@ from voxcell.cell_collection import CellCollection
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
+from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.inputs import Inputs
 from axon_synthesis.synthesis.add_tufts import build_and_graft_tufts
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
@@ -34,7 +36,6 @@ from axon_synthesis.synthesis.target_points import get_target_points
 from axon_synthesis.synthesis.tuft_properties import pick_barcodes
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
-from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import MorphNameAdapter
 from axon_synthesis.utils import check_min_max
 
@@ -361,17 +362,24 @@ def synthesize_one_morph_axons(
     return pd.Series(res, dtype=object)
 
 
-def synthesize_group_morph_axons(df, **func_kwargs):
+def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs) -> pd.DataFrame:
     """Synthesize all axons of each morphology."""
+    if "target_orientation" not in df.columns:
+        if inputs.atlas is not None:
+            df["target_orientation"] = inputs.atlas.orientations.lookup(
+                df[TARGET_COORDS_COLS].to_numpy()
+            )
+        else:
+            df["target_orientation"] = pd.Series([np.eye(3)] * len(df), index=df.index.to_numpy())
     return df.groupby("morphology").apply(
-        lambda group: synthesize_one_morph_axons(group, **func_kwargs)
+        lambda group: synthesize_one_morph_axons(group, inputs=inputs, **func_kwargs)
     )
 
 
 def _partition_wrapper(
-    df,
-    input_path,
-    atlas_config,
+    df: pd.DataFrame,
+    input_path: FileType,
+    atlas_config: AtlasConfig | None,
     **func_kwargs,
 ) -> pd.DataFrame:
     """Wrapper to process dask partitions."""
@@ -383,12 +391,10 @@ def _partition_wrapper(
     inputs.load_probabilities()
     inputs.load_tuft_params_and_distrs()
 
-    func_kwargs["inputs"] = inputs
-
-    return synthesize_group_morph_axons(df, **func_kwargs)
+    return synthesize_group_morph_axons(df, inputs=inputs, **func_kwargs)
 
 
-def create_dask_dataframe(data, npartitions, group_col="morphology"):
+def create_dask_dataframe(data: pd.DataFrame, npartitions: int, group_col="morphology"):
     """Ensure all rows of the same group belong to the same partition."""
     ddf = dd.from_pandas(data, npartitions)
     if len(ddf.divisions) > 2:

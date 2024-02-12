@@ -576,6 +576,7 @@ def cluster_morphologies(
                     bouton_density,
                     brain_regions,
                     atlas_region_id,
+                    atlas.orientations if atlas is not None else None,
                     projection_pop_numbers=projection_pop_numbers,
                     export_tuft_morph_dir=clustering.TUFT_MORPHOLOGIES_DIRNAME if debug else None,
                     config_name=config_name,

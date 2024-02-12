@@ -135,6 +135,7 @@ def pick_barcodes(
             *COORDS_COLS,
             "barcode",
             "section_id",
+            "target_orientation",
             *TUFT_COORDS_COLS,
             "tuft_orientation",
             "source_is_terminal",

@@ -22,7 +22,9 @@ from neurom.morphmath import section_length
 from tmd.io.conversion import convert_morphio_trees
 from tmd.Topology.methods import tree_to_property_barcode
 from tmd.Topology.persistent_properties import PersistentAngles
+from voxcell import VoxcellError
 from voxcell import VoxelData
+from voxcell.voxel_data import OrientationField
 
 from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import DEFAULT_POPULATION
@@ -177,8 +179,7 @@ def compute_common_section_properties(
     return path_distance, radial_distance, path_length, mean_tuft_length
 
 
-def reduce_clusters(  # noqa: PLR0913
-    # wmr: WhiteMatterRecipe,
+def reduce_clusters(  # noqa: PLR0912, PLR0913
     group,
     group_name,
     morph,
@@ -193,6 +194,7 @@ def reduce_clusters(  # noqa: PLR0913
     bouton_density: float | None,
     brain_regions: VoxelData | None = None,
     atlas_region_id: int | None = None,
+    atlas_orientations: OrientationField | None = None,
     projection_pop_numbers: pd.DataFrame | None = None,
     export_tuft_morph_dir: FileType | None = None,
     config_name: str | None = None,
@@ -252,6 +254,17 @@ def reduce_clusters(  # noqa: PLR0913
         # Compute tuft orientation
         tuft_orientation = cluster_center - tuft_ancestor.points[-1]
         tuft_orientation /= np.linalg.norm(tuft_orientation)
+        if atlas_orientations is not None:
+            try:
+                tuft_orientation = np.dot(
+                    tuft_orientation, atlas_orientations.lookup(tuft_ancestor.points[-1])[0].T
+                )
+            except VoxcellError:
+                logger.exception(
+                    "Could not retrieve the atlas orientation for %s at %s",
+                    group_name,
+                    tuft_ancestor.points[-1],
+                )
 
         # Resize the common section used as root (the root section is 1um)
         resize_root_section(tuft_morph, tuft_orientation)

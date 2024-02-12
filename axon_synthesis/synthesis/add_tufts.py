@@ -105,10 +105,9 @@ def build_and_graft_tufts(
     for _, row in tuft_properties.iterrows():
         # Create specific parameters
         params = deepcopy(parameters)
-        params["axon"]["orientation"]["values"]["orientations"] = [
-            row["tuft_orientation"],
-        ]
-        logger.debug("Tuft orientation: %s", row["tuft_orientation"])
+        tuft_orientation = np.dot(row["target_orientation"], row["tuft_orientation"])
+        params["axon"]["orientation"]["values"]["orientations"] = [tuft_orientation]
+        logger.debug("Tuft orientation: %s", tuft_orientation)
 
         # Create specific distributions
         distrib = deepcopy(distributions)
@@ -124,7 +123,7 @@ def build_and_graft_tufts(
 
         grower = TreeGrower(
             new_morph,
-            initial_direction=row["tuft_orientation"],
+            initial_direction=tuft_orientation,
             initial_point=initial_point,
             parameters=params["axon"],
             distributions=distrib["axon"],
