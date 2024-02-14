@@ -30,3 +30,4 @@ TO_COORDS_COLS = CoordsCols("x_to", "y_to", "z_to")
 
 # Constants
 DEFAULT_POPULATION = "default"
+WMR_ATLAS_ID = "id"  # Can also be "atlas_id" in other atlas versions

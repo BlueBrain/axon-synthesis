@@ -12,12 +12,14 @@ from jsonschema import Draft7Validator
 from jsonschema import ValidationError
 from jsonschema import validators
 from jsonschema.protocols import Validator
+from morph_tool.converter import single_point_sphere_to_circular_contour
 from morphio import IterType
 from morphio import PointLevel
 from morphio.mut import Morphology as MorphIoMorphology
 from neurom import COLS
 from neurom import NeuriteType
 from neurom.core import Morphology
+from neurom.core.soma import SomaType
 from neurom.morphmath import section_length
 from tmd.io.conversion import convert_morphio_trees
 from tmd.Topology.methods import tree_to_property_barcode
@@ -38,8 +40,26 @@ def export_morph(root_path, morph_name, morph, morph_type, suffix=""):
     """Export the given morphology to the given path."""
     morph_path = str(root_path / f"{Path(morph_name).with_suffix('').name}{suffix}.asc")
     logger.debug("Export %s morphology to %s", morph_type, morph_path)
+    if morph.soma_type == SomaType.SOMA_SINGLE_POINT:
+        morphio_morph = MorphIoMorphology(morph)
+        single_point_sphere_to_circular_contour(morphio_morph)
+        morph = Morphology(morphio_morph)
     morph.write(morph_path)
     return morph_path
+
+
+def compute_shortest_paths(directed_graph, attribute_name=None, source=-1):
+    """Compute the shortest paths using an attribute mapping."""
+    shortest_paths = nx.single_source_shortest_path(directed_graph, source)
+
+    if attribute_name is None:
+        return shortest_paths
+
+    node_mapping = nx.get_node_attributes(directed_graph, attribute_name)
+    mapped_shortest_paths = {}
+    for k, v in shortest_paths.items():
+        mapped_shortest_paths[node_mapping[k]] = [node_mapping[i] for i in v]
+    return mapped_shortest_paths
 
 
 def common_path(graph, nodes, source=None, shortest_paths=None) -> list[int]:
@@ -81,9 +101,10 @@ def common_path(graph, nodes, source=None, shortest_paths=None) -> list[int]:
 
 def create_tuft_morphology(
     morph,
-    tuft_section_ids,
-    common_ancestor,
+    tuft_node_ids,
+    common_ancestor_section_id,
     cluster_common_path,
+    nodes_to_section_ids,
     shortest_paths,
 ):
     """Create a new morphology containing only the given tuft."""
@@ -92,23 +113,20 @@ def create_tuft_morphology(
         if i.type != NeuriteType.axon:
             tuft_morph.delete_section(i)
 
-    tuft_sections = {
+    tuft_nodes = {
         j
         for terminal_id, path in shortest_paths.items()
-        if terminal_id in tuft_section_ids
+        if terminal_id in tuft_node_ids
         for j in path
     }.difference(cluster_common_path)
 
-    tuft_ancestor = tuft_morph.section(common_ancestor)
+    tuft_sections = {nodes_to_section_ids[i] for i in tuft_nodes}
 
     for i in tuft_morph.sections:
         if i.id not in tuft_sections:
             tuft_morph.delete_section(i.morphio_section, recursive=False)
 
-    for sec in list(tuft_ancestor.iter(IterType.upstream)):
-        if sec is tuft_ancestor:
-            continue
-        tuft_morph.delete_section(sec, recursive=False)
+    tuft_ancestor = tuft_morph.section(common_ancestor_section_id)
 
     return tuft_morph, tuft_ancestor
 
@@ -179,7 +197,7 @@ def compute_common_section_properties(
     return path_distance, radial_distance, path_length, mean_tuft_length
 
 
-def reduce_clusters(  # noqa: PLR0912, PLR0913
+def reduce_clusters(  # noqa: PLR0912, PLR0913, PLR0915
     group,
     group_name,
     morph,
@@ -187,10 +205,11 @@ def reduce_clusters(  # noqa: PLR0912, PLR0913
     axon_id,
     cluster_df,
     directed_graph,
+    nodes,
     sections_to_add,
     morph_paths,
     cluster_props: list[tuple],
-    shortest_paths,
+    shortest_paths: dict,
     bouton_density: float | None,
     brain_regions: VoxelData | None = None,
     atlas_region_id: int | None = None,
@@ -201,6 +220,7 @@ def reduce_clusters(  # noqa: PLR0912, PLR0913
     rng: SeedType = None,
 ) -> set[int]:
     """Reduce clusters to one section from their common ancestors to their centers."""
+    # pylint: disable=too-many-branches, too-many-statements
     if not config_name:
         config_name = ""
     kept_path: set[int] = set()
@@ -217,31 +237,28 @@ def reduce_clusters(  # noqa: PLR0912, PLR0913
 
     for tuft_id, cluster in group.groupby("tuft_id"):
         # Skip the root cluster
-        if (cluster.tuft_id == 0).any():
+        if (cluster.tuft_id <= 0).any():
             continue
 
         # Compute the common ancestor of the nodes
         cluster_common_path = common_path(
             directed_graph,
-            cluster["section_id"].tolist(),
+            cluster["graph_node_id"].tolist(),
             shortest_paths=shortest_paths,
         )
         common_ancestor_shift = -2 if len(cluster) == 1 and len(cluster_common_path) > 2 else -1
-        common_ancestor = cluster_common_path[common_ancestor_shift]
+        common_ancestor = nodes.loc[cluster_common_path[common_ancestor_shift], "section_id"]
         common_section = morph.section(common_ancestor)
 
-        kept_path = kept_path.union(cluster_common_path)
-
-        # TODO: The graph node IDs should be mapped to section IDs, currently it only workds for the
-        # first neurite because the graph node IDs correspond to the section IDs of the first
-        # neurite
+        kept_path = kept_path.union(nodes.loc[cluster_common_path, "section_id"])
 
         # Create a morphology for the current tuft
         tuft_morph, tuft_ancestor = create_tuft_morphology(
             morph,
-            set(cluster["section_id"]),
+            set(cluster["graph_node_id"]),
             common_ancestor,
             cluster_common_path[:common_ancestor_shift],
+            nodes["section_id"].to_dict(),
             shortest_paths,
         )
 
@@ -260,7 +277,7 @@ def reduce_clusters(  # noqa: PLR0912, PLR0913
                     tuft_orientation, atlas_orientations.lookup(tuft_ancestor.points[-1])[0].T
                 )
             except VoxcellError:
-                logger.exception(
+                logger.debug(
                     "Could not retrieve the atlas orientation for %s at %s",
                     group_name,
                     tuft_ancestor.points[-1],
@@ -367,6 +384,9 @@ def reduce_clusters(  # noqa: PLR0912, PLR0913
                 [0, 0],
             ),
         )
+
+    if (group["tuft_id"] == -1).any():
+        kept_path = kept_path.union(group.loc[group["tuft_id"] == -1, "section_id"])
     return kept_path
 
 

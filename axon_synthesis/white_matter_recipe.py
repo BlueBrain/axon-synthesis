@@ -17,6 +17,7 @@ from scipy.spatial.distance import squareform
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import BasePathBuilder
+from axon_synthesis.constants import WMR_ATLAS_ID
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import cols_from_json
@@ -300,7 +301,7 @@ class WhiteMatterRecipe(BasePathBuilder):
             all_targets["target_region"]
         )
         all_targets["target_brain_region_id"] = all_targets["target_brain_region_acronym"].apply(
-            lambda x: atlas.get_region_ids(x, with_descendants=False)[0]
+            lambda x: atlas.get_region_ids(x, with_descendants=False)[0][0]
         )
 
         population_probabilities = (
@@ -430,8 +431,8 @@ class WhiteMatterRecipe(BasePathBuilder):
                     np.isin(
                         region_ids,
                         [
-                            region_map.get(i, "atlas_id")
-                            for i in region_map.find(row, attr="atlas_id", with_descendants=True)
+                            region_map.get(i, WMR_ATLAS_ID)
+                            for i in region_map.find(row, attr=WMR_ATLAS_ID, with_descendants=True)
                         ],
                     ),
                 )
@@ -541,6 +542,8 @@ class WhiteMatterRecipe(BasePathBuilder):
 
         # Get target sub regions
         region_map_df = region_map.as_dataframe()
+        if "atlas_id" not in region_map_df.columns:
+            region_map_df["atlas_id"] = region_map_df.index.to_numpy()
         region_map_df = (
             region_map_df.reset_index()
             .merge(

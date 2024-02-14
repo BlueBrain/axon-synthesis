@@ -113,7 +113,7 @@ class CreateGraphConfig:
     def compute_region_tree(self, atlas: AtlasHelper, *, force: bool = False):
         """Compute the favored region tree using the given Atlas."""
         if self.favored_regions is not None and (self.favored_region_tree is None or force):
-            favored_region_points = atlas.get_region_points(self.favored_regions)
+            favored_region_points, _missing_ids = atlas.get_region_points(self.favored_regions)
             self.favored_region_tree = KDTree(favored_region_points)
         else:
             self.favored_region_tree = None

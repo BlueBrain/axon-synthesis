@@ -7,9 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import ClassVar
 
-import networkx as nx
 import pandas as pd
-from neurom import load_morphology
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import FILE_SELECTION
@@ -28,6 +26,7 @@ from axon_synthesis.inputs.clustering.from_spheres import compute_clusters as cl
 from axon_synthesis.inputs.clustering.plot import plot_cluster_properties
 from axon_synthesis.inputs.clustering.plot import plot_clusters
 from axon_synthesis.inputs.clustering.utils import DefaultValidatingValidator
+from axon_synthesis.inputs.clustering.utils import compute_shortest_paths
 from axon_synthesis.inputs.clustering.utils import create_clustered_morphology
 from axon_synthesis.inputs.clustering.utils import export_morph
 from axon_synthesis.inputs.clustering.utils import reduce_clusters
@@ -37,6 +36,7 @@ from axon_synthesis.typing import SeedType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import get_axons
+from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import neurite_to_graph
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
 
@@ -64,6 +64,17 @@ CLUSTERING_FUNCS = {
     "barcode": clusters_from_barcodes,
     "brain_regions": clusters_from_brain_regions,
 }
+
+
+def nodes_to_terminals_mapping(graph, shortest_paths):
+    """Map nodes to terminals."""
+    node_to_terminals = defaultdict(set)
+    for node_id, parent_ids in shortest_paths.items():
+        if not graph.nodes[node_id]["is_terminal"]:
+            continue
+        for j in parent_ids:
+            node_to_terminals[j].add(node_id)
+    return node_to_terminals
 
 
 class Clustering(BasePathBuilder):
@@ -487,7 +498,7 @@ def cluster_morphologies(
         LOGGER.debug("%s: %s points", group_name, len(group))
 
         # Load the morphology
-        morph = load_morphology(group_name)
+        morph = load_morphology(group_name, recenter=True)
 
         # Get the source brain region
         atlas_region_id = brain_regions.lookup(morph.soma.center) if atlas is not None else None
@@ -506,7 +517,8 @@ def cluster_morphologies(
                 )
                 continue
             nodes, edges, directed_graph = neurite_to_graph(axon)
-            shortest_paths = nx.single_source_shortest_path(directed_graph, -1)
+            shortest_paths = compute_shortest_paths(directed_graph)
+            node_to_terminals = nodes_to_terminals_mapping(directed_graph, shortest_paths)
 
             for config_name, config in clustering.parameters.items():
                 if config["method"] == "brain_regions" and (atlas is None or wmr is None):
@@ -517,6 +529,13 @@ def cluster_morphologies(
                     raise ValueError(msg)
                 axon_group = group.loc[group["axon_id"] == axon_id].copy(deep=True)
                 axon_group["config_name"] = config_name
+                axon_group = axon_group.merge(
+                    nodes.reset_index().rename(columns={"id": "graph_node_id"})[
+                        ["section_id", "graph_node_id"]
+                    ],
+                    on="section_id",
+                    how="left",
+                )
                 suffix = f"_{config_name}_{axon_id}"
                 clustering_kwargs = {
                     "atlas": atlas,
@@ -531,6 +550,8 @@ def cluster_morphologies(
                     "nodes": nodes,
                     "edges": edges,
                     "directed_graph": directed_graph,
+                    "shortest_paths": shortest_paths,
+                    "node_to_terminals": node_to_terminals,
                     "output_cols": OUTPUT_COLS,
                     "clustered_morphologies_path": clustering.CLUSTERED_MORPHOLOGIES_DIRNAME,
                     "trunk_morphologies_path": clustering.TRUNK_MORPHOLOGIES_DIRNAME,
@@ -569,6 +590,7 @@ def cluster_morphologies(
                     axon_id,
                     cluster_df,
                     directed_graph,
+                    nodes,
                     sections_to_add,
                     morph_paths,
                     cluster_props,

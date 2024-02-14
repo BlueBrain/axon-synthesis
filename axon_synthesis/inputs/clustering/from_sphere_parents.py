@@ -1,5 +1,4 @@
 """Clustering from sphere parents."""
-from collections import defaultdict
 
 import networkx as nx
 import pandas as pd
@@ -8,23 +7,6 @@ from scipy.spatial.distance import pdist
 
 from axon_synthesis.inputs.clustering.utils import common_path
 from axon_synthesis.utils import COORDS_COLS
-from axon_synthesis.utils import neurite_to_graph
-
-
-def nodes_to_terminals_mapping(graph, source=None, shortest_paths=None):
-    """Map nodes to terminals."""
-    if (source is None) == (shortest_paths is None):
-        msg = "At least 'source' or 'shortest_paths' must be given but not both."
-        raise ValueError(msg)
-    if shortest_paths is None:
-        shortest_paths = nx.single_source_shortest_path(graph, source)
-    node_to_terminals = defaultdict(set)
-    for node_id, parent_ids in shortest_paths.items():
-        if not graph.nodes[node_id]["is_terminal"]:
-            continue
-        for j in parent_ids:
-            node_to_terminals[j].add(node_id)
-    return node_to_terminals
 
 
 def _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_path_distance) -> None:
@@ -38,7 +20,7 @@ def _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_pat
     except KeyError:
         path = pair_paths[term_b][term_a]
 
-    if pdist(nodes.loc[path, COORDS_COLS].values).max() > max_path_distance:
+    if pdist(nodes.loc[path, COORDS_COLS].to_numpy()).max() > max_path_distance:
         # Skip if a point on the path exceeds the clustering distance
         return
 
@@ -68,23 +50,33 @@ def _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_pat
             cluster_ids.loc[[term_a, term_b]] = cluster_ids.max() + 1
 
 
-def compute_clusters(config, config_name, axon, axon_id, group_name, group, **_kwargs):
+def compute_clusters(
+    config,
+    config_name,
+    axon_id,
+    group_name,
+    group,
+    nodes,
+    edges,
+    directed_graph,
+    shortest_paths,
+    node_to_terminals,
+    **_kwargs,
+):
     """All parents up to the common ancestor must be inside the sphere to be merged."""
     sphere_radius = config["sphere_radius"]
     max_path_distance = config.get("max_path_distance", sphere_radius)
 
     # Get the complete morphology
     new_terminal_points: list[list] = []
-    nodes, edges, directed_graph = neurite_to_graph(axon)
 
     graph: nx.Graph = nx.Graph(directed_graph)
-    terminal_ids = nodes.loc[nodes["is_terminal"]].index
+    terminals = nodes.loc[nodes["is_terminal"]]
 
-    pair_paths = dict(i for i in nx.all_pairs_shortest_path(graph) if i[0] in terminal_ids)
+    pair_paths = dict(i for i in nx.all_pairs_shortest_path(graph) if i[0] in set(terminals.index))
 
     # Get the pairs of terminals closer to the given distance
-    terminal_nodes = nodes.loc[terminal_ids, COORDS_COLS]
-    terminal_tree = KDTree(terminal_nodes.values)
+    terminal_tree = KDTree(terminals[COORDS_COLS].to_numpy())
     terminal_pairs = terminal_tree.query_pairs(sphere_radius)
 
     # Initialize cluster IDs
@@ -96,7 +88,7 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **_k
 
     # Check that the paths between each pair do not exceed the given distance
     for a, b in terminal_pairs:
-        _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_path_distance)
+        _check_cluster(a, b, nodes, terminals, pair_paths, cluster_ids, max_path_distance)
 
     # Create cluster IDs for not clustered terminals
     not_clustered_mask = (nodes["is_terminal"]) & (cluster_ids == -1)
@@ -109,21 +101,19 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **_k
         {v: k for k, v in enumerate(sorted(cluster_ids.unique()), start=-1)},
     )
 
-    # Groupy points by cluster IDs
+    # Groupby points by cluster IDs
     clusters = nodes.loc[nodes["is_terminal"]].groupby("tuft_id")
     sorted_clusters = sorted(clusters, key=lambda x: x[1].size, reverse=True)
 
     new_terminal_id = 1
-    paths_from_root = nx.single_source_shortest_path(graph, -1)
-    node_to_terminals = nodes_to_terminals_mapping(graph, shortest_paths=paths_from_root)
 
     # Ensure there are at least 4 clusters
     for num_cluster, (_, cluster) in enumerate(sorted_clusters):
         # Compute the common ancestor
         cluster_common_path = common_path(
             directed_graph,
-            cluster.index.tolist(),
-            shortest_paths=paths_from_root,
+            cluster.index.to_list(),
+            shortest_paths=shortest_paths,
         )
         common_ancestors = [cluster_common_path[-1]]
 
@@ -156,7 +146,7 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **_k
         for common_ancestor in common_ancestors:
             terminals_with_current_ancestor = cluster.loc[
                 list(set(node_to_terminals[common_ancestor]).intersection(cluster.index))
-            ]
+            ].sort_index()
             new_terminal_points.append(
                 [
                     group_name,
@@ -169,7 +159,7 @@ def compute_clusters(config, config_name, axon, axon_id, group_name, group, **_k
             )
             if not is_root:
                 group.loc[
-                    group["section_id"].isin(terminals_with_current_ancestor.index),
+                    group["graph_node_id"].isin(terminals_with_current_ancestor.index),
                     "tuft_id",
                 ] = new_terminal_id
                 new_terminal_id += 1

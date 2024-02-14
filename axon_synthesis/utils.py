@@ -15,6 +15,8 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from neurom import NeuriteType
+from neurom import load_morphology as neurom_load_morphology
+from neurom.geom.transform import Translation
 
 from axon_synthesis.constants import COORDS_COLS
 
@@ -137,6 +139,14 @@ def add_camera_sync(fig_path):
         f.write(tmp.replace("</body>", js + "</body>"))
 
 
+def load_morphology(path, *, recenter=False):
+    """Load a morphology a optionally recenter it."""
+    morph = neurom_load_morphology(path)
+    if recenter:
+        morph = morph.transform(Translation(-morph.soma.center))
+    return morph
+
+
 def get_axons(morph):
     """Get axons of the given morphology."""
     return [i for i in morph.neurites if i.type == NeuriteType.axon]
@@ -182,7 +192,9 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=Fal
     ).reset_index(drop=True)
 
     graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
-    nx.set_node_attributes(graph, nodes[[*COORDS_COLS, "radius", "is_terminal"]].to_dict("index"))
+    nx.set_node_attributes(
+        graph, nodes[["section_id", *COORDS_COLS, "radius", "is_terminal"]].to_dict("index")
+    )
 
     return nodes, edges, graph
 

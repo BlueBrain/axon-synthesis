@@ -16,7 +16,6 @@ from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import disable_loggers
 
 
-@disable_loggers("matplotlib.font_manager")
 def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_path):
     """Plot clusters to a HTML figure."""
     plotted_morph = Morphology(
