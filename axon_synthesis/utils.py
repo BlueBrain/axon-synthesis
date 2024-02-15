@@ -14,11 +14,18 @@ from pathlib import Path
 import networkx as nx
 import numpy as np
 import pandas as pd
+from morph_tool.converter import single_point_sphere_to_circular_contour
+from morphio.mut import Morphology as MorphIoMorphology
 from neurom import NeuriteType
 from neurom import load_morphology as neurom_load_morphology
+from neurom.core import Morphology
+from neurom.core.soma import SomaType
 from neurom.geom.transform import Translation
 
 from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.typing import FileType
+
+LOGGER = logging.getLogger(__name__)
 
 
 class MorphNameAdapter(logging.LoggerAdapter):
@@ -40,9 +47,11 @@ def sublogger(
     logger: logging.Logger | logging.LoggerAdapter | None, name: str
 ) -> logging.Logger | logging.LoggerAdapter:
     """Get a sub-logger with specific name."""
-    if isinstance(logger, logging.LoggerAdapter):
+    if logger is not None:
         new_logger = logger.manager.getLogger(name)
-        return logger.__class__(new_logger, logger.extra)
+        if isinstance(logger, logging.LoggerAdapter):
+            return logger.__class__(new_logger, logger.extra)
+        return new_logger
     return logging.getLogger(name)
 
 
@@ -137,14 +146,6 @@ def add_camera_sync(fig_path):
 
     with Path(fig_path).open("w", encoding="utf-8") as f:
         f.write(tmp.replace("</body>", js + "</body>"))
-
-
-def load_morphology(path, *, recenter=False):
-    """Load a morphology a optionally recenter it."""
-    morph = neurom_load_morphology(path)
-    if recenter:
-        morph = morph.transform(Translation(-morph.soma.center))
-    return morph
 
 
 def get_axons(morph):
@@ -363,3 +364,31 @@ def get_code_location(back_frames=1):
             msg = f"Could not find the back frame number {num}"
             raise RuntimeError(msg)
     return frame.f_code.co_filename, frame.f_lineno
+
+
+def load_morphology(path, *, recenter=False):
+    """Load a morphology a optionally recenter it."""
+    morph = neurom_load_morphology(path)
+    if recenter:
+        morph = morph.transform(Translation(-morph.soma.center))
+    return morph
+
+
+@disable_loggers("morph_tool.converter")
+def save_morphology(
+    morph: Morphology,
+    morph_path: FileType,
+    msg: str | None = None,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
+):
+    """Export the given morphology to the given path."""
+    if msg is None:
+        msg = f"Export morphology to {morph_path}"
+    logger = sublogger(logger, __name__)
+    logger.debug(msg)
+    if morph.soma_type == SomaType.SOMA_SINGLE_POINT:
+        morphio_morph = MorphIoMorphology(morph)
+        single_point_sphere_to_circular_contour(morphio_morph)
+        morph = Morphology(morphio_morph)
+    morph.write(morph_path)
+    return morph_path

@@ -12,14 +12,12 @@ from jsonschema import Draft7Validator
 from jsonschema import ValidationError
 from jsonschema import validators
 from jsonschema.protocols import Validator
-from morph_tool.converter import single_point_sphere_to_circular_contour
 from morphio import IterType
 from morphio import PointLevel
 from morphio.mut import Morphology as MorphIoMorphology
 from neurom import COLS
 from neurom import NeuriteType
 from neurom.core import Morphology
-from neurom.core.soma import SomaType
 from neurom.morphmath import section_length
 from tmd.io.conversion import convert_morphio_trees
 from tmd.Topology.methods import tree_to_property_barcode
@@ -32,19 +30,18 @@ from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import DEFAULT_POPULATION
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
+from axon_synthesis.utils import disable_loggers
+from axon_synthesis.utils import save_morphology
 
 logger = logging.getLogger(__name__)
 
 
+@disable_loggers("morph_tool.converter")
 def export_morph(root_path, morph_name, morph, morph_type, suffix=""):
     """Export the given morphology to the given path."""
     morph_path = str(root_path / f"{Path(morph_name).with_suffix('').name}{suffix}.asc")
-    logger.debug("Export %s morphology to %s", morph_type, morph_path)
-    if morph.soma_type == SomaType.SOMA_SINGLE_POINT:
-        morphio_morph = MorphIoMorphology(morph)
-        single_point_sphere_to_circular_contour(morphio_morph)
-        morph = Morphology(morphio_morph)
-    morph.write(morph_path)
+    msg = f"Export {morph_type} morphology to {morph_path}"
+    save_morphology(morph, morph_path, msg)
     return morph_path
 
 

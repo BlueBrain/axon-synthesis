@@ -370,6 +370,8 @@ def random_walk(  # noqa: PLR0913
 
     while global_target_dist >= length_norm:
         step_length = rng.normal(length_norm, length_std)
+        while step_length <= 0:
+            step_length = rng.normal(length_norm, length_std)
 
         history_direction = history(latest_lengths, latest_directions, history_path_length)
 

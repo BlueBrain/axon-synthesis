@@ -1,4 +1,5 @@
 """Validation workflow that mimics inputs morphologies."""
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,8 @@ from axon_synthesis.synthesis import synthesize_axons
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
+
+LOGGER = logging.getLogger(__name__)
 
 
 def create_cell_collection(
@@ -52,6 +55,7 @@ def create_cell_collection(
     cells = CellCollection.from_dataframe(cells_df)
     if output_path is not None:
         cells.save(output_path)
+    LOGGER.info("Found %s morphologies in %s", len(cells_df), morphology_dir)
     return cells
 
 

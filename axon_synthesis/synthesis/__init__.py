@@ -38,6 +38,7 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import MorphNameAdapter
 from axon_synthesis.utils import check_min_max
+from axon_synthesis.utils import save_morphology
 
 LOGGER = logging.getLogger(__name__)
 
@@ -337,8 +338,12 @@ def synthesize_one_morph_axons(
             # TODO: Diametrize the synthesized axon
 
         final_morph_path = outputs.MORPHOLOGIES / f"{morph_name}.h5"
-        morph.write(final_morph_path)
-        morph_custom_logger.info("Exported synthesized morphology to %s", final_morph_path)
+        save_morphology(
+            morph,
+            final_morph_path,
+            msg=f"Export synthesized morphology to {final_morph_path}",
+            logger=morph_custom_logger,
+        )
         if debug:
             plot_final_morph(
                 morph,
@@ -351,9 +356,8 @@ def synthesize_one_morph_axons(
             "debug_infos": None,
         }
     except Exception as exc:
-        morph_custom_logger.error(  # noqa: TRY400
-            "Skip the morphology because of the following error: %s",
-            exc,
+        morph_custom_logger.exception(
+            "Skip the morphology because of the following error",
         )
         res = {
             "file_path": None,
@@ -370,8 +374,10 @@ def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs
                 df[TARGET_COORDS_COLS].to_numpy()
             )
         else:
-            df["target_orientation"] = pd.Series([np.eye(3)] * len(df), index=df.index.to_numpy())
-    return df.groupby("morphology").apply(
+            df["target_orientation"] = pd.Series(
+                [np.eye(3)] * len(df), index=df.index.to_numpy(), dtype=object
+            )
+    return df.groupby("morphology", group_keys=True).apply(
         lambda group: synthesize_one_morph_axons(group, inputs=inputs, **func_kwargs)
     )
 
@@ -391,7 +397,7 @@ def _partition_wrapper(
     inputs.load_probabilities()
     inputs.load_tuft_params_and_distrs()
 
-    return synthesize_group_morph_axons(df, inputs=inputs, **func_kwargs)
+    return synthesize_group_morph_axons(df.copy(deep=False), inputs=inputs, **func_kwargs)
 
 
 def create_dask_dataframe(data: pd.DataFrame, npartitions: int, group_col="morphology"):
