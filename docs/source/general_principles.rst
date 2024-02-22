@@ -97,6 +97,8 @@ Here are the possible penalties:
 Once the edges all have a weight, the Steiner Tree algorithm is computed in order to selected the
 edges that connect the source point to all the target points using the shortest possible paths.
 
+.. image:: scripts/graph_creation_solution.svg
+
 The final step to build the main trunk is to perform a guided random walk that follows the edges
 selected by the Steiner Tree algorithm. The random walk is tinkered in a way that ensures that the
 final result of this step is a main trunk whose morphometrics are realistic.

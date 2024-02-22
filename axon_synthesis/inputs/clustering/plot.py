@@ -13,6 +13,7 @@ from plotly_helper.neuron_viewer import NeuronBuilder
 from axon_synthesis.constants import COMMON_ANCESTOR_COORDS_COLS
 from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.utils import add_camera_sync
+from axon_synthesis.utils import build_layout_properties
 from axon_synthesis.utils import disable_loggers
 
 
@@ -106,9 +107,10 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
     cluster_trace.showlegend = False
     fig.add_trace(cluster_trace, row=1, col=2)
 
-    fig.update_scenes({"aspectmode": "data"})
+    layout_props = build_layout_properties(group[COORDS_COLS].to_numpy(), 0.1)
 
-    fig.layout.update(title=group_name)
+    fig.update_scenes(layout_props)
+    fig.update_layout(title=group_name)
 
     # Export figure
     fig.write_html(str(output_path))

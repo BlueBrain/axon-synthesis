@@ -6,7 +6,7 @@ import plotly.graph_objs as go
 
 from axon_synthesis.constants import FROM_COORDS_COLS
 from axon_synthesis.constants import TO_COORDS_COLS
-from axon_synthesis.utils import compute_bbox
+from axon_synthesis.utils import build_layout_properties
 
 
 def plot_triangulation(edges, source_point, target_points, figure_path, logger=None):
@@ -47,19 +47,11 @@ def plot_triangulation(edges, source_point, target_points, figure_path, logger=N
     fig.add_trace(source_point_trace)
     fig.add_trace(target_points_trace)
 
-    pts = np.stack([source_point, *target_points])
-    bbox = compute_bbox(pts, 0.1)
+    pts = np.vstack([[source_point], target_points])
+    layout_props = build_layout_properties(pts, 0.1)
 
-    fig.layout.update(
-        title=Path(figure_path).stem,
-        scene={
-            "xaxis": {"range": bbox[:, 0]},
-            "yaxis": {"range": bbox[:, 1]},
-            "zaxis": {"range": bbox[:, 2]},
-        },
-    )
-
-    fig.update_scenes({"aspectmode": "data"})
+    fig.update_scenes(layout_props)
+    fig.update_layout(title=Path(figure_path).stem)
 
     # Export figure
     fig.write_html(figure_path)

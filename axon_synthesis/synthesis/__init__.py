@@ -30,6 +30,7 @@ from axon_synthesis.synthesis.main_trunk.steiner_morphology import build_and_gra
 from axon_synthesis.synthesis.main_trunk.steiner_tree import compute_solution
 from axon_synthesis.synthesis.outputs import Outputs
 from axon_synthesis.synthesis.plot import plot_final_morph
+from axon_synthesis.synthesis.plot import plot_target_points
 from axon_synthesis.synthesis.source_points import SOURCE_COORDS_COLS
 from axon_synthesis.synthesis.source_points import set_source_points
 from axon_synthesis.synthesis.target_points import get_target_points
@@ -38,6 +39,7 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import MorphNameAdapter
 from axon_synthesis.utils import check_min_max
+from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import save_morphology
 
 LOGGER = logging.getLogger(__name__)
@@ -113,6 +115,9 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=False):
             "STEINER_TREE_SOLUTION": (outputs.STEINER_TREE_SOLUTIONS / morph_file_name)
             if debug
             else None,
+            "TARGET_POINT_FIGURE": (outputs.TARGET_POINT_FIGURES / figure_file_name)
+            if debug
+            else None,
             "TUFT_FIGURES": outputs.TUFT_FIGURES if debug else None,
             "TUFT_MORPHOLOGIES": outputs.TUFT_MORPHOLOGIES if debug else None,
         }
@@ -125,6 +130,7 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=False):
             "POSTPROCESS_TRUNK_FIGURE",
             "POSTPROCESS_TRUNK_MORPHOLOGY",
             "STEINER_TREE_SOLUTION",
+            "TARGET_POINT_FIGURE",
             "TUFT_FIGURES",
             "TUFT_MORPHOLOGIES",
         }
@@ -236,7 +242,7 @@ def synthesize_one_morph_axons(
     morph_custom_logger = MorphNameAdapter(logger, extra={"morph_name": morph_name})
     morph_custom_logger.debug("Starting synthesis")
     try:
-        morph = Morphology(morph_terminals["morph_file"].to_numpy()[0])
+        morph = load_morphology(morph_terminals["morph_file"].to_numpy()[0])
 
         # Translate the morphology to its position in the atlas
         morph = morph.transform(
@@ -245,7 +251,7 @@ def synthesize_one_morph_axons(
 
         morph.name = morph_name
 
-        initial_morph = Morphology(morph) if debug else None
+        initial_morph = Morphology(morph, name=morph.name) if debug else None
 
         if rebuild_existing_axons:
             # Remove existing axons
@@ -266,6 +272,15 @@ def synthesize_one_morph_axons(
                 f"{morph_name}_{axon_id}.html",
                 debug=debug,
             )
+
+            # Create a plot for the initial morph with source and target points
+            if debug:
+                plot_target_points(
+                    initial_morph,
+                    axon_terminals[SOURCE_COORDS_COLS].to_numpy()[0],
+                    axon_terminals[TARGET_COORDS_COLS].to_numpy(),
+                    axon_paths.TARGET_POINT_FIGURE,
+                )
 
             # Create the graph for the current axon
             nodes, edges = one_graph(
@@ -318,7 +333,6 @@ def synthesize_one_morph_axons(
                 rng=rng,
                 output_path=axon_paths.POSTPROCESS_TRUNK_MORPHOLOGY,
                 figure_path=axon_paths.POSTPROCESS_TRUNK_FIGURE,
-                initial_morph=initial_morph,
                 logger=axon_custom_logger,
             )
 
@@ -337,6 +351,7 @@ def synthesize_one_morph_axons(
 
             # TODO: Diametrize the synthesized axon
 
+        # Export the final morph
         final_morph_path = outputs.MORPHOLOGIES / f"{morph_name}.h5"
         save_morphology(
             morph,
@@ -344,9 +359,12 @@ def synthesize_one_morph_axons(
             msg=f"Export synthesized morphology to {final_morph_path}",
             logger=morph_custom_logger,
         )
+
+        # Create a plot for the final morph
         if debug:
             plot_final_morph(
                 morph,
+                morph_terminals,
                 outputs.FINAL_FIGURES / f"{morph_name}.html",
                 initial_morph,
                 logger=morph_custom_logger,

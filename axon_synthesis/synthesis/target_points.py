@@ -161,7 +161,7 @@ def get_target_points(
     ].reset_index(drop=True)
 
     # Ensure that at least one region is selected for each morphology
-    probs["random_number"] = pd.Series(-1, dtype=float)
+    probs["random_number"] = pd.Series(-1, index=probs.index.to_numpy(), dtype=float)
     no_target_mask = probs["random_number"] < 0
     n_tries = 0
     mask_size = no_target_mask.sum()

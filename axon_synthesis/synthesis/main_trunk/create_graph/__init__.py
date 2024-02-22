@@ -16,6 +16,7 @@ from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import FROM_COORDS_COLS
 from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.constants import TO_COORDS_COLS
+from axon_synthesis.constants import NodeProvider
 from axon_synthesis.synthesis.main_trunk.create_graph.plot import plot_triangulation
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_bounding_box_pts
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_depth_penalty
@@ -65,7 +66,9 @@ class CreateGraphConfig:
 
     # Intermediate points
     intermediate_number: int = field(default=5, validator=check_min_max(min_value=0))
-    min_intermediate_distance: float = field(default=1000, validator=check_min_max(min_value=0))
+    min_intermediate_distance: float = field(
+        default=1000, validator=check_min_max(min_value=0, strict_min=True)
+    )
 
     # Random points
     min_random_point_distance: float | None = field(
@@ -74,7 +77,7 @@ class CreateGraphConfig:
     random_point_bbox_buffer: float = field(default=0, validator=check_min_max(min_value=0))
 
     # Voronoï points
-    voronoi_steps: int = field(default=1, validator=check_min_max(min_value=1))
+    voronoi_steps: int = field(default=1, validator=check_min_max(min_value=0))
 
     # Duplicated points
     duplicate_precision: float = field(
@@ -143,15 +146,22 @@ def one_graph(
 
     # Terminal points
     pts = np.concatenate([[source_coords], unique_target_points[TARGET_COORDS_COLS].to_numpy()])
+    pts = np.hstack(
+        (
+            pts,
+            np.atleast_2d(
+                [NodeProvider.source] + [NodeProvider.target] * len(unique_target_points)
+            ).T,
+        )
+    )
 
     # Add intermediate points
-    inter_pts = add_intermediate_points(
+    all_pts = add_intermediate_points(
         pts,
         source_coords,
         config.min_intermediate_distance,
         config.intermediate_number,
     )
-    all_pts = np.concatenate([pts, *[i[1] for i in inter_pts if i[0] > 0]])
 
     # Add random points
     all_pts = add_random_points(
@@ -159,6 +169,7 @@ def one_graph(
         config.min_random_point_distance,
         config.random_point_bbox_buffer,
         rng,
+        logger=logger,
     )
 
     # Add the bounding box points to ensure a minimum number of points
@@ -168,7 +179,7 @@ def one_graph(
     all_pts = add_voronoi_points(all_pts, config.voronoi_steps)
 
     # Gather points
-    nodes_df = pd.DataFrame(all_pts, columns=COORDS_COLS)
+    nodes_df = pd.DataFrame(all_pts, columns=[*COORDS_COLS, "NodeProvider"])
 
     # Mark the source and target points as terminals and the others as intermediates
     nodes_df["is_terminal"] = [True] * len(pts) + [False] * (len(all_pts) - len(pts))
@@ -262,9 +273,13 @@ def one_graph(
         plot_triangulation(
             edges_df,
             source_coords,
-            pts[1:],  # The first one is the source
+            pts[1:, :3],  # The first one is the source
             figure_path,
             logger=logger,
         )
+
+    nodes_df["NodeProvider"] = nodes_df.loc[:, "NodeProvider"].map(
+        {i: i.name for i in NodeProvider}
+    )
 
     return nodes_df, edges_df

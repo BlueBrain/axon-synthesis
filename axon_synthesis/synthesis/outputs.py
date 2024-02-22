@@ -17,6 +17,7 @@ class Outputs(BasePathBuilder):
         "POSTPROCESS_TRUNK_FIGURES": "PostProcessTrunkFigures",
         "POSTPROCESS_TRUNK_MORPHOLOGIES": "PostProcessTrunkMorphologies",
         "STEINER_TREE_SOLUTIONS": "SteinerTreeSolutions",
+        "TARGET_POINT_FIGURES": "TargetPointsFigures",
         "TARGET_POINTS": "target_points.h5",
         "TUFT_FIGURES": "TuftFigures",
         "TUFT_MORPHOLOGIES": "TuftMorphologies",
@@ -31,6 +32,7 @@ class Outputs(BasePathBuilder):
         "POSTPROCESS_TRUNK_FIGURES",
         "POSTPROCESS_TRUNK_MORPHOLOGIES",
         "STEINER_TREE_SOLUTIONS",
+        "TARGET_POINT_FIGURES",
         "TARGET_POINTS",
         "TUFT_FIGURES",
         "TUFT_MORPHOLOGIES",
@@ -46,6 +48,7 @@ class Outputs(BasePathBuilder):
         "POSTPROCESS_TRUNK_FIGURES",
         "POSTPROCESS_TRUNK_MORPHOLOGIES",
         "STEINER_TREE_SOLUTIONS",
+        "TARGET_POINT_FIGURES",
         "TUFT_FIGURES",
         "TUFT_MORPHOLOGIES",
     }

@@ -9,11 +9,15 @@ from scipy.spatial import KDTree
 from scipy.spatial import Voronoi  # pylint: disable=no-name-in-module
 
 from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.constants import NodeProvider
+
+FORCE_2D = False
+"""Force the Voronoï and Delaunay calculations to ignore the Z coordinate."""
 
 
 def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermediate_number):
-    """Add intermediate points between each pair of points."""
-    terms = pts - ref_coords
+    """Add intermediate points between source points and target points."""
+    terms = pts[:, :3] - ref_coords
     term_dists = np.linalg.norm(terms, axis=1)
     nb_inter = np.clip(
         term_dists // min_intermediate_distance,
@@ -23,20 +27,27 @@ def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermed
 
     inter_pts = []
     for x, y, z, num in np.hstack([terms, np.atleast_2d(nb_inter).T]):
+        if num == 0:
+            continue
         inter_pts.append(
             (
                 num,
-                np.array(
-                    [
-                        np.linspace(0, x, int(num) + 2)[1:-1],
-                        np.linspace(0, y, int(num) + 2)[1:-1],
-                        np.linspace(0, z, int(num) + 2)[1:-1],
-                    ],
-                ).T
-                + ref_coords,
+                np.hstack(
+                    (
+                        np.array(
+                            [
+                                np.linspace(0, x, int(num) + 2)[1:-1],
+                                np.linspace(0, y, int(num) + 2)[1:-1],
+                                np.linspace(0, z, int(num) + 2)[1:-1],
+                            ],
+                        ).T
+                        + ref_coords,
+                        np.ones((int(num), 1)) * NodeProvider.intermediate,
+                    )
+                ),
             ),
         )
-    return inter_pts
+    return np.concatenate([pts, *[i[1] for i in inter_pts]])
 
 
 def add_random_points(
@@ -51,10 +62,11 @@ def add_random_points(
     """Add random points in the bounding box of the given points."""
     if min_random_point_distance is not None:
         n_fails = 0
-        bbox = np.vstack([all_pts.min(axis=0), all_pts.max(axis=0)])
+        all_xyz = all_pts[:, :3]
+        bbox = np.vstack([all_xyz.min(axis=0), all_xyz.max(axis=0)])
         bbox[0] -= bbox_buffer
         bbox[1] += bbox_buffer
-        tree = KDTree(all_pts)
+        tree = KDTree(all_xyz)
         new_pts: list[np.ndarray] = []
         while n_fails < max_tries:
             xyz = np.array(
@@ -86,7 +98,14 @@ def add_random_points(
         if new_pts:
             if logger is not None:
                 logger.info("Random points added: %s", len(new_pts))
-            all_pts = np.concatenate([all_pts, np.array(new_pts)])
+            all_pts = np.concatenate(
+                [
+                    all_pts,
+                    np.hstack(
+                        (np.array(new_pts), np.ones((len(new_pts), 1)) * NodeProvider.random)
+                    ),
+                ]
+            )
         elif logger is not None:
             logger.warning(
                 (
@@ -102,8 +121,14 @@ def add_random_points(
 
 def add_bounding_box_pts(all_pts):
     """Add points of the bbox."""
-    bbox = np.array([all_pts.min(axis=0), all_pts.max(axis=0)])
-    bbox_pts = np.array(np.meshgrid(*np.array(bbox).T)).T.reshape((8, 3))
+    all_xyz = all_pts[:, :3]
+    bbox = np.array([all_xyz.min(axis=0), all_xyz.max(axis=0)])
+    bbox_pts = np.hstack(
+        (
+            np.array(np.meshgrid(*np.array(bbox).T)).T.reshape((8, 3)),
+            np.ones((8, 1)) * NodeProvider.bbox,
+        )
+    )
     new_all_pts = np.concatenate([all_pts, bbox_pts])
     return new_all_pts[np.sort(np.unique(new_all_pts, axis=0, return_index=True)[1])]
 
@@ -113,8 +138,14 @@ def add_voronoi_points(all_pts, voronoi_steps):
     if len(all_pts) < 5:
         return all_pts
     for _ in range(voronoi_steps):
-        vor = Voronoi(all_pts, qhull_options="QJ")
-        all_pts = np.concatenate([all_pts, vor.vertices])  # pylint: disable=no-member
+        if FORCE_2D:
+            vor = Voronoi(all_pts[:, [0, 1]], qhull_options="QJ")
+            step_pts = np.hstack([vor.vertices, np.zeros((len(vor.vertices), 1))])
+        else:
+            vor = Voronoi(all_pts[:, :3], qhull_options="QJ")
+            step_pts = vor.vertices
+        new_pts = np.hstack([step_pts, np.ones((len(step_pts), 1)) * NodeProvider.Voronoi])
+        all_pts = np.concatenate([all_pts, new_pts])  # pylint: disable=no-member
     return all_pts
 
 
@@ -149,9 +180,10 @@ def drop_outside_points(all_points_df, ref_pts=None, bbox=None):
         all_points_df = all_points_df.drop(outside_pts.index)
 
     if ref_pts is not None:
-        min_pts = ref_pts.min(axis=0)
-        max_pts = ref_pts.max(axis=0)
-        diff = (max_pts - min_pts) * 1.1
+        ref_xyz = ref_pts[:, :3]
+        min_pts = ref_xyz.min(axis=0)
+        max_pts = ref_xyz.max(axis=0)
+        diff = (max_pts - min_pts) * 0.1
         min_pts -= diff
         max_pts += diff
         outside_pts = all_points_df.loc[
@@ -172,7 +204,11 @@ def create_edges(all_points, from_coord_cols, to_coord_cols):
     if len(all_points) < 5:
         msg = ""
         raise RuntimeError(msg)
-    tri = Delaunay(all_points, qhull_options="QJ")
+
+    if FORCE_2D:
+        tri = Delaunay(all_points[["x", "y"]], qhull_options="QJ")
+    else:
+        tri = Delaunay(all_points, qhull_options="QJ")
 
     # Find all unique edges from the triangulation
     unique_edges = np.unique(
@@ -245,6 +281,18 @@ def add_orientation_penalty(
     amplitude,
 ):
     """Add penalty to edges according to their orientation."""
+    # atlas_orientations = atlas.load_data("orientation", cls=OrientationField)
+    # from_orientations = atlas_orientations.lookup(edges_df[from_coord_cols].to_numpy())
+    # to_orientations = atlas_orientations.lookup(edges_df[to_coord_cols].to_numpy())
+
+    # # Compare the two rotation matrices
+    # transposed_orientations = np.transpose(from_orientations, axes=[0, 2, 1])
+    # dot_prod = np.einsum("...ij,...jk->...ik", transposed_orientations, to_orientations)
+
+    # # The trace of the dot product is equal to the cosine of the angle between the two matrices
+    # # and we want to take the cosine of the absolute value of the angle, so we can simplify.
+    # penalty = np.abs((np.trace(dot_prod, axis1=1, axis2=2) - 1) * 0.5)
+
     vectors = edges_df[to_coord_cols].to_numpy() - edges_df[from_coord_cols].to_numpy()
     origin_to_mid_vectors = (
         0.5 * (edges_df[to_coord_cols].to_numpy() + edges_df[from_coord_cols].to_numpy())
@@ -267,19 +315,7 @@ def add_depth_penalty(
     sigma,
     amplitude,
 ):
-    """Add penalty to edges according to the difference of orientation at start and end points."""
-    # atlas_orientations = atlas.load_data("orientation", cls=OrientationField)
-    # from_orientations = atlas_orientations.lookup(edges_df[from_coord_cols].to_numpy())
-    # to_orientations = atlas_orientations.lookup(edges_df[to_coord_cols].to_numpy())
-
-    # # Compare the two rotation matrices
-    # transposed_orientations = np.transpose(from_orientations, axes=[0, 2, 1])
-    # dot_prod = np.einsum("...ij,...jk->...ik", transposed_orientations, to_orientations)
-
-    # # The trace of the dot product is equal to the cosine of the angle between the two matrices
-    # # and we want to take the cosine of the absolute value of the angle, so we can simplify.
-    # penalty = np.abs((np.trace(dot_prod, axis1=1, axis2=2) - 1) * 0.5)
-
+    """Add penalty to edges according to their depth in the Atlas."""
     from_depths = np.nan_to_num(depths.lookup(edges_df[from_coord_cols].to_numpy()))
     to_depths = np.nan_to_num(depths.lookup(edges_df[to_coord_cols].to_numpy()))
 

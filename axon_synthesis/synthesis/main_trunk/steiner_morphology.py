@@ -13,6 +13,7 @@ from axon_synthesis.synthesis.main_trunk.create_graph import FROM_COORDS_COLS
 from axon_synthesis.synthesis.main_trunk.create_graph import TO_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.utils import add_camera_sync
+from axon_synthesis.utils import build_layout_properties
 from axon_synthesis.utils import sublogger
 
 
@@ -45,9 +46,10 @@ def plot(morph, initial_morph, figure_path):
             cols=[2] * len(initial_fig),
         )
 
-    fig.update_scenes({"aspectmode": "data"})
+    layout_props = build_layout_properties(morph.points, 0.1)
 
-    fig.layout.update(title=morph_name)
+    fig.update_scenes(layout_props)
+    fig.update_layout(title=morph_name)
 
     fig.write_html(figure_path)
 

@@ -33,6 +33,8 @@ test_venv
 docs/build
 docs/source/generated
 docs/source/examples
+docs/source/scripts/*.html
+docs/source/scripts/*.png
 
 # reports
 reports

@@ -17,7 +17,7 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
     """Extract the terminal points from a morphology."""
     morph_name = Path(morph_path).name
     morph_path_str = str(morph_path)
-    morph = load_morphology(morph_path, recenter=True)
+    morph = load_morphology(morph_path)
     pts = []
     axons = get_axons(morph)
 

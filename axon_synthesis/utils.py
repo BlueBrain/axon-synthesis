@@ -343,13 +343,40 @@ def check_min_max(
 
 
 def compute_bbox(points, relative_buffer=None):
-    """Compute the bounding box of the given point and optionally apply a buffer to it."""
+    """Compute the bounding box of the given points and optionally apply a buffer to it."""
     bbox = np.vstack([points.min(axis=0), points.max(axis=0)])
     if relative_buffer is not None:
         bbox_buffer = (bbox[1] - bbox[0]) * 0.1
         bbox[0] -= bbox_buffer
         bbox[1] += bbox_buffer
     return bbox
+
+
+def compute_aspect_ratios(bbox):
+    """Compute the aspect ratios of a bounding box."""
+    aspect_ratios = bbox[1] - bbox[0]
+    aspect_ratios /= aspect_ratios[0]
+    return aspect_ratios
+
+
+def build_layout_properties(pts, relative_buffer: float | None = None) -> dict:
+    """Build a dictionary with layout properties for Plotly figures."""
+    bbox = compute_bbox(pts, relative_buffer)
+    aspect_ratios = compute_aspect_ratios(bbox)
+
+    return {
+        "aspectmode": "manual",
+        "aspectratio": {"x": aspect_ratios[0], "y": aspect_ratios[1], "z": aspect_ratios[2]},
+        "xaxis": {
+            "range": bbox[:, 0],
+        },
+        "yaxis": {
+            "range": bbox[:, 1],
+        },
+        "zaxis": {
+            "range": bbox[:, 2],
+        },
+    }
 
 
 def get_code_location(back_frames=1):

@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from morph_tool.converter import convert
 from morph_tool.utils import is_morphology
+from neurom.core import Morphology
+from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
 
 from axon_synthesis.atlas import AtlasConfig
@@ -19,6 +21,7 @@ from axon_synthesis.synthesis import synthesize_axons
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
+from axon_synthesis.utils import disable_loggers
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,13 +33,18 @@ def create_cell_collection(
     morphology_dir = Path(morphology_dir)
     morph_files = [i for i in morphology_dir.iterdir() if is_morphology(i)]
 
+    centers = np.zeros((len(morph_files), 3), dtype=float)
     if convert_to is not None:
         convert_to = Path(convert_to)
         convert_to.mkdir(parents=True, exist_ok=True)
         converted_files = []
-        for file in morph_files:
+        for num, file in enumerate(morph_files):
             converted_file = (convert_to / file.stem).with_suffix(".h5")
-            convert(file, converted_file, nrn_order=True)
+            morph = Morphology(file)
+            centers[num] = morph.soma.center
+            morph = morph.transform(Translation(-morph.soma.center))
+            with disable_loggers("morph_tool.converter"):
+                convert(morph, converted_file, nrn_order=True)
             converted_files.append(converted_file)
         morph_files = converted_files
 
@@ -48,7 +56,7 @@ def create_cell_collection(
     cells_df = pd.DataFrame({"morphology": morph_names, "morph_file": morph_files})
     cells_df["mtype"] = DEFAULT_POPULATION
     cells_df["region"] = DEFAULT_POPULATION
-    cells_df[COORDS_COLS] = 0
+    cells_df[COORDS_COLS] = centers
     cells_df["orientation"] = [np.eye(3)] * len(cells_df)
     cells_df = cells_df.sort_values("morphology", ignore_index=True)
     cells_df.index += 1

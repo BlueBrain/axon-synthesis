@@ -17,7 +17,8 @@ from axon_synthesis.synthesis.tuft_properties import TUFT_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
-from axon_synthesis.utils import compute_bbox
+from axon_synthesis.utils import build_layout_properties
+from axon_synthesis.utils import disable_loggers
 from axon_synthesis.utils import sublogger
 
 
@@ -30,13 +31,6 @@ def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None, l
     fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=title)
     fig_data = [fig_builder.get_figure()["data"]]
     left_title = "Morphology with tufts"
-
-    bbox = compute_bbox(morph.points, 0.5)
-    ranges = {
-        "xaxis": {"range": bbox[:, 0]},
-        "yaxis": {"range": bbox[:, 1]},
-        "zaxis": {"range": bbox[:, 2]},
-    }
 
     if initial_morph is not None:
         if morph_title is None:
@@ -56,15 +50,10 @@ def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None, l
     for col_num, data in enumerate(fig_data):
         fig.add_traces(data, rows=[1] * len(data), cols=[col_num + 1] * len(data))
 
-    fig.layout.update(
-        title=morph.name,
-        scene=ranges,
-        scene1=ranges,
-        scene2=ranges,
-    )
-    # fig.update_layout(**ranges)
+    layout_props = build_layout_properties(morph.points, 0.5)
 
-    fig.update_scenes({"aspectmode": "data"})
+    fig.update_scenes(layout_props)
+    fig.update_layout(title=morph.name)
 
     # Export figure
     fig.write_html(output_path)
@@ -138,7 +127,8 @@ def build_and_graft_tufts(
             new_morph.soma.points = [initial_point]
             new_morph.soma.diameters = [0.5]
             new_morph.soma.type = SomaType.SOMA_SINGLE_POINT
-            single_point_sphere_to_circular_contour(new_morph)
+            with disable_loggers("morph_tool.converter"):
+                single_point_sphere_to_circular_contour(new_morph)
             new_morph.write((output_dir / filename).with_suffix(".h5"))
 
         if figure_dir is not None:

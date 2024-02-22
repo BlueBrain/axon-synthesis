@@ -15,6 +15,7 @@ from axon_synthesis.constants import DEFAULT_POPULATION
 from axon_synthesis.constants import SOURCE_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
+from axon_synthesis.utils import load_morphology
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,9 @@ def section_id_to_position(morph, sec_id):
         return None
 
 
-def find_existing_axons(morph):
+def find_existing_axons(morph_file):
     """Find the positions of the existing axons in a morphology."""
-    morph = Morphology(morph)
+    morph = load_morphology(morph_file, recenter=True)
     return [sec.points[0] for sec in morph.root_sections if sec.type == SectionType.axon]
 
 

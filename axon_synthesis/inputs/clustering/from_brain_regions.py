@@ -13,6 +13,7 @@ from plotly.subplots import make_subplots
 from voxcell.math_utils import voxel_intersection
 
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import build_layout_properties
 from axon_synthesis.utils import disable_loggers
 from axon_synthesis.utils import neurite_to_graph
 
@@ -510,7 +511,10 @@ def plot(region_component_subgraphs, region_acronyms, filepath):
 
     fig.add_trace(edge_trace, row=1, col=1)
 
-    fig.update_scenes({"aspectmode": "data"})
+    layout_props = build_layout_properties(np.stack([x, y, z]).T, 0.1)
+
+    fig.update_scenes(layout_props)
+    fig.update_layout(title=Path(filepath).stem)
 
     # Export figure
     fig.write_html(filepath)

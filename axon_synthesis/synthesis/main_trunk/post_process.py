@@ -18,6 +18,7 @@ from plotly_helper.neuron_viewer import NeuronBuilder
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
+from axon_synthesis.utils import build_layout_properties
 from axon_synthesis.utils import sublogger
 
 if TYPE_CHECKING:
@@ -301,7 +302,7 @@ def random_walk(  # noqa: PLR0913
     history_path_length: float | None = None,
     global_target_coeff: float = 0,
     target_coeff: float = 2,
-    random_coeff: float = 2,
+    random_coeff: float = 3,
     history_coeff: float = 2,
     *,
     rng=np.random,
@@ -459,9 +460,10 @@ def plot(morph, initial_morph, figure_path):
         cols=[1] * len(current_data) + [2] * len(steiner_data),
     )
 
-    fig.update_scenes({"aspectmode": "data"})
+    layout_props = build_layout_properties(morph.points, 0.1)
 
-    fig.layout.update(title=morph_name)
+    fig.update_scenes(layout_props)
+    fig.update_layout(title=morph_name)
 
     # Export figure
     fig.write_html(figure_path)
@@ -507,7 +509,7 @@ def resample_diameters(pts, resampled_pts, diams):
     )
 
 
-def post_process_trunk(
+def post_process_trunk(  # noqa: PLR0912
     morph: Morphology,
     trunk_section_id: int,
     trunk_properties: pd.DataFrame,
@@ -516,7 +518,6 @@ def post_process_trunk(
     rng: SeedType = None,
     output_path: FileType | None = None,
     figure_path: FileType | None = None,
-    initial_morph: Morphology | None = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
     """Post-process a trunk of the given morphology."""
@@ -524,6 +525,9 @@ def post_process_trunk(
     debug = logger.getEffectiveLevel() <= logging.DEBUG
 
     rng = np.random.default_rng(rng)
+
+    if figure_path is not None:
+        initial_morph = Morphology(morph)
 
     root_section = morph.section(trunk_section_id)
 

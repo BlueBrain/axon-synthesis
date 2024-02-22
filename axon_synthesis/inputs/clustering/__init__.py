@@ -498,7 +498,7 @@ def cluster_morphologies(
         LOGGER.debug("%s: %s points", group_name, len(group))
 
         # Load the morphology
-        morph = load_morphology(group_name, recenter=True)
+        morph = load_morphology(group_name)
 
         # Get the source brain region
         atlas_region_id = brain_regions.lookup(morph.soma.center) if atlas is not None else None
