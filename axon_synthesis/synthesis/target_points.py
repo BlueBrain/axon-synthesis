@@ -251,6 +251,6 @@ def get_target_points(
     # Export the target points
     if output_path is not None:
         with ignore_warnings(pd.errors.PerformanceWarning):
-            target_points.to_hdf(output_path, "target_points")
+            target_points.to_hdf(output_path, key="target_points")
 
     return target_points.sort_values("morphology").reset_index(drop=True)

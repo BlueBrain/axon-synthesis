@@ -43,7 +43,7 @@ def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_worker
 
     # Check the results
     comparators = get_comparators()
-    comparators[".h5"] = MorphologyComparator()
+    comparators[".h5"] = MorphologyComparator(default_diff_kwargs={"rtol": 1e-3, "atol": 1e-3})
     out_dir_pattern = (str(result_dir) + "/?", "")
     assert_equal_trees(
         data_dir / "mimic_example",

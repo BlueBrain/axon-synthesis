@@ -114,7 +114,7 @@ ignore = [
     "E203",
     "W503",
 ]
-max-line-length = 115
+max-line-length = 120
 
 
 [tool.ruff]
@@ -171,7 +171,7 @@ max-args=10
 [tool.ruff.lint.pycodestyle]
 # E501 reports lines that exceed this length (lines may be longer than 100 in some cases,
 # especially because of comments).
-max-line-length = 115
+max-line-length = 100
 
 [tool.ruff.pydocstyle]
 convention = "google"

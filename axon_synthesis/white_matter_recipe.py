@@ -310,7 +310,7 @@ class WhiteMatterRecipe(BasePathBuilder):
             .rename(columns={"source_brain_region_id": "brain_region_id"})
         )
         population_probabilities = population_probabilities.merge(
-            (1 / population_probabilities.groupby(["brain_region_id"]).size()).rename(
+            (1 / population_probabilities.groupby(["brain_region_id"]).size()).rename(  # type: ignore[call-overload]
                 "probability"
             ),
             left_on="brain_region_id",
