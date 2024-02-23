@@ -19,6 +19,8 @@ from axon_synthesis.inputs.create import create_inputs
 from axon_synthesis.synthesis import ParallelConfig
 from axon_synthesis.synthesis import synthesize_axons
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
+from axon_synthesis.synthesis.main_trunk.post_process import PostProcessConfig
+from axon_synthesis.synthesis.outputs import OutputConfig
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import disable_loggers
@@ -104,19 +106,20 @@ def create_probabilities(cells_df, tuft_properties):
 
 
 def mimic_axons(
-    output_dir: FileType,
     morphology_dir: FileType,
     clustering_parameters: dict,
     *,
     atlas_config: AtlasConfig | None = None,
     create_graph_config: CreateGraphConfig | None = None,
+    post_process_config: PostProcessConfig | None = None,
+    output_config: OutputConfig | None = None,
     rng: SeedType = None,
     debug: bool = False,
     parallel_config: ParallelConfig | None = None,
 ):
     """Synthesize mimicking axons."""
-    input_dir = Path(output_dir) / "inputs"
-    synthesis_output_dir = Path(output_dir) / "synthesis"
+    input_dir = output_config.path / "inputs"
+    output_config.path = output_config.path / "synthesis"
 
     if len(clustering_parameters) != 1:
         msg = "The 'clustering_parameters' JSON object should contain exactly 1 entry."
@@ -170,14 +173,14 @@ def mimic_axons(
     # Synthesize the axons using the modified inputs
     synthesize_axons(
         input_dir,
-        synthesis_output_dir,
         morphology_data_file,
         converted_morphologies_dir,
         ".h5",
         atlas_config=atlas_config,
         create_graph_config=create_graph_config,
+        post_process_config=post_process_config,
+        output_config=output_config,
         rebuild_existing_axons=True,
         rng=rng,
-        debug=debug,
         parallel_config=parallel_config,
     )

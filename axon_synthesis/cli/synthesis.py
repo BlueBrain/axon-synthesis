@@ -3,6 +3,7 @@ import functools
 from collections.abc import Callable
 
 import click
+from attrs import fields_dict
 from click_option_group import optgroup
 
 from axon_synthesis.cli.common import atlas_kwargs_to_config
@@ -13,6 +14,8 @@ from axon_synthesis.cli.utils import GlobalConfig
 from axon_synthesis.cli.utils import ListParam
 from axon_synthesis.synthesis import synthesize_axons
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
+from axon_synthesis.synthesis.main_trunk.post_process import PostProcessConfig
+from axon_synthesis.synthesis.outputs import OutputConfig
 
 
 def create_graph_options(func):
@@ -53,7 +56,7 @@ def create_graph_options(func):
         help="The precision used to detect duplicated points",
     )
     @optgroup.option(
-        "--create-graph-use-orientation-penalty/--no-create-graph-use-orientation-penalty",
+        "--create-graph-use-orientation-penalty/--create-graph-no-use-orientation-penalty",
         default=None,
         help="If set to True, a penalty is added to edges whose direction is not radial",
     )
@@ -68,7 +71,7 @@ def create_graph_options(func):
         help="The amplitude used for the orientation penalty",
     )
     @optgroup.option(
-        "--create-graph-use-depth-penalty/--no-create-graph-use-depth-penalty",
+        "--create-graph-use-depth-penalty/--create-graph-no-use-depth-penalty",
         default=None,
         help=(
             "If set to True, a penalty is added to edges whose direction is not parallel to the "
@@ -145,18 +148,192 @@ def create_graph_kwargs_to_config(config) -> None:
     config["create_graph_config"] = CreateGraphConfig(**kwargs)
 
 
+def post_process_options(func):
+    """Decorate a click command to add Atlas-specific options."""
+
+    @optgroup.group(
+        "Long-range trunk Post-Processing parameters",
+        help="Parameters used to post-process the long-range trunk of the morphology",
+    )
+    @optgroup.option(
+        "--post-processing-disable/--post-processing-enable",
+        default=None,
+        help="If disabled, the long-range trunk is not post-processed with random walk",
+    )
+    @optgroup.option(
+        "--post-processing-history-path-length",
+        type=click.FloatRange(min=0),
+        help="The length used to compute the random walk history",
+    )
+    @optgroup.option(
+        "--post-processing-default-history-path-length",
+        type=click.FloatRange(min=0),
+        help="The coefficient used to compute the history path length when it is not provided",
+    )
+    @optgroup.option(
+        "--post-processing-global-target-coeff",
+        type=click.FloatRange(min=0),
+        help="The coefficient applied to the global target term",
+    )
+    @optgroup.option(
+        "--post-processing-target-coeff",
+        type=click.FloatRange(min=0),
+        help="The coefficient applied to the next target term",
+    )
+    @optgroup.option(
+        "--post-processing-random-coeff",
+        type=click.FloatRange(min=0),
+        help="The coefficient applied to the random term",
+    )
+    @optgroup.option(
+        "--post-processing-history-coeff",
+        type=click.FloatRange(min=0),
+        help="The coefficient applied to the history term",
+    )
+    @optgroup.option(
+        "--post-processing-length-coeff",
+        type=click.FloatRange(min=0),
+        help="The coefficient applied to step length",
+    )
+    @optgroup.option(
+        "--post-processing-max-random-direction-picks",
+        type=click.IntRange(min=1),
+        help="The maximum number of random direction picks",
+    )
+    @functools.wraps(func)
+    def wrapper_post_processing_options(*args, **kwargs) -> Callable:
+        return func(*args, **kwargs)
+
+    return wrapper_post_processing_options
+
+
+def post_process_kwargs_to_config(config) -> None:
+    """Extract the post-process arguments from given config to create a PostProcessConfig object."""
+    kwargs = {
+        "history_path_length": config.pop("post_processing_history_path_length", None),
+        "default_history_path_length": config.pop(
+            "post_processing_default_history_path_length", None
+        ),
+        "global_target_coeff": config.pop("post_processing_global_target_coeff", None),
+        "target_coeff": config.pop("post_processing_target_coeff", None),
+        "random_coeff": config.pop("post_processing_random_coeff", None),
+        "history_coeff": config.pop("post_processing_history_coeff", None),
+        "length_coeff": config.pop("post_processing_length_coeff", None),
+        "max_random_direction_picks": config.pop(
+            "post_processing_max_random_direction_picks", None
+        ),
+    }
+    kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
+    if config.pop("post_processing_disable", False):
+        kwargs["skip"] = True
+
+    config["post_process_config"] = PostProcessConfig(**kwargs)
+
+
+def output_options(func):
+    """Decorate a click command to add output-specific options."""
+
+    @optgroup.group(
+        "Output parameters",
+        help="Parameters used to configure the outputs",
+    )
+    @optgroup.option(
+        "--output-dir",
+        type=click.Path(file_okay=False),
+        required=True,
+        help="The directory where the outputs will be stored.",
+    )
+    @optgroup.option(
+        "--outputs-enable-final-figures/--outputs-disable-final-figures",
+        default=None,
+        help="If enabled, the final figures are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-graph-creation-figures/--outputs-disable-graph-creation-figures",
+        default=None,
+        help="If enabled, the graph creation figures are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-graph-creation-data/--outputs-disable-graph-creation-data",
+        default=None,
+        help="If enabled, the graph creation data are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-main-trunk-figures/--outputs-disable-main-trunk-figures",
+        default=None,
+        help="If enabled, the main trunk figures are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-main-trunk-morphologies/--outputs-disable-main-trunk-morphologies",
+        default=None,
+        help="If enabled, the main trunk morphologies are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-morphologies/--outputs-disable-morphologies",
+        default=None,
+        help="If enabled, the morphologies with new axons are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-postprocess-trunk-figures/--outputs-disable-postprocess-trunk-figures",
+        default=None,
+        help="If enabled, the post-process trunk figures are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-postprocess-trunk-morphologies/--outputs-disable-postprocess-trunk-morphologies",
+        default=None,
+        help="If enabled, the post-process trunk morphologies are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-steiner-tree-solutions/--outputs-disable-steiner-tree-solutions",
+        default=None,
+        help="If enabled, the Steiner tree solution figures are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-target-point-figures/--outputs-disable-target-point-figures",
+        default=None,
+        help="If enabled, the target point figures are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-target-points/--outputs-disable-target-points",
+        default=None,
+        help="If enabled, the target point data are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-tuft-figures/--outputs-disable-tuft-figures",
+        default=None,
+        help="If enabled, the tuft figures are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-tuft-morphologies/--outputs-disable-tuft-morphologies",
+        default=None,
+        help="If enabled, the tuft morphologies are exported",
+    )
+    @functools.wraps(func)
+    def wrapper_output_options(*args, **kwargs) -> Callable:
+        return func(*args, **kwargs)
+
+    return wrapper_output_options
+
+
+def outputs_kwargs_to_config(config) -> None:
+    """Extract the atlas arguments from given config to create an AtlasConfig object."""
+    kwargs = {"path": config.pop("output_dir")}
+
+    for k in fields_dict(OutputConfig):
+        name = "outputs_enable_" + k
+        if config.pop(name, False):
+            kwargs[k] = True
+
+    config["output_config"] = OutputConfig(**kwargs)
+
+
 @click.command(short_help="Synthesize the axons for the given morphologies")
 @click.option(
     "--input-dir",
     type=click.Path(exists=True, file_okay=False),
     required=True,
     help="The directory containing the inputs.",
-)
-@click.option(
-    "--output-dir",
-    type=click.Path(file_okay=False),
-    required=True,
-    help="The directory where the outputs will be stored.",
 )
 @click.option(
     "--morphology-dir",
@@ -170,7 +347,6 @@ def create_graph_kwargs_to_config(config) -> None:
     required=True,
     help="The MVD3 or SONATA file containing morphology data.",
 )
-@atlas_options
 @click.option(
     "-r/-nr",
     "--rebuild-existing-axons/--no-rebuild-existing-axons",
@@ -186,13 +362,19 @@ def create_graph_kwargs_to_config(config) -> None:
         "the input morphologies (axons are grafted to the soma if not provided)."
     ),
 )
+@output_options
+@atlas_options
 @create_graph_options
+@post_process_options
 @parallel_options
 @click.pass_obj
 def synthesize(global_config: GlobalConfig, **kwargs):
     """The command to synthesize axons."""
     global_config.to_config(kwargs)
+    kwargs.pop("debug", None)
+    outputs_kwargs_to_config(kwargs)
     atlas_kwargs_to_config(kwargs)
     create_graph_kwargs_to_config(kwargs)
+    post_process_kwargs_to_config(kwargs)
     parallel_kwargs_to_config(kwargs)
     synthesize_axons(**kwargs)

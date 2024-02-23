@@ -61,7 +61,7 @@ def plot_final_morph(morph, target_points, output_path, initial_morph=None, logg
         logger.info("Exported figure to %s", output_path)
 
 
-def plot_target_points(morph, source_point, target_points, output_path):
+def plot_target_points(morph, source_point, target_points, output_path, logger=None):
     """Plot the source and target points along the given morphology."""
     title = "Initial morphology"
     fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=title)
@@ -72,7 +72,7 @@ def plot_target_points(morph, source_point, target_points, output_path):
         x=[source_point[0]],
         y=[source_point[1]],
         z=[source_point[2]],
-        marker={"color": "rgb(255,0,0)", "size": 4},
+        marker={"color": "red", "size": 4},
         mode="markers",
         name="Source point",
     )
@@ -81,7 +81,7 @@ def plot_target_points(morph, source_point, target_points, output_path):
         x=target_points[:, 0],
         y=target_points[:, 1],
         z=target_points[:, 2],
-        marker={"color": "rgb(0,0,255)", "size": 2},
+        marker={"color": "green", "size": 2},
         mode="markers",
         name="Target points",
     )
@@ -99,3 +99,6 @@ def plot_target_points(morph, source_point, target_points, output_path):
 
     # Export figure
     fig.write_html(output_path)
+
+    if logger is not None:
+        logger.debug("Exported figure to %s", output_path)

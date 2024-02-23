@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from attrs import define
+from attrs import field
 from neurom import morphmath
 from neurom.apps import morph_stats
 from neurom.core import Morphology
@@ -19,6 +21,7 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import build_layout_properties
+from axon_synthesis.utils import check_min_max
 from axon_synthesis.utils import sublogger
 
 if TYPE_CHECKING:
@@ -27,6 +30,37 @@ if TYPE_CHECKING:
 WEIGHT_DISTANCE_TOLERANCE = 1e-8
 
 HistoryType = tuple[list[float], (list[list[float] | npt.NDArray[np.floating]])]
+
+
+@define
+class PostProcessConfig:
+    """Class to store the parameters needed for long-range trunk post-processing.
+
+    Attributes:
+        skip: Skip the post-processing step if set to True.
+        history_path_length: The length used to compute the random walk history.
+        default_history_path_length_coeff: The coefficient used to compute the history path length
+            when it is not provided.
+        global_target_coeff: The coefficient applied to the global target term.
+        target_coeff: The coefficient applied to the next target term.
+        random_coeff: The coefficient applied to the random term.
+        history_coeff: The coefficient applied to the history term.
+        length_coeff: The coefficient applied to step length.
+        max_random_direction_picks: The maximum number of random direction picks (random directions
+            are picked again when they are not facing the target)
+    """
+
+    skip: bool = False
+    history_path_length: float | None = field(default=None, validator=check_min_max(min_value=0))
+    default_history_path_length_coeff: float = field(
+        default=5, validator=check_min_max(min_value=0, strict_min=True)
+    )
+    global_target_coeff: float = field(default=0, validator=check_min_max(min_value=0))
+    target_coeff: float = field(default=2, validator=check_min_max(min_value=0))
+    random_coeff: float = field(default=2, validator=check_min_max(min_value=0))
+    history_coeff: float = field(default=2, validator=check_min_max(min_value=0))
+    length_coeff: float = field(default=1, validator=check_min_max(min_value=0))
+    max_random_direction_picks: int = field(default=10, validator=check_min_max(min_value=1))
 
 
 def get_random_vector(
@@ -108,13 +142,9 @@ def compute_step_direction(  # noqa: PLR0913
     next_target_index,
     step_length,
     total_length,
-    global_target_coeff,
-    target_coeff,
-    random_coeff,
-    history_coeff,
+    config,
     history_direction,
     latest_directions,
-    max_rand: int = 10,
     rng=np.random,
     logger=None,
 ):
@@ -139,23 +169,23 @@ def compute_step_direction(  # noqa: PLR0913
 
     target_direction /= np.linalg.norm(target_direction)
 
-    step_global_target_coeff = global_target_coeff * max(
+    step_global_target_coeff = config.global_target_coeff * max(
         0,
         1 + 2 * np.exp(-global_target_dist / (10 * step_length)),  # More when closer
     )
-    step_target_coeff = target_coeff * max(
+    step_target_coeff = config.target_coeff * max(
         0,
         1
         + np.exp(-target_dist / (2 * step_length))  # More near targets to pass closer
         - np.exp(-total_length / (2 * step_length)),  # Less at the beginning
     )
-    step_history_coeff = history_coeff * max(
+    step_history_coeff = config.history_coeff * max(
         0,
         1
         - np.exp(-target_dist / (2 * step_length))  # Less near targets to pass closer
         + np.exp(-total_length / (2 * step_length)),  # More at the beginning
     )
-    step_random_coeff = random_coeff
+    step_random_coeff = config.random_coeff
 
     direction = -target_direction
     nb_rand = 0
@@ -170,7 +200,7 @@ def compute_step_direction(  # noqa: PLR0913
     # does not head to the target direction
     heading_target = np.dot(target_direction, non_random_direction) >= 0
 
-    while np.dot(direction, target_direction) < 0 and nb_rand < max_rand:
+    while np.dot(direction, target_direction) < 0 and nb_rand < config.max_random_direction_picks:
         if nb_rand > 0:
             step_random_coeff = step_random_coeff / 2.0
         random_direction = get_random_vector(rng=rng)
@@ -293,17 +323,13 @@ def check_next_target(  # noqa: PLR0913
     return new_target, target_index, target, next_target_index, next_target, min_target_dist
 
 
-def random_walk(  # noqa: PLR0913
+def random_walk(
     starting_pt: Sequence[float] | npt.NDArray[np.floating],
     intermediate_pts: Sequence[Sequence[float]] | npt.NDArray[np.floating],
     length_stats: dict[str, float],
     # angle_stats,
+    config: PostProcessConfig,
     previous_history: HistoryType | None = None,
-    history_path_length: float | None = None,
-    global_target_coeff: float = 0,
-    target_coeff: float = 2,
-    random_coeff: float = 3,
-    history_coeff: float = 2,
     *,
     rng=np.random,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
@@ -313,13 +339,14 @@ def random_walk(  # noqa: PLR0913
 
     debug = logger.getEffectiveLevel() <= logging.DEBUG
 
-    length_norm = length_stats["norm"]
-    length_std = length_stats["std"]
+    length_norm = length_stats["norm"] * config.length_coeff
+    length_std = length_stats["std"] * config.length_coeff
     # angle_norm = angle_stats["norm"]
     # angle_std = angle_stats["std"]
 
+    history_path_length = config.history_path_length
     if history_path_length is None:
-        history_path_length = 5.0 * length_norm
+        history_path_length = config.default_history_path_length_coeff * length_norm
 
     current_pt = np.array(starting_pt, dtype=float)
     new_intermediate_pts = np.array(intermediate_pts, dtype=float)
@@ -385,10 +412,11 @@ def random_walk(  # noqa: PLR0913
             next_target_index,
             step_length,
             total_length,
-            global_target_coeff,
-            target_coeff,
-            random_coeff,
-            history_coeff,
+            config,
+            # global_target_coeff,
+            # target_coeff,
+            # random_coeff,
+            # history_coeff,
             history_direction,
             latest_directions,
             rng=rng,
@@ -509,11 +537,25 @@ def resample_diameters(pts, resampled_pts, diams):
     )
 
 
-def post_process_trunk(  # noqa: PLR0912
+def export(morph, initial_morph, output_path, figure_path, logger):
+    """Export morphology and figure."""
+    # Export the new morphology
+    if output_path is not None:
+        morph.write(output_path)
+        logger.info("Exported morphology to %s", output_path)
+
+    # Create a figure of the new morphology
+    if figure_path is not None:
+        plot(morph, initial_morph, figure_path)
+        logger.info("Exported figure to %s", figure_path)
+
+
+def post_process_trunk(
     morph: Morphology,
     trunk_section_id: int,
     trunk_properties: pd.DataFrame,
     tuft_barcodes: pd.DataFrame,
+    config: PostProcessConfig,
     *,
     rng: SeedType = None,
     output_path: FileType | None = None,
@@ -524,10 +566,14 @@ def post_process_trunk(  # noqa: PLR0912
     logger = sublogger(logger, __name__)
     debug = logger.getEffectiveLevel() <= logging.DEBUG
 
+    if config.skip:
+        logger.info("Skip post-processing")
+
     rng = np.random.default_rng(rng)
 
-    if figure_path is not None:
-        initial_morph = Morphology(morph)
+    logger.debug("Use the following post-processing config: %s", config)
+
+    initial_morph = Morphology(morph) if figure_path is not None else None
 
     root_section = morph.section(trunk_section_id)
 
@@ -557,20 +603,21 @@ def post_process_trunk(  # noqa: PLR0912
     # Gather sections with unifurcations into future sections
     sections_to_smooth = gather_sections(root_section, tuft_barcodes)
 
+    length_stats = {
+        "norm": ref_trunk_props["mean_segment_lengths"],
+        "std": ref_trunk_props["std_segment_lengths"],
+    }
+    # angle_stats = {
+    #     "norm": ref_trunk_props["mean_segment_meander_angles"],
+    #     "std": ref_trunk_props["std_segment_meander_angles"],
+    # }
+
     # Smooth the sections but do not move the tuft roots
     parent_histories: dict[int, HistoryType] = {}
     for i in sections_to_smooth:
         pts = np.concatenate([i[0].points] + [sec.points[1:] for sec in i[1:]])
         diams = np.concatenate([i[0].diameters] + [sec.diameters[1:] for sec in i[1:]])
 
-        length_stats = {
-            "norm": ref_trunk_props["mean_segment_lengths"],
-            "std": ref_trunk_props["std_segment_lengths"],
-        }
-        # angle_stats = {
-        #     "norm": ref_trunk_props["mean_segment_meander_angles"],
-        #     "std": ref_trunk_props["std_segment_meander_angles"],
-        # }
         if not i[0].is_root:
             try:
                 parent_history = parent_histories[i[0].parent]
@@ -584,6 +631,7 @@ def post_process_trunk(  # noqa: PLR0912
             pts[1:],
             length_stats,
             # angle_stats,
+            config,
             parent_history,
             rng=rng,
             logger=logger,
@@ -617,12 +665,4 @@ def post_process_trunk(  # noqa: PLR0912
         )["axon"]
         logger.debug("New trunk statistics: %s", trunk_stats)
 
-    # Export the new morphology
-    if output_path is not None:
-        morph.write(output_path)
-        logger.info("Exported morphology to %s", output_path)
-
-    # Create a figure of the new morphology
-    if figure_path is not None:
-        plot(morph, initial_morph, figure_path)
-        logger.info("Exported figure to %s", figure_path)
+    export(morph, initial_morph, output_path, figure_path, logger)

@@ -25,9 +25,11 @@ from axon_synthesis.inputs import Inputs
 from axon_synthesis.synthesis.add_tufts import build_and_graft_tufts
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.synthesis.main_trunk.create_graph import one_graph
+from axon_synthesis.synthesis.main_trunk.post_process import PostProcessConfig
 from axon_synthesis.synthesis.main_trunk.post_process import post_process_trunk
 from axon_synthesis.synthesis.main_trunk.steiner_morphology import build_and_graft_trunk
 from axon_synthesis.synthesis.main_trunk.steiner_tree import compute_solution
+from axon_synthesis.synthesis.outputs import OutputConfig
 from axon_synthesis.synthesis.outputs import Outputs
 from axon_synthesis.synthesis.plot import plot_final_morph
 from axon_synthesis.synthesis.plot import plot_target_points
@@ -85,7 +87,7 @@ def remove_existing_axons(morph):
             morph.delete_section(i)
 
 
-def one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=False):
+def one_axon_paths(outputs, morph_file_name, figure_file_name):
     """Create a BasePathBuilder object to store the paths needed for a specific axon."""
 
     class AxonPaths(BasePathBuilder):
@@ -94,32 +96,36 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name, *, debug=False):
         _filenames: ClassVar[dict] = {
             "FIGURE_FILE_NAME": figure_file_name,
             "GRAPH_CREATION_FIGURE": (outputs.GRAPH_CREATION_FIGURES / figure_file_name)
-            if debug
+            if outputs.GRAPH_CREATION_FIGURES is not None
             else None,
             "GRAPH_CREATION_DATA": (outputs.GRAPH_CREATION_DATA / morph_file_name)
-            if debug
+            if outputs.GRAPH_CREATION_DATA is not None
             else None,
-            "MAIN_TRUNK_FIGURE": (outputs.MAIN_TRUNK_FIGURES / figure_file_name) if debug else None,
+            "MAIN_TRUNK_FIGURE": (outputs.MAIN_TRUNK_FIGURES / figure_file_name)
+            if outputs.MAIN_TRUNK_FIGURES is not None
+            else None,
             "MAIN_TRUNK_MORPHOLOGY": (outputs.MAIN_TRUNK_MORPHOLOGIES / morph_file_name)
-            if debug
+            if outputs.MAIN_TRUNK_MORPHOLOGIES is not None
             else None,
             "MORPH_FILE_NAME": morph_file_name,
             "POSTPROCESS_TRUNK_FIGURE": (outputs.POSTPROCESS_TRUNK_FIGURES / figure_file_name)
-            if debug
+            if outputs.POSTPROCESS_TRUNK_FIGURES is not None
             else None,
             "POSTPROCESS_TRUNK_MORPHOLOGY": (
                 outputs.POSTPROCESS_TRUNK_MORPHOLOGIES / morph_file_name
             )
-            if debug
+            if outputs.POSTPROCESS_TRUNK_MORPHOLOGIES is not None
             else None,
             "STEINER_TREE_SOLUTION": (outputs.STEINER_TREE_SOLUTIONS / morph_file_name)
-            if debug
+            if outputs.STEINER_TREE_SOLUTIONS is not None
             else None,
             "TARGET_POINT_FIGURE": (outputs.TARGET_POINT_FIGURES / figure_file_name)
-            if debug
+            if outputs.TARGET_POINT_FIGURES is not None
             else None,
-            "TUFT_FIGURES": outputs.TUFT_FIGURES if debug else None,
-            "TUFT_MORPHOLOGIES": outputs.TUFT_MORPHOLOGIES if debug else None,
+            "TUFT_FIGURES": outputs.TUFT_FIGURES if outputs.TUFT_FIGURES is not None else None,
+            "TUFT_MORPHOLOGIES": outputs.TUFT_MORPHOLOGIES
+            if outputs.TUFT_MORPHOLOGIES is not None
+            else None,
         }
 
         _optional_keys: ClassVar[set[str]] = {
@@ -230,9 +236,9 @@ def synthesize_one_morph_axons(
     inputs,
     outputs,
     create_graph_config,
+    post_process_config,
     *,
     rebuild_existing_axons=False,
-    debug=False,
     logger=None,
 ):
     """Synthesize the axons of one morphology."""
@@ -251,7 +257,9 @@ def synthesize_one_morph_axons(
 
         morph.name = morph_name
 
-        initial_morph = Morphology(morph, name=morph.name) if debug else None
+        initial_morph = (
+            Morphology(morph, name=morph.name) if outputs.FINAL_FIGURES is not None else None
+        )
 
         if rebuild_existing_axons:
             # Remove existing axons
@@ -270,16 +278,16 @@ def synthesize_one_morph_axons(
                 outputs,
                 f"{morph_name}_{axon_id}.h5",
                 f"{morph_name}_{axon_id}.html",
-                debug=debug,
             )
 
             # Create a plot for the initial morph with source and target points
-            if debug:
+            if axon_paths.TARGET_POINT_FIGURE is not None:
                 plot_target_points(
                     initial_morph,
                     axon_terminals[SOURCE_COORDS_COLS].to_numpy()[0],
                     axon_terminals[TARGET_COORDS_COLS].to_numpy(),
                     axon_paths.TARGET_POINT_FIGURE,
+                    logger=axon_custom_logger,
                 )
 
             # Create the graph for the current axon
@@ -330,6 +338,7 @@ def synthesize_one_morph_axons(
                 trunk_section_id,
                 inputs.clustering_data.trunk_properties,
                 barcodes,
+                post_process_config,
                 rng=rng,
                 output_path=axon_paths.POSTPROCESS_TRUNK_MORPHOLOGY,
                 figure_path=axon_paths.POSTPROCESS_TRUNK_FIGURE,
@@ -361,7 +370,7 @@ def synthesize_one_morph_axons(
         )
 
         # Create a plot for the final morph
-        if debug:
+        if outputs.FINAL_FIGURES is not None:
             plot_final_morph(
                 morph,
                 morph_terminals,
@@ -432,31 +441,31 @@ def create_dask_dataframe(data: pd.DataFrame, npartitions: int, group_col="morph
 
 def synthesize_axons(  # noqa: PLR0913
     input_dir: FileType,
-    output_dir: FileType,
     morphology_data_file: FileType,
     morphology_dir: FileType,
     axon_grafting_points_file: FileType | None = None,
+    output_config: OutputConfig | None = None,
     *,
     atlas_config: AtlasConfig | None = None,
     create_graph_config: CreateGraphConfig | None = None,
+    post_process_config: PostProcessConfig | None = None,
     rebuild_existing_axons: bool = False,
     rng: SeedType = None,
-    debug: bool = False,
     parallel_config: ParallelConfig | None = None,
 ):  # pylint: disable=too-many-arguments
     """Synthesize the long-range axons.
 
     Args:
         input_dir: The directory containing the inputs.
-        output_dir: The directory containing the outputs.
         morphology_data_file: The path to the MVD3/sonata file.
         morphology_dir: The directory containing the input morphologies.
         axon_grafting_points_file: The file containing the grafting points.
         atlas_config: The config used to load the Atlas.
         create_graph_config: The config used to create the graph.
+        post_process_config: The config used to post-process the long-range trunk.
+        output_config: The config used to adjust the outputs.
         rebuild_existing_axons: Rebuild the axons if they already exist.
         rng: The random seed or the random generator.
-        debug: Trigger the Debug mode.
         parallel_config: The configuration for parallel computation.
     """
     if parallel_config is None:
@@ -464,10 +473,8 @@ def synthesize_axons(  # noqa: PLR0913
     _parallel_client = _init_parallel(parallel_config)
 
     rng = np.random.default_rng(rng)
-    outputs = Outputs(output_dir, create=True)
-    outputs.create_dirs(
-        file_selection=FILE_SELECTION.ALL if debug else FILE_SELECTION.REQUIRED_ONLY
-    )
+    outputs = Outputs(output_config, create=True)
+    outputs.create_dirs(file_selection=FILE_SELECTION.REQUIRED_ONLY)
 
     # Load all inputs
     if atlas_config is not None:
@@ -486,6 +493,9 @@ def synthesize_axons(  # noqa: PLR0913
     if inputs.atlas is not None:
         create_graph_config.compute_region_tree(inputs.atlas)
     LOGGER.debug("The following config is used for graph creation: %s", create_graph_config)
+
+    if post_process_config is None:
+        post_process_config = PostProcessConfig()
 
     # Get source points for all axons
     source_points = set_source_points(
@@ -506,7 +516,7 @@ def synthesize_axons(  # noqa: PLR0913
         atlas=inputs.atlas,
         brain_regions_masks=inputs.brain_regions_mask_file,
         rng=rng,
-        output_path=outputs.TARGET_POINTS if debug else None,
+        output_path=outputs.TARGET_POINTS,
     )
     if rebuild_existing_axons:
         # If the existing axons are rebuilt all the new axons will be grafted to the soma
@@ -527,8 +537,8 @@ def synthesize_axons(  # noqa: PLR0913
     func_kwargs = {
         "outputs": outputs,
         "create_graph_config": create_graph_config,
+        "post_process_config": post_process_config,
         "rebuild_existing_axons": rebuild_existing_axons,
-        "debug": debug,
         "logger": LOGGER,
     }
 

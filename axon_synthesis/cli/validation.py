@@ -6,6 +6,10 @@ from axon_synthesis.cli.common import parallel_options
 from axon_synthesis.cli.input_creation import clustering_parameters_option
 from axon_synthesis.cli.synthesis import create_graph_kwargs_to_config
 from axon_synthesis.cli.synthesis import create_graph_options
+from axon_synthesis.cli.synthesis import output_options
+from axon_synthesis.cli.synthesis import outputs_kwargs_to_config
+from axon_synthesis.cli.synthesis import post_process_kwargs_to_config
+from axon_synthesis.cli.synthesis import post_process_options
 from axon_synthesis.cli.utils import GlobalConfig
 from axon_synthesis.validation.mimic import mimic_axons
 
@@ -19,19 +23,17 @@ from axon_synthesis.validation.mimic import mimic_axons
     required=True,
     help="The directory containing the input morphologies",
 )
-@click.option(
-    "--output-dir",
-    type=click.Path(file_okay=False),
-    required=True,
-    help="The directory where the outputs will be stored.",
-)
+@output_options
 @clustering_parameters_option
 @create_graph_options
+@post_process_options
 @parallel_options
 @click.pass_obj
 def mimic(global_config: GlobalConfig, *_args, **kwargs):
     """The command to synthesize mimicking axons."""
     global_config.to_config(kwargs)
     create_graph_kwargs_to_config(kwargs)
+    post_process_kwargs_to_config(kwargs)
+    outputs_kwargs_to_config(kwargs)
     parallel_kwargs_to_config(kwargs)
     mimic_axons(**kwargs)

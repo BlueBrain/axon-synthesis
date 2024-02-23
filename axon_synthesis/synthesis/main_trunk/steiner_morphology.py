@@ -183,5 +183,6 @@ def build_and_graft_trunk(
 
     if figure_path is not None:
         plot(morph, initial_morph, figure_path)
+        logger.info("Exported figure to %s", figure_path)
 
     return root_section.id
