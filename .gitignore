@@ -50,6 +50,9 @@ examples/morphologies/repair_release/swc
 examples/morphologies/dataset.csv
 examples/out
 
+# research
+research
+
 # Node
 node_modules
 package-lock.json
