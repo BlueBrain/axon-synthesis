@@ -32,17 +32,21 @@ class TestRandomWalk:
         # }
         rng = np.random.default_rng(0)
 
+        config = post_process.PostProcessConfig(
+            history_path_length=None,
+            global_target_coeff=0,
+            target_coeff=2,
+            random_coeff=2,
+            history_coeff=2,
+        )
+
         points, (latest_lengths, latest_directions) = post_process.random_walk(
             start_pt,
             intermediate_pts,
             length_stats,
             # angle_stats,
-            history_path_length=None,
+            config=config,
             previous_history=([length_stats["norm"]] * 10, [[0, -1, 0]] * 10),
-            global_target_coeff=0,
-            target_coeff=2,
-            random_coeff=2,
-            history_coeff=2,
             rng=rng,
         )
 

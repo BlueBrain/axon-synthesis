@@ -13,6 +13,7 @@ from voxcell.cell_collection import CellCollection
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.constants import COMMON_ANCESTOR_COORDS_COLS
 from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.constants import DEFAULT_OUTPUT_PATH
 from axon_synthesis.constants import DEFAULT_POPULATION
 from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.inputs.create import create_inputs
@@ -118,6 +119,9 @@ def mimic_axons(
     parallel_config: ParallelConfig | None = None,
 ):
     """Synthesize mimicking axons."""
+    output_config = (
+        output_config if output_config is not None else OutputConfig(DEFAULT_OUTPUT_PATH)
+    )
     input_dir = output_config.path / "inputs"
     output_config.path = output_config.path / "synthesis"
 

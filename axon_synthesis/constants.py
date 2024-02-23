@@ -30,6 +30,7 @@ FROM_COORDS_COLS = CoordsCols("x_from", "y_from", "z_from")
 TO_COORDS_COLS = CoordsCols("x_to", "y_to", "z_to")
 
 # Constants
+DEFAULT_OUTPUT_PATH = "out"
 DEFAULT_POPULATION = "default"
 WMR_ATLAS_ID = "id"  # Can also be "atlas_id" in other atlas versions
 

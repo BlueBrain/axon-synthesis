@@ -20,6 +20,7 @@ from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
 from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.constants import DEFAULT_OUTPUT_PATH
 from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.inputs import Inputs
 from axon_synthesis.synthesis.add_tufts import build_and_graft_tufts
@@ -473,7 +474,10 @@ def synthesize_axons(  # noqa: PLR0913
     _parallel_client = _init_parallel(parallel_config)
 
     rng = np.random.default_rng(rng)
-    outputs = Outputs(output_config, create=True)
+    outputs = Outputs(
+        output_config if output_config is not None else OutputConfig(DEFAULT_OUTPUT_PATH),
+        create=True,
+    )
     outputs.create_dirs(file_selection=FILE_SELECTION.REQUIRED_ONLY)
 
     # Load all inputs

@@ -278,6 +278,7 @@ def one_graph(
             logger=logger,
         )
 
+    # pylint: disable=unsupported-assignment-operation
     nodes_df["NodeProvider"] = nodes_df.loc[:, "NodeProvider"].map(
         {i: i.name for i in NodeProvider}
     )
