@@ -400,11 +400,10 @@ def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs
         if inputs.atlas is not None:
             df["target_orientation"] = inputs.atlas.orientations.lookup(
                 df[TARGET_COORDS_COLS].to_numpy()
-            )
+            ).tolist()
         else:
-            df["target_orientation"] = pd.Series(
-                [np.eye(3)] * len(df), index=df.index.to_numpy(), dtype=object
-            )
+            df["target_orientation"] = [np.eye(3).tolist()] * len(df)
+
     return df.groupby("morphology", group_keys=True).apply(
         lambda group: synthesize_one_morph_axons(group, inputs=inputs, **func_kwargs)
     )

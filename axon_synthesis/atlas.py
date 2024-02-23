@@ -91,6 +91,7 @@ class AtlasHelper:
             LOGGER.debug("Loading region map from the atlas")
             self.region_map = atlas.load_region_map()
             self.region_map_df = self.region_map.as_dataframe()
+            self._build_region_map_df_level()
         else:
             self.region_map = None
             self.region_map_df = None
@@ -289,6 +290,22 @@ class AtlasHelper:
             voxel_points = rng.choice(voxel_points, size)
 
         return voxel_points, missing_ids
+
+    def _build_region_map_df_level(self) -> None:
+        """Check if region_map_df contains the st_level column and build it if it's missing."""
+        if "st_level" in self.region_map_df.columns:
+            return
+        current_level = -1
+        self.region_map_df["st_level"] = current_level
+        current_level_ids = self.region_map_df.loc[
+            ~self.region_map_df["parent_id"].isin(self.region_map_df.index)
+        ]
+        while not current_level_ids.empty:
+            current_level += 1
+            self.region_map_df.loc[current_level_ids.index, "st_level"] = current_level
+            current_level_ids = self.region_map_df.loc[
+                self.region_map_df["parent_id"].isin(current_level_ids.index)
+            ]
 
     @cached_property
     def brain_regions_and_descendants(self) -> pd.DataFrame:
