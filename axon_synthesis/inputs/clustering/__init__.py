@@ -96,7 +96,10 @@ class Clustering(BasePathBuilder):
     }
     _optional_keys: ClassVar[set[str]] = {
         "CLUSTERED_TERMINALS_FILENAME",
+        "CLUSTERED_MORPHOLOGIES_DIRNAME",
         "CLUSTERED_MORPHOLOGIES_PATHS_FILENAME",
+        "FIGURE_DIRNAME",
+        "TRUNK_MORPHOLOGIES_DIRNAME",
         "TRUNK_MORPHOLOGIES_PATHS_FILENAME",
         "TUFT_MORPHOLOGIES_DIRNAME",
         "TUFT_MORPHOLOGIES_PATHS_FILENAME",
@@ -314,9 +317,13 @@ class Clustering(BasePathBuilder):
         obj = cls(path, parameters)
 
         # Load data if they exist
-        msg = "Some of the following files are missing: %s"
         if file_selection <= FILE_SELECTION.REQUIRED_ONLY:
-            if obj.exists(file_selection=FILE_SELECTION.REQUIRED_ONLY):
+            try:
+                obj.assert_exists(file_selection=FILE_SELECTION.REQUIRED_ONLY)
+            except FileNotFoundError:
+                if not allow_missing:
+                    raise
+            else:
                 with obj.TRUNK_PROPS_FILENAME.open(encoding="utf-8") as f:
                     obj.trunk_properties = pd.read_json(
                         obj.TRUNK_PROPS_FILENAME, dtype={"morphology": str, "population_id": str}
@@ -325,18 +332,19 @@ class Clustering(BasePathBuilder):
                     obj.tuft_properties = pd.read_json(
                         f, dtype={"morphology": str, "population_id": str}
                     )
-            elif not allow_missing:
-                raise FileNotFoundError(msg, list(obj.required_filenames.keys()))
         if file_selection <= FILE_SELECTION.ALL or file_selection == FILE_SELECTION.OPTIONAL_ONLY:
-            if obj.exists(file_selection=FILE_SELECTION.OPTIONAL_ONLY):
+            try:
+                obj.assert_exists(file_selection=FILE_SELECTION.OPTIONAL_ONLY)
+            except FileNotFoundError:
+                if not allow_missing:
+                    raise
+            else:
                 obj.clustered_terminals = pd.read_csv(
                     obj.CLUSTERED_TERMINALS_FILENAME, dtype={"morphology": str}
                 )
                 obj.clustered_morph_paths = pd.read_csv(obj.CLUSTERED_MORPHOLOGIES_PATHS_FILENAME)
                 obj.trunk_morph_paths = pd.read_csv(obj.TRUNK_MORPHOLOGIES_PATHS_FILENAME)
                 obj.tuft_morph_paths = pd.read_csv(obj.TUFT_MORPHOLOGIES_PATHS_FILENAME)
-            elif not allow_missing:
-                raise FileNotFoundError(msg, list(obj.optional_filenames.keys()))
 
         return obj
 
