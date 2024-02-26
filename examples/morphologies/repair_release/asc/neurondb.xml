@@ -2,6 +2,25 @@
 <neurondb>
 	<listing>
 		<morphology>
+			<name>165421</name>
+			<mtype></mtype>
+			<msubtype></msubtype>
+			<layer></layer>
+			<repair>
+				<use_axon>true</use_axon>
+				<use_dendrites>true</use_dendrites>
+				<axon_repair>true</axon_repair>
+				<dendrite_repair>true</dendrite_repair>
+				<basal_dendrite_repair>true</basal_dendrite_repair>
+				<tuft_dendrite_repair>true</tuft_dendrite_repair>
+				<oblique_dendrite_repair>true</oblique_dendrite_repair>
+				<unravel>true</unravel>
+				<use_for_stats>true</use_for_stats>
+				<axon_sources>
+				</axon_sources>
+			</repair>
+		</morphology>
+		<morphology>
 			<name>172992</name>
 			<mtype></mtype>
 			<msubtype></msubtype>
