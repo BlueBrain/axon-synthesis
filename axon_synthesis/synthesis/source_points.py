@@ -78,7 +78,7 @@ def map_population(
         # Keep only the probabilities from the deepest level in the hierarchy
         probs = probs.loc[
             probs["st_level"]
-            == probs.groupby(["morphology", "source_brain_region_id"])["st_level"].transform(max)
+            == probs.groupby(["morphology", "source_brain_region_id"])["st_level"].transform("max")
         ]
 
         # Select the populations according to the associated probabilities

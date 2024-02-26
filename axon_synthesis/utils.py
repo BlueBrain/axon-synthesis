@@ -5,7 +5,6 @@ import json
 import logging
 import re
 import warnings
-from collections.abc import Callable
 from collections.abc import MutableMapping
 from contextlib import contextmanager
 from copy import deepcopy
@@ -292,54 +291,6 @@ def merge_json_files(*files):
             with file.open(encoding="utf-8") as f:
                 recursive_update(result, json.load(f))
     return result
-
-
-def check_min_max(
-    *,
-    min_value: float | None = None,
-    max_value: float | None = None,
-    strict_min: bool = False,
-    strict_max: bool = False,
-) -> Callable:
-    """Create a validator used by attrs to check a range."""
-
-    def range_validator(_instance, attribute, value) -> None:
-        """The actual range validator used by attrs."""
-        try:
-            boundaries_msgs = []
-            if (
-                value is None
-                or min_value is None
-                or min_value < value
-                or (not strict_min and min_value == value)
-            ):
-                min_ok = True
-            else:
-                min_ok = False
-                boundaries_msgs.append(
-                    f"{'strictly ' if strict_min else ''}greater than {min_value}"
-                )
-            if (
-                value is None
-                or max_value is None
-                or max_value > value
-                or (not strict_max and max_value == value)
-            ):
-                max_ok = True
-            else:
-                max_ok = False
-                boundaries_msgs.append(f"{'strictly ' if strict_max else ''}lower than {max_value}")
-            if not min_ok or not max_ok:
-                msg = (
-                    f"The attribute '{attribute.name}' must be {' and '.join(boundaries_msgs)} "
-                    f"(got {value})"
-                )
-                raise ValueError(msg)
-        except TypeError as exc:
-            msg = f"The attribute '{attribute.name}' must have a numeric type (got {value})"
-            raise ValueError(msg) from exc
-
-    return range_validator
 
 
 def compute_bbox(points, relative_buffer=None):

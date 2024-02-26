@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from attrs import define
 from attrs import field
+from attrs import validators
 from scipy.spatial import KDTree
 from voxcell import VoxelData
 
@@ -32,7 +33,6 @@ from axon_synthesis.synthesis.main_trunk.create_graph.utils import drop_outside_
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
-from axon_synthesis.utils import check_min_max
 from axon_synthesis.utils import sublogger
 
 
@@ -65,49 +65,38 @@ class CreateGraphConfig:
     """
 
     # Intermediate points
-    intermediate_number: int = field(default=5, validator=check_min_max(min_value=0))
-    min_intermediate_distance: float = field(
-        default=1000, validator=check_min_max(min_value=0, strict_min=True)
-    )
+    intermediate_number: int = field(default=5, validator=validators.ge(0))
+    min_intermediate_distance: float = field(default=1000, validator=validators.gt(0))
 
     # Random points
     min_random_point_distance: float | None = field(
-        default=None, validator=check_min_max(min_value=0)
+        default=None, validator=validators.optional(validators.ge(0))
     )
-    random_point_bbox_buffer: float = field(default=0, validator=check_min_max(min_value=0))
+    random_point_bbox_buffer: float = field(default=0, validator=validators.ge(0))
 
     # Voronoï points
-    voronoi_steps: int = field(default=1, validator=check_min_max(min_value=0))
+    voronoi_steps: int = field(default=1, validator=validators.ge(0))
 
     # Duplicated points
-    duplicate_precision: float = field(
-        default=1e-3, validator=check_min_max(min_value=0, strict_min=True)
-    )
+    duplicate_precision: float = field(default=1e-3, validator=validators.gt(0))
 
     # Orientation penalty
     use_orientation_penalty: bool = field(default=True)
-    orientation_penalty_exponent: float = field(default=0.1, validator=check_min_max(min_value=0))
-    orientation_penalty_amplitude: float = field(
-        default=1, validator=check_min_max(min_value=0, strict_min=True)
-    )
+    orientation_penalty_exponent: float = field(default=0.1, validator=validators.ge(0))
+    orientation_penalty_amplitude: float = field(default=1, validator=validators.gt(0))
 
     # Depth penalty
     use_depth_penalty: bool = field(default=True)
-    depth_penalty_sigma: float = field(
-        default=0.25, validator=check_min_max(min_value=0, strict_min=True)
-    )
-    depth_penalty_amplitude: float = field(
-        default=10, validator=check_min_max(min_value=0, strict_min=True)
-    )
+    depth_penalty_sigma: float = field(default=0.25, validator=validators.gt(0))
+    depth_penalty_amplitude: float = field(default=10, validator=validators.gt(0))
 
     # Favored regions
-    favored_regions: RegionIdsType | None = field(default=None)
-    favoring_sigma: float = field(
-        default=100, validator=check_min_max(min_value=0, strict_min=True)
+    favored_regions: RegionIdsType | None = field(
+        default=None,
+        validator=validators.optional(validators.instance_of(RegionIdsType.__args__)),  # type: ignore[attr-defined]
     )
-    favoring_amplitude: float = field(
-        default=1, validator=check_min_max(min_value=0, strict_min=True)
-    )
+    favoring_sigma: float = field(default=100, validator=validators.gt(0))
+    favoring_amplitude: float = field(default=1, validator=validators.gt(0))
     favored_region_tree: KDTree | None = field(default=None)
 
     # Terminal penalty
@@ -253,6 +242,8 @@ def one_graph(
 
     # Apply cumulative penalties
     edges_df["weight"] *= penalties
+
+    # TODO: Remove points and edges from forbidden regions?
 
     # Add penalty to edges between two terminals (except if a terminal is only
     # connected to other terminals) in order to ensure the terminals are also terminals

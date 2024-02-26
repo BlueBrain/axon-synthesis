@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from attrs import define
 from attrs import field
+from attrs import validators
 from neurom import NeuriteType
 from neurom.core import Morphology
 from neurom.geom.transform import Translation
@@ -41,7 +42,6 @@ from axon_synthesis.synthesis.tuft_properties import pick_barcodes
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import MorphNameAdapter
-from axon_synthesis.utils import check_min_max
 from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import save_morphology
 
@@ -61,7 +61,7 @@ class ParallelConfig:
         use_mpi: Trigger the use of MPI.
     """
 
-    nb_processes: int = field(default=0, validator=check_min_max(min_value=0))
+    nb_processes: int = field(default=0, validator=validators.ge(0))
     dask_config: dict | None = field(default=None)
     progress_bar: bool = field(default=True)
     use_mpi: bool = field(default=False)

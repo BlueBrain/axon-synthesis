@@ -9,6 +9,7 @@ import numpy.typing as npt
 import pandas as pd
 from attrs import define
 from attrs import field
+from attrs import validators
 from neurom import morphmath
 from neurom.apps import morph_stats
 from neurom.core import Morphology
@@ -21,7 +22,6 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import build_layout_properties
-from axon_synthesis.utils import check_min_max
 from axon_synthesis.utils import sublogger
 
 if TYPE_CHECKING:
@@ -51,16 +51,16 @@ class PostProcessConfig:
     """
 
     skip: bool = False
-    history_path_length: float | None = field(default=None, validator=check_min_max(min_value=0))
-    default_history_path_length_coeff: float = field(
-        default=5, validator=check_min_max(min_value=0, strict_min=True)
+    history_path_length: float | None = field(
+        default=None, validator=validators.optional(validators.ge(0))
     )
-    global_target_coeff: float = field(default=0, validator=check_min_max(min_value=0))
-    target_coeff: float = field(default=2, validator=check_min_max(min_value=0))
-    random_coeff: float = field(default=2, validator=check_min_max(min_value=0))
-    history_coeff: float = field(default=2, validator=check_min_max(min_value=0))
-    length_coeff: float = field(default=1, validator=check_min_max(min_value=0))
-    max_random_direction_picks: int = field(default=10, validator=check_min_max(min_value=1))
+    default_history_path_length_coeff: float = field(default=5, validator=validators.gt(0))
+    global_target_coeff: float = field(default=0, validator=validators.ge(0))
+    target_coeff: float = field(default=2, validator=validators.ge(0))
+    random_coeff: float = field(default=2, validator=validators.ge(0))
+    history_coeff: float = field(default=2, validator=validators.ge(0))
+    length_coeff: float = field(default=1, validator=validators.ge(0))
+    max_random_direction_picks: int = field(default=10, validator=validators.ge(1))
 
 
 def get_random_vector(
