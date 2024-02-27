@@ -9,8 +9,8 @@ from neurom.core import Morphology
 from plotly.subplots import make_subplots
 from plotly_helper.neuron_viewer import NeuronBuilder
 
-from axon_synthesis.synthesis.main_trunk.create_graph import FROM_COORDS_COLS
-from axon_synthesis.synthesis.main_trunk.create_graph import TO_COORDS_COLS
+from axon_synthesis.constants import FROM_COORDS_COLS
+from axon_synthesis.constants import TO_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import build_layout_properties
@@ -126,6 +126,17 @@ def build_and_graft_trunk(
         root_section = morph.section(source_section_id)
         edges.loc[edges["from"] == 0, "section_id"] = root_section.id
         target_idx = 0
+
+        # Check that the source point is consistent with the last section point
+        shifts = edges_tmp.loc[edges_tmp["from"] == 0, FROM_COORDS_COLS] - root_section.points[-1]
+        if (~np.isclose(shifts, 0)).any():
+            logger.warning(
+                "The source points (%s) are not all equal to the parent section point (%s) and "
+                "are thus shifted",
+                edges_tmp.loc[edges_tmp["from"] == 0, FROM_COORDS_COLS].to_numpy().tolist(),
+                root_section.points[-1].tolist(),
+            )
+            edges_tmp.loc[edges_tmp["from"] == 0, FROM_COORDS_COLS] -= shifts
 
     active_sections.append((root_section, target_idx))
 

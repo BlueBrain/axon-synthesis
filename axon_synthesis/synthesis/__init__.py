@@ -17,6 +17,14 @@ from neurom.core import Morphology
 from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
 
+try:
+    import dask_mpi
+    from mpi4py import MPI
+
+    mpi_enabled = True
+except ImportError:
+    mpi_enabled = False
+
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
@@ -146,13 +154,13 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name):
 
 
 def _init_parallel(
-    parallel_config, *, mpi_only=False, max_nb_processes=None
+    parallel_config: ParallelConfig, *, mpi_only: bool = False, max_nb_processes: int | None = None
 ) -> dask.distributed.Client | None:
     """Initialize MPI workers if required or get the number of available processes."""
     if mpi_only and not parallel_config.use_mpi:
         return None
 
-    if parallel_config.nb_processes == 0:
+    if parallel_config.nb_processes == 0 and not parallel_config.use_mpi:
         return None
 
     # Define a default configuration to disable some dask.distributed things
@@ -177,6 +185,14 @@ def _init_parallel(
                     "limit": "1h",
                 },
             },
+            "comm": {
+                "retry": {
+                    "count": 10,
+                },
+                "timeouts": {
+                    "connect": 30,
+                },
+            },
         },
         "dataframe": {
             "convert_string": False,
@@ -199,10 +215,12 @@ def _init_parallel(
     dask.config.set(new_dask_config)
 
     if parallel_config.use_mpi:  # pragma: no cover
-        # pylint: disable=import-outside-toplevel
-        import dask_mpi
-        from mpi4py import MPI
-
+        if not mpi_enabled:
+            msg = (
+                "The 'dask' and 'mpi4py' packages must be installed when using the MPI parallel "
+                "backend"
+            )
+            raise ImportError(msg)
         dask_mpi.initialize(dashboard=False)
         comm = MPI.COMM_WORLD  # pylint: disable=c-extension-no-member
         parallel_config.nb_processes = comm.Get_size()
@@ -214,7 +232,7 @@ def _init_parallel(
     elif mpi_only:
         return None
     else:
-        cpu_count = os.cpu_count()
+        cpu_count: int = os.cpu_count() or 0
         parallel_config.nb_processes = min(
             parallel_config.nb_processes if parallel_config.nb_processes is not None else cpu_count,
             max_nb_processes if max_nb_processes is not None else cpu_count,
@@ -398,11 +416,17 @@ def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs
     """Synthesize all axons of each morphology."""
     if "target_orientation" not in df.columns:
         if inputs.atlas is not None:
-            df["target_orientation"] = inputs.atlas.orientations.lookup(
+            target_orientations = inputs.atlas.orientations.lookup(
                 df[TARGET_COORDS_COLS].to_numpy()
-            ).tolist()
+            )
+            missing_orientations = np.isnan(target_orientations).any(axis=(1, 2))
+            if missing_orientations.any():
+                target_orientations[missing_orientations] = np.repeat(
+                    [np.eye(3)], missing_orientations.sum(), axis=0
+                )
+            df["target_orientation"] = target_orientations.tolist()
         else:
-            df["target_orientation"] = [np.eye(3).tolist()] * len(df)
+            df["target_orientation"] = np.repeat([np.eye(3)], len(df), axis=0).tolist()
 
     return df.groupby("morphology", group_keys=True).apply(
         lambda group: synthesize_one_morph_axons(group, inputs=inputs, **func_kwargs)
@@ -439,7 +463,7 @@ def create_dask_dataframe(data: pd.DataFrame, npartitions: int, group_col="morph
     return ddf
 
 
-def synthesize_axons(  # noqa: PLR0913
+def synthesize_axons(  # noqa: PLR0912, PLR0913
     input_dir: FileType,
     morphology_data_file: FileType,
     morphology_dir: FileType,
@@ -573,5 +597,18 @@ def synthesize_axons(  # noqa: PLR0913
 
     LOGGER.info("Format results")
     res = target_points.merge(computed, left_on="morphology", right_index=True, how="left")
+    if res["file_path"].isna().any():
+        LOGGER.error(
+            "The following morphologies could not be synthesized (see the logs for details): %s",
+            res.loc[res["file_path"].isna(), "morphology"].tolist(),
+        )
+    LOGGER.info("Synthesized %s morphologies", len(res.loc[~res["file_path"].isna()]))
+    try:
+        if _parallel_client is not None:
+            _parallel_client.close()
+    except Exception:
+        LOGGER.exception(
+            "The internal parallel client may not have been closed properly because of this error"
+        )
     del _parallel_client
     return res

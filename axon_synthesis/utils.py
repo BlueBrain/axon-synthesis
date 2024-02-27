@@ -10,6 +10,13 @@ from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 
+try:
+    from mpi4py import MPI
+
+    mpi_enabled = True
+except ImportError:
+    mpi_enabled = False
+
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -56,6 +63,11 @@ def sublogger(
 
 def setup_logger(level="info", prefix="", suffix=""):
     """Setup application logger."""
+    if mpi_enabled:  # pragma: no cover
+        comm = MPI.COMM_WORLD  # pylint: disable=c-extension-no-member
+        if comm.Get_size() > 1:
+            rank = comm.Get_rank()
+            prefix = f"#{rank} - {prefix}"
     levels = {
         "debug": logging.DEBUG,
         "info": logging.INFO,

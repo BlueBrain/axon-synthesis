@@ -194,7 +194,7 @@ def compute_common_section_properties(
     return path_distance, radial_distance, path_length, mean_tuft_length
 
 
-def reduce_clusters(  # noqa: PLR0912, PLR0913, PLR0915
+def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
     group,
     group_name,
     morph,
@@ -270,15 +270,16 @@ def reduce_clusters(  # noqa: PLR0912, PLR0913, PLR0915
         tuft_orientation /= np.linalg.norm(tuft_orientation)
         if atlas_orientations is not None:
             try:
-                tuft_orientation = np.dot(
-                    tuft_orientation, atlas_orientations.lookup(tuft_ancestor.points[-1])[0].T
-                )
+                atlas_orientation = atlas_orientations.lookup(tuft_ancestor.points[-1])[0].T
             except VoxcellError:
                 logger.debug(
                     "Could not retrieve the atlas orientation for %s at %s",
                     group_name,
                     tuft_ancestor.points[-1],
                 )
+            else:
+                if ~np.isnan(atlas_orientation).any():
+                    tuft_orientation = np.dot(tuft_orientation, atlas_orientation)
 
         # Resize the common section used as root (the root section is 1um)
         resize_root_section(tuft_morph, tuft_orientation)
