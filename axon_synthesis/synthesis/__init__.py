@@ -456,9 +456,9 @@ def create_dask_dataframe(data: pd.DataFrame, npartitions: int, group_col="morph
     ddf = dd.from_pandas(data, npartitions)
     if len(ddf.divisions) > 2:
         groups = np.array_split(data[group_col].unique(), npartitions)
-        new_divisions = [data.loc[data[group_col].isin(i)].index.min() for i in groups] + [
-            data.index.max()
-        ]
+        new_divisions = [
+            data.loc[data[group_col].isin(i)].index.min() for i in groups if len(i) > 0
+        ] + [data.index.max()]
         ddf = ddf.repartition(divisions=new_divisions)
     return ddf
 

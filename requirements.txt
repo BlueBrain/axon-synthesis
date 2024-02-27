@@ -3,6 +3,7 @@ BluePyParallel
 click>=8
 click_option_group>=0.5
 configobj>=5
+dask[dataframe]
 gitpython
 morph-tool
 morphio
