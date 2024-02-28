@@ -600,9 +600,11 @@ def synthesize_axons(  # noqa: PLR0912, PLR0913
     if res["file_path"].isna().any():
         LOGGER.error(
             "The following morphologies could not be synthesized (see the logs for details): %s",
-            res.loc[res["file_path"].isna(), "morphology"].tolist(),
+            res.loc[res["file_path"].isna(), "morphology"].unique().tolist(),
         )
-    LOGGER.info("Synthesized %s morphologies", len(res.loc[~res["file_path"].isna()]))
+    LOGGER.info(
+        "Synthesized %s morphologies", len(res.loc[~res["file_path"].isna(), "morphology"].unique())
+    )
     try:
         if _parallel_client is not None:
             _parallel_client.close()
