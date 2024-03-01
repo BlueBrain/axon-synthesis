@@ -111,7 +111,10 @@ def fill_morph_file_col(cells_df, morph_dir):
         existing_paths_mask = new_paths.apply(lambda x: x.exists())
         cells_df.loc[existing_paths_mask, "morph_file"] = new_paths.loc[existing_paths_mask]
     if cells_df["morph_file"].isna().any():
-        msg = "Could not find morphology files for the following morphologies: ["
+        msg = (
+            f"Could not find morphology files in the '{morph_dir}' directory for the following "
+            "morphologies: ["
+        )
         missing_files = cells_df.loc[cells_df["morph_file"].isna(), "morphology"]
         nb_tot = len(missing_files)
         if nb_tot > _MAX_DISPLAYED:
@@ -234,44 +237,3 @@ def set_source_points(
 
     # Choose population
     return map_population(cells_df, atlas, population_probabilities, rng=rng)
-
-
-def create_random_sources(
-    atlas,
-    source_regions: list[int | str],
-    nb_points: int,
-    output_path: FileType | None = None,
-    seed: int | None = None,
-):
-    """Create some random source points."""
-    rng = np.random.default_rng(seed)
-
-    if source_regions:
-        coords, missing_ids = atlas.get_region_points(source_regions, size=nb_points, rng=rng)
-        if missing_ids:
-            logger.warning("Could not find the following regions in the atlas: %s", missing_ids)
-    else:
-        coords, _missing_ids = atlas.get_region_points([0], size=nb_points, inverse=True, rng=rng)
-
-    if len(coords) < nb_points:
-        logger.error(
-            "Not enough voxels found to place source points, found only %s voxels", len(coords)
-        )
-
-    dataset = pd.DataFrame(coords, columns=COORDS_COLS).reset_index()
-    dataset.rename(columns={"index": "morph_file"}, inplace=True)
-    dataset.loc[:, "axon_id"] = 0
-    dataset.loc[:, "terminal_id"] = -1
-    dataset.loc[:, "section_id"] = -1
-
-    if output_path is not None:
-        # TODO: Should export a CellCollection to a MVD3 file?
-        dataset.loc[
-            :, ["morph_file", "axon_id", "terminal_id", "section_id", *COORDS_COLS]  # type: ignore[list-item]
-        ].to_hdf(
-            output_path,
-            key="cell_locations",
-            index=False,
-        )
-
-    return dataset

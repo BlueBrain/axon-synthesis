@@ -348,7 +348,7 @@ class Inputs(BasePathBuilder):
             )
             return None
 
-        # TODO: For now we support only the WMR but latter other methods may come.
+        # TODO: For now we support only the WMR but other methods may come later.
         if source == "WMR" and self.wmr is not None and self.atlas is not None:
             (
                 self.population_probabilities,

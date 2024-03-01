@@ -1,4 +1,5 @@
 """Module to define a base class for relative paths storage and processing."""
+from copy import deepcopy
 from enum import IntEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -24,6 +25,9 @@ class BasePathBuilder:
             exists: If set to True, the given path must already exist.
             create: If set to True, the given path will be automatically created.
         """
+        self._filenames = deepcopy(self._filenames)  # type: ignore[misc]
+        self._optional_keys = deepcopy(self._optional_keys)  # type: ignore[misc]
+        self._dir_keys = deepcopy(self._dir_keys)  # type: ignore[misc]
         self._path = Path(path)
         self._reset_attributes()
 
@@ -52,9 +56,18 @@ class BasePathBuilder:
         """Return a generator to the paths to the associated data files."""
         yield from self.build_paths(self.path).items()
 
-    def _reset_attributes(self) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
+        """Reset the corresponding attribute if needed."""
+        if name in self._filenames:
+            value = Path(value)  # type: ignore[arg-type]
+            self._filenames[name] = value
+        super().__setattr__(name, value)
+
+    def _reset_attributes(self, names=None) -> None:
         """Reset path attributes."""
-        for k, v in self:
+        if names is None:
+            names = self
+        for k, v in names:
             setattr(self, k, v)
 
     if TYPE_CHECKING:

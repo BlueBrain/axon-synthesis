@@ -135,15 +135,11 @@ def create_graph_kwargs_to_config(config) -> None:
         "favored_regions": config.pop("create_graph_favored_regions", None),
         "favoring_sigma": config.pop("create_graph_favoring_sigma", None),
         "favoring_amplitude": config.pop("create_graph_favoring_amplitude", None),
+        "use_depth_penalty": config.pop("create_graph_use_depth_penalty", None),
+        "use_orientation_penalty": config.pop("create_graph_use_orientation_penalty", None),
+        "use_terminal_penalty": config.pop("create_graph_use_terminal_penalty", None),
     }
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
-
-    if config.pop("create_graph_use_depth_penalty", False):
-        kwargs["use_depth_penalty"] = True
-    if config.pop("create_graph_use_orientation_penalty", False):
-        kwargs["use_orientation_penalty"] = True
-    if config.pop("create_graph_use_terminal_penalty", False):
-        kwargs["use_terminal_penalty"] = True
 
     config["create_graph_config"] = CreateGraphConfig(**kwargs)
 
@@ -286,6 +282,11 @@ def output_options(func):
     )
     @optgroup.option(
         "--outputs-enable-steiner-tree-solutions/--outputs-disable-steiner-tree-solutions",
+        default=None,
+        help="If enabled, the Steiner tree solutions are exported",
+    )
+    @optgroup.option(
+        "--outputs-enable-steiner-tree-solution-figures/--outputs-disable-steiner-tree-solution-figures",
         default=None,
         help="If enabled, the Steiner tree solution figures are exported",
     )

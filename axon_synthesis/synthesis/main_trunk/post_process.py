@@ -56,10 +56,13 @@ class PostProcessConfig:
     )
     default_history_path_length_coeff: float = field(default=5, validator=validators.gt(0))
     global_target_coeff: float = field(default=0, validator=validators.ge(0))
+    global_target_sigma_coeff: float = field(default=10, validator=validators.gt(0))
     target_coeff: float = field(default=2, validator=validators.ge(0))
+    target_sigma_coeff: float = field(default=2, validator=validators.gt(0))
     random_coeff: float = field(default=2, validator=validators.ge(0))
     history_coeff: float = field(default=2, validator=validators.ge(0))
-    length_coeff: float = field(default=1, validator=validators.ge(0))
+    history_sigma_coeff: float = field(default=2, validator=validators.gt(0))
+    length_coeff: float = field(default=1, validator=validators.gt(0))
     max_random_direction_picks: int = field(default=10, validator=validators.ge(1))
 
 
@@ -161,7 +164,7 @@ def compute_step_direction(  # noqa: PLR0913
 
     next_target_vec = next_target - current_pt
 
-    current_target_coeff = np.exp(-target_dist / (1 * step_length))
+    current_target_coeff = np.exp(-target_dist / step_length)
 
     target_direction = (
         1 - current_target_coeff
@@ -171,19 +174,30 @@ def compute_step_direction(  # noqa: PLR0913
 
     step_global_target_coeff = config.global_target_coeff * max(
         0,
-        1 + 2 * np.exp(-global_target_dist / (10 * step_length)),  # More when closer
+        1
+        + np.exp(
+            -global_target_dist / (config.global_target_sigma_coeff * step_length)
+        ),  # More when closer
     )
     step_target_coeff = config.target_coeff * max(
         0,
         1
-        + np.exp(-target_dist / (2 * step_length))  # More near targets to pass closer
-        - np.exp(-total_length / (2 * step_length)),  # Less at the beginning
+        + np.exp(
+            -target_dist / (config.target_sigma_coeff * step_length)
+        )  # More near targets to pass closer
+        - np.exp(
+            -total_length / (config.target_sigma_coeff * step_length)
+        ),  # Less at the beginning
     )
     step_history_coeff = config.history_coeff * max(
         0,
         1
-        - np.exp(-target_dist / (2 * step_length))  # Less near targets to pass closer
-        + np.exp(-total_length / (2 * step_length)),  # More at the beginning
+        - np.exp(
+            -target_dist / (config.history_sigma_coeff * step_length)
+        )  # Less near targets to pass closer
+        + np.exp(
+            -total_length / (config.history_sigma_coeff * step_length)
+        ),  # More at the beginning
     )
     step_random_coeff = config.random_coeff
 

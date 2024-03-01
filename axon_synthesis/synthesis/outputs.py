@@ -23,6 +23,7 @@ class OutputConfig:
         morphologies: Enable export of the final morphologies.
         postprocess_trunk_figures: Enable export of the postprocess trunk figures.
         postprocess_trunk_morphologies: Enable export of the postprocess trunk morphologies.
+        steiner_tree_solution_figures: Enable export of the steiner tree solution figures.
         steiner_tree_solutions: Enable export of the steiner tree solutions.
         target_point_figures: Enable export of the target point figures.
         target_points: Enable export of the target points.
@@ -39,6 +40,7 @@ class OutputConfig:
     morphologies: bool = True
     postprocess_trunk_figures: bool = False
     postprocess_trunk_morphologies: bool = False
+    steiner_tree_solution_figures: bool = False
     steiner_tree_solutions: bool = False
     target_point_figures: bool = False
     target_points: bool = False
@@ -72,6 +74,7 @@ class Outputs(BasePathBuilder):
         "MORPHOLOGIES": "Morphologies",
         "POSTPROCESS_TRUNK_FIGURES": "PostProcessTrunkFigures",
         "POSTPROCESS_TRUNK_MORPHOLOGIES": "PostProcessTrunkMorphologies",
+        "STEINER_TREE_SOLUTION_FIGURES": "SteinerTreeSolutionFigures",
         "STEINER_TREE_SOLUTIONS": "SteinerTreeSolutions",
         "TARGET_POINT_FIGURES": "TargetPointsFigures",
         "TARGET_POINTS": "target_points.h5",
@@ -87,6 +90,7 @@ class Outputs(BasePathBuilder):
         "MAIN_TRUNK_MORPHOLOGIES",
         "POSTPROCESS_TRUNK_FIGURES",
         "POSTPROCESS_TRUNK_MORPHOLOGIES",
+        "STEINER_TREE_SOLUTION_FIGURES",
         "STEINER_TREE_SOLUTIONS",
         "TARGET_POINT_FIGURES",
         "TARGET_POINTS",
@@ -103,6 +107,7 @@ class Outputs(BasePathBuilder):
         "MORPHOLOGIES",
         "POSTPROCESS_TRUNK_FIGURES",
         "POSTPROCESS_TRUNK_MORPHOLOGIES",
+        "STEINER_TREE_SOLUTION_FIGURES",
         "STEINER_TREE_SOLUTIONS",
         "TARGET_POINT_FIGURES",
         "TUFT_FIGURES",

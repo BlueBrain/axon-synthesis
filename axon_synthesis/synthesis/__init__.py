@@ -125,6 +125,11 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name):
             )
             if outputs.POSTPROCESS_TRUNK_MORPHOLOGIES is not None
             else None,
+            "STEINER_TREE_SOLUTION_FIGURE": (
+                outputs.STEINER_TREE_SOLUTION_FIGURES / figure_file_name
+            )
+            if outputs.STEINER_TREE_SOLUTION_FIGURES is not None
+            else None,
             "STEINER_TREE_SOLUTION": (outputs.STEINER_TREE_SOLUTIONS / morph_file_name)
             if outputs.STEINER_TREE_SOLUTIONS is not None
             else None,
@@ -144,6 +149,7 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name):
             "MAIN_TRUNK_MORPHOLOGY",
             "POSTPROCESS_TRUNK_FIGURE",
             "POSTPROCESS_TRUNK_MORPHOLOGY",
+            "STEINER_TREE_SOLUTION_FIGURE",
             "STEINER_TREE_SOLUTION",
             "TARGET_POINT_FIGURE",
             "TUFT_FIGURES",
@@ -328,6 +334,7 @@ def synthesize_one_morph_axons(
                 nodes,
                 edges,
                 output_path=axon_paths.STEINER_TREE_SOLUTION,
+                figure_path=axon_paths.STEINER_TREE_SOLUTION_FIGURE,
                 logger=axon_custom_logger,
             )
 

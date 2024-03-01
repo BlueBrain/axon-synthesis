@@ -20,7 +20,7 @@ def plot_triangulation(edges, source_point, target_points, figure_path, logger=N
         x=segments[[FROM_COORDS_COLS.X, TO_COORDS_COLS.X, "cutter"]].to_numpy().flatten().tolist(),
         y=segments[[FROM_COORDS_COLS.Y, TO_COORDS_COLS.Y, "cutter"]].to_numpy().flatten().tolist(),
         z=segments[[FROM_COORDS_COLS.Z, TO_COORDS_COLS.Z, "cutter"]].to_numpy().flatten().tolist(),
-        line={"width": 0.5, "color": "#888"},
+        line={"width": 0.5, "color": "grey"},
         mode="lines",
         name="Steiner graph",
     )
@@ -29,7 +29,7 @@ def plot_triangulation(edges, source_point, target_points, figure_path, logger=N
         x=[source_point[0]],
         y=[source_point[1]],
         z=[source_point[2]],
-        marker={"color": "rgb(255,0,0)", "size": 4},
+        marker={"color": "red", "size": 4},
         mode="markers",
         name="Source point",
     )
@@ -38,7 +38,7 @@ def plot_triangulation(edges, source_point, target_points, figure_path, logger=N
         x=target_points[:, 0],
         y=target_points[:, 1],
         z=target_points[:, 2],
-        marker={"color": "rgb(0,0,255)", "size": 2},
+        marker={"color": "blue", "size": 2},
         mode="markers",
         name="Target points",
     )

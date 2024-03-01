@@ -70,7 +70,7 @@ def plot(nodes, edges, figure_path, solution_edges=None):
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.source.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.source.name, "y"],
-            marker={"color": "rgb(0,0,0)", "size": 20},
+            marker={"color": "black", "size": 20},
             mode="markers",
             name="Source point",
         )
@@ -90,7 +90,7 @@ def plot(nodes, edges, figure_path, solution_edges=None):
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.intermediate.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.intermediate.name, "y"],
-            marker={"color": "rgb(0,0,255)", "size": 15},
+            marker={"color": "blue", "size": 15},
             mode="markers",
             name="Intermediate points",
         )
@@ -100,7 +100,7 @@ def plot(nodes, edges, figure_path, solution_edges=None):
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.random.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.random.name, "y"],
-            marker={"color": "rgb(0,255,0)", "size": 15},
+            marker={"color": "green", "size": 15},
             mode="markers",
             name="Random points",
         )
@@ -120,7 +120,7 @@ def plot(nodes, edges, figure_path, solution_edges=None):
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.Voronoi.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.Voronoi.name, "y"],
-            marker={"color": "rgb(255,0,0)", "size": 10},
+            marker={"color": "red", "size": 10},
             mode="markers",
             name="Voronoï points",
         )

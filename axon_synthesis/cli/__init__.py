@@ -6,6 +6,7 @@ from pathlib import Path
 import click
 
 from axon_synthesis.cli import input_creation
+from axon_synthesis.cli import scripts
 from axon_synthesis.cli import synthesis
 from axon_synthesis.cli import validation
 from axon_synthesis.cli.utils import GlobalConfig
@@ -75,3 +76,11 @@ def validation_group():
 
 
 validation_group.add_command(validation.mimic)
+
+
+@main.group(name="scripts")
+def scripts_group():
+    """Subset of commands used to run some useful scripts for axon synthesis."""
+
+
+scripts_group.add_command(scripts.random_morphologies)

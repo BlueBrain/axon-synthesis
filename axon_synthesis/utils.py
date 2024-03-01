@@ -27,9 +27,12 @@ from neurom import load_morphology as neurom_load_morphology
 from neurom.core import Morphology
 from neurom.core.soma import SomaType
 from neurom.geom.transform import Translation
+from voxcell.cell_collection import CellCollection
 
 from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.typing import FileType
+from axon_synthesis.typing import RegionIdsType
+from axon_synthesis.typing import SeedType
 
 LOGGER = logging.getLogger(__name__)
 
@@ -382,3 +385,69 @@ def save_morphology(
         morph = Morphology(morphio_morph)
     morph.write(morph_path)
     return morph_path
+
+
+def create_random_morphologies(
+    atlas,
+    nb_morphologies: int,
+    brain_regions: RegionIdsType | None = None,
+    output_morphology_dir: FileType | None = None,
+    output_cell_collection: FileType | None = None,
+    morphology_prefix: str | None = None,
+    rng: SeedType = None,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
+):
+    """Create some random source points."""
+    rng = np.random.default_rng(rng)
+
+    if brain_regions is not None:
+        coords, missing_ids = atlas.get_region_points(
+            brain_regions, size=nb_morphologies, random_shifts=True, rng=rng
+        )
+        if missing_ids and logger is not None:
+            logger.warning("Could not find the following regions in the atlas: %s", missing_ids)
+    else:
+        coords, _missing_ids = atlas.get_region_points(
+            [-1, 0], size=nb_morphologies, random_shifts=True, inverse=True, rng=rng
+        )
+
+    if len(coords) < nb_morphologies and logger is not None:
+        logger.error(
+            "Not enough voxels found to place source points, found only %s voxels", len(coords)
+        )
+
+    dataset = pd.DataFrame(coords, columns=COORDS_COLS).reset_index()
+    dataset.index += 1
+    dataset.loc[:, "morphology"] = (morphology_prefix or "") + dataset.loc[:, "index"].astype(
+        str
+    ).str.zfill(len(str(dataset.index.max())))
+    dataset.drop(columns=["index"], inplace=True)
+    dataset.loc[:, "orientation"] = np.repeat([np.eye(3)], len(dataset), axis=0).tolist()
+    dataset.loc[:, "atlas_id"] = atlas.brain_regions.lookup(dataset.loc[:, COORDS_COLS].to_numpy())
+    dataset.loc[:, "region"] = dataset.loc[:, "atlas_id"].apply(
+        lambda row: atlas.region_map.get(row, attr="acronym", with_ascendants=False)
+    )
+
+    if output_morphology_dir is not None:
+        output_morphology_dir = Path(output_morphology_dir)
+        output_morphology_dir.mkdir(parents=True, exist_ok=True)
+        morph_file = output_morphology_dir / dataset.loc[:, "morphology"]
+        dataset.loc[:, "morph_file"] = morph_file.astype(str) + ".swc"  # type: ignore[attr-defined]
+        for _idx, i in dataset.iterrows():
+            morph = MorphIoMorphology()
+            morph.soma.points = [i[COORDS_COLS].to_numpy()]
+            morph.soma.diameters = [1]
+            morph.soma.type = SomaType.SOMA_SINGLE_POINT
+            morph.write(i["morph_file"])
+
+    cells = CellCollection.from_dataframe(dataset)
+
+    if output_cell_collection is not None:
+        output_cell_collection = Path(output_cell_collection)
+        output_cell_collection.parent.mkdir(parents=True, exist_ok=True)
+        cells.save(output_cell_collection)
+
+    if logger is not None:
+        logger.info("Generated %s random morphologies", len(dataset))
+
+    return cells

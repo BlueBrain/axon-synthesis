@@ -45,7 +45,7 @@ class AtlasConfig:
     path: Path = field(converter=Path)
     region_filename: Path = field(converter=Path)
     # flatmap_filename: Path = field(converter=Path)
-    layer_names: LayerNamesType | None
+    layer_names: LayerNamesType | None = field(default=None)
     load_region_map: bool = field(default=False)
 
     def to_dict(self) -> dict:
@@ -130,6 +130,9 @@ class AtlasHelper:
 
     def compute_region_masks(self, output_path: FileType):
         """Compute all region masks."""
+        if self.region_map is None:
+            msg = "The region_map is not loaded so the region masks can't be computed"
+            raise RuntimeError(msg)
         LOGGER.info("Computing brain region masks")
         output_path = Path(output_path)
 
@@ -190,6 +193,10 @@ class AtlasHelper:
             brain_region_names: The names of the brain regions to get IDs.
             with_descendants: If set to True, all the descendants are included.
         """
+        if self.region_map is None:
+            msg = "The region_map is not loaded so it's not possible to get region IDs"
+            raise RuntimeError(msg)
+
         if isinstance(brain_region_names, int | str):
             brain_region_names = [brain_region_names]
         missing_ids = []
@@ -234,7 +241,9 @@ class AtlasHelper:
         missing_ids: list[str | int]
         brain_region_ids, missing_ids = self.get_region_ids(brain_region_names)
 
-        brain_region_mask = np.isin(self.brain_regions.raw, list(set(brain_region_ids)))
+        brain_region_mask = np.isin(
+            self.brain_regions.raw, list(set(brain_region_ids).union(missing_ids))
+        )
         if inverse:
             brain_region_mask = ~brain_region_mask
 
@@ -253,18 +262,21 @@ class AtlasHelper:
         brain_region_names: RegionIdsType,
         *,
         size: int | None = None,
+        random_shifts: bool = False,
         inverse: bool = False,
         rng: SeedType = None,
     ) -> np.ndarray | tuple[np.ndarray, list[str | int]]:
         """Extract region points from the atlas.
 
-        If 'rng' is not provided, the voxel centers are returned. If 'rng' is provided, one random
-        point inside each of these voxels (chosen using the given Random Number Generator) are
-        returned.
+        If 'random_shifts' is set to False (the default), the voxel centers are returned. If
+        'random_shifts' is set to True, one random point inside each of these voxels (chosen using
+        the given Random Number Generator) are returned.
 
         Args:
             brain_region_names: The name of the regions to consider.
             size: The number of points to return (they are chosen randomly along the possible ones).
+            random_shifts: If True, a random shift is applied to return a random point inside the
+                voxel.
             inverse: If True, choose points that are NOT located in the given regions.
             rng: The random number generator (can be an int used as seed or a numpy Generator).
         """
@@ -280,14 +292,16 @@ class AtlasHelper:
             brain_regions_coords + [0.5, 0.5, 0.5]  # noqa: RUF005
         )
 
-        if rng is not None:
+        if size is not None:
+            # Pick the given number of voxels (the voxels are picked before applying shifts so the
+            # duplicated voxels have different shifts)
+            rng = np.random.default_rng(rng)
+            voxel_points = rng.choice(voxel_points, size)
+
+        if random_shifts:
             # Pick a random point inside the voxel
             rng = np.random.default_rng(rng)
             voxel_points += self.get_random_voxel_shifts(len(voxel_points), rng=rng)
-
-        if size is not None:
-            rng = np.random.default_rng(rng)
-            voxel_points = rng.choice(voxel_points, size)
 
         return voxel_points, missing_ids
 
@@ -310,6 +324,9 @@ class AtlasHelper:
     @cached_property
     def brain_regions_and_descendants(self) -> pd.DataFrame:
         """Return the brain regions and their descendants from the hierarchy."""
+        if self.region_map is None:
+            msg = "The region_map is not loaded so the descendants can't be computed"
+            raise RuntimeError(msg)
         return (
             self.region_map_df.index.to_series()
             .apply(
@@ -333,6 +350,9 @@ class AtlasHelper:
     @cached_property
     def brain_regions_and_ascendants(self) -> pd.DataFrame:
         """Return the brain regions and their ascendants from the hierarchy."""
+        if self.region_map is None:
+            msg = "The region_map is not loaded so the ascendants can't be computed"
+            raise RuntimeError(msg)
         return (
             self.region_map_df.index.to_series()
             .apply(

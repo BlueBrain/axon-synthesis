@@ -241,7 +241,9 @@ def one_graph(
     # TODO: increase weights of more impossible edges?
 
     # Apply cumulative penalties
-    edges_df["weight"] *= penalties
+    # import pdb
+    # pdb.set_trace()
+    edges_df["weight"] = edges_df["length"] * penalties
 
     # TODO: Remove points and edges from forbidden regions?
 

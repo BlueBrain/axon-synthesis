@@ -233,7 +233,7 @@ def create_edges(all_points, from_coord_cols, to_coord_cols):
     # Add coordinates and compute base weights equal to the lengths
     edges_df[from_coord_cols] = all_points.loc[edges_df["from"]].to_numpy()
     edges_df[to_coord_cols] = all_points.loc[edges_df["to"]].to_numpy()
-    edges_df["weight"] = np.linalg.norm(
+    edges_df["length"] = np.linalg.norm(
         edges_df[from_coord_cols].to_numpy() - edges_df[to_coord_cols].to_numpy(),
         axis=1,
     )
@@ -319,7 +319,7 @@ def add_depth_penalty(
     from_depths = np.nan_to_num(depths.lookup(edges_df[from_coord_cols].to_numpy()))
     to_depths = np.nan_to_num(depths.lookup(edges_df[to_coord_cols].to_numpy()))
 
-    relative_delta = np.clip(np.abs(from_depths - to_depths) / (edges_df["weight"]), 0, 1)
+    relative_delta = np.clip(np.abs(from_depths - to_depths) / (edges_df["length"]), 0, 1)
 
     return (1 + amplitude * (1 - np.exp(-relative_delta / sigma))).to_numpy()
 
