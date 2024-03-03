@@ -21,14 +21,29 @@ def plot_final_morph(morph, target_points, output_path, initial_morph=None, logg
     left_title = "Synthesized morphology"
 
     if initial_morph is not None:
-        raw_builder = NeuronBuilder(initial_morph, "3d", line_width=4, title=title)
-
         fig = make_subplots(
             cols=2,
             specs=[[{"type": "scene"}, {"type": "scene"}]],
             subplot_titles=[left_title, "Initial morphology"],
         )
-        fig_data.append(raw_builder.get_figure()["data"])
+
+        if initial_morph.root_sections:
+            fig_data.append(
+                NeuronBuilder(initial_morph, "3d", line_width=4, title=title).get_figure()["data"]
+            )
+        else:
+            fig_data.append(
+                [
+                    go.Scatter3d(
+                        x=[initial_morph.soma.center[0]],
+                        y=[initial_morph.soma.center[1]],
+                        z=[initial_morph.soma.center[2]],
+                        marker={"color": "black", "size": 4},
+                        mode="markers",
+                        name="Soma",
+                    )
+                ]
+            )
     else:
         fig = make_subplots(cols=1, specs=[[{"type": "scene"}]], subplot_titles=[left_title])
 
@@ -64,9 +79,22 @@ def plot_final_morph(morph, target_points, output_path, initial_morph=None, logg
 def plot_target_points(morph, source_point, target_points, output_path, logger=None):
     """Plot the source and target points along the given morphology."""
     title = "Initial morphology"
-    fig_builder = NeuronBuilder(morph, "3d", line_width=4, title=title)
 
     fig = make_subplots(cols=1, specs=[[{"type": "scene"}]], subplot_titles=[title])
+
+    if morph.root_sections:
+        fig.add_traces(NeuronBuilder(morph, "3d", line_width=4, title=title).get_figure()["data"])
+    else:
+        fig.add_traces(
+            go.Scatter3d(
+                x=[morph.soma.center[0]],
+                y=[morph.soma.center[1]],
+                z=[morph.soma.center[2]],
+                marker={"color": "black", "size": 4},
+                mode="markers",
+                name="Soma",
+            )
+        )
 
     source_point_trace = go.Scatter3d(
         x=[source_point[0]],
@@ -86,12 +114,22 @@ def plot_target_points(morph, source_point, target_points, output_path, logger=N
         name="Target points",
     )
 
-    fig.add_traces(fig_builder.get_figure()["data"])
     fig.add_trace(source_point_trace)
     fig.add_trace(target_points_trace)
 
     layout_props = build_layout_properties(
-        np.concatenate([morph.points[:, :3], [source_point], target_points]), 0.1
+        np.concatenate(
+            [
+                (
+                    morph.points
+                    if len(morph.root_sections) > 0
+                    else np.atleast_2d(morph.soma.center)
+                )[:, :3],
+                [source_point],
+                target_points,
+            ]
+        ),
+        0.1,
     )
 
     fig.update_scenes(layout_props)

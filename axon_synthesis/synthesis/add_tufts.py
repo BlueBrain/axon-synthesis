@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 from morph_tool.converter import single_point_sphere_to_circular_contour
 from morphio import SomaType
 from morphio.mut import Morphology as MorphIoMorphology
@@ -36,14 +37,27 @@ def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None, l
         if morph_title is None:
             morph_title = "Raw morphology"
 
-        raw_builder = NeuronBuilder(initial_morph, "3d", line_width=4, title=title)
-
         fig = make_subplots(
             cols=2,
             specs=[[{"type": "scene"}, {"type": "scene"}]],
             subplot_titles=[left_title, morph_title],
         )
-        fig_data.append(raw_builder.get_figure()["data"])
+
+        if initial_morph.root_sections:
+            fig.add_traces(
+                NeuronBuilder(initial_morph, "3d", line_width=4, title=title).get_figure()["data"]
+            )
+        else:
+            fig_builder = fig.add_traces(
+                go.Scatter3d(
+                    x=[initial_morph.soma.center[0]],
+                    y=[initial_morph.soma.center[1]],
+                    z=[initial_morph.soma.center[2]],
+                    marker={"color": "black", "size": 4},
+                    mode="markers",
+                    name="Soma",
+                )
+            )
     else:
         fig = make_subplots(cols=1, specs=[[{"type": "scene"}]], subplot_titles=[left_title])
 

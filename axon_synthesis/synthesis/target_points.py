@@ -216,6 +216,11 @@ def get_target_points(
         how="left",
     )
 
+    # Drop morphologies with no target
+    target_points = target_points.dropna(axis=0, subset=["target_population_id"]).astype(
+        {"target_brain_region_id": int}
+    )
+
     compute_coords(target_points, brain_regions_masks, atlas=atlas, rng=rng)
 
     # Build terminal IDs inside groups
