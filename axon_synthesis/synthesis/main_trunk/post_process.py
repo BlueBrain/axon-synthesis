@@ -22,6 +22,7 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import build_layout_properties
+from axon_synthesis.utils import save_morphology
 from axon_synthesis.utils import sublogger
 
 if TYPE_CHECKING:
@@ -551,13 +552,12 @@ def export(morph, initial_morph, output_path, figure_path, logger):
     """Export morphology and figure."""
     # Export the new morphology
     if output_path is not None:
-        morph.write(output_path)
-        logger.info("Exported morphology to %s", output_path)
+        save_morphology(morph, output_path, msg=f"Export morphology to {output_path}")
 
     # Create a figure of the new morphology
     if figure_path is not None:
+        logger.info("Export figure to %s", figure_path)
         plot(morph, initial_morph, figure_path)
-        logger.info("Exported figure to %s", figure_path)
 
 
 def post_process_trunk(

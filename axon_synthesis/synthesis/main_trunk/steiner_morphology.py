@@ -14,6 +14,7 @@ from axon_synthesis.constants import TO_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import build_layout_properties
+from axon_synthesis.utils import save_morphology
 from axon_synthesis.utils import sublogger
 
 
@@ -189,11 +190,10 @@ def build_and_graft_trunk(
 
     if output_path is not None:
         # Export the morphology
-        morph.write(output_path)
-        logger.info("Exported to %s", output_path)
+        save_morphology(morph, output_path, msg=f"Export trunk morphology to {output_path}")
 
     if figure_path is not None:
+        logger.info("Export trunk figure to %s", figure_path)
         plot(morph, initial_morph, figure_path)
-        logger.info("Exported figure to %s", figure_path)
 
     return root_section.id

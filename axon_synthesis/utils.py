@@ -20,7 +20,7 @@ except ImportError:
 import networkx as nx
 import numpy as np
 import pandas as pd
-from morph_tool.converter import single_point_sphere_to_circular_contour
+from morph_tool.converter import convert
 from morphio.mut import Morphology as MorphIoMorphology
 from neurom import NeuriteType
 from neurom import load_morphology as neurom_load_morphology
@@ -379,11 +379,7 @@ def save_morphology(
         msg = f"Export morphology to {morph_path}"
     logger = sublogger(logger, __name__)
     logger.debug(msg)
-    if morph.soma_type == SomaType.SOMA_SINGLE_POINT:
-        morphio_morph = MorphIoMorphology(morph)
-        single_point_sphere_to_circular_contour(morphio_morph)
-        morph = Morphology(morphio_morph)
-    morph.write(morph_path)
+    convert(morph, morph_path)
     return morph_path
 
 

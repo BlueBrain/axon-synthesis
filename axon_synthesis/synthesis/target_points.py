@@ -30,12 +30,17 @@ def compute_coords(
     """Compute the target coordinates if they are missing."""
     if set(TARGET_COORDS_COLS).difference(target_points.columns):
         if brain_regions_masks is not None:
-            mask_tmp = target_points.sort_values("target_brain_region_id").index
+            mask_tmp = (
+                target_points.loc[~target_points["target_brain_region_id"].isna()]
+                .sort_values("target_brain_region_id")
+                .index
+            )
+            target_points.loc[:, TARGET_COORDS_COLS] = np.nan
             target_points.loc[mask_tmp, TARGET_COORDS_COLS] = (
                 target_points.groupby("target_brain_region_id")
                 .apply(
                     lambda group: rng.choice(  # type: ignore[arg-type, return-value]
-                        brain_regions_masks[str(group.name)][:], size=len(group)
+                        brain_regions_masks[str(int(group.name))][:], size=len(group)
                     )
                 )
                 .explode()
@@ -214,11 +219,6 @@ def get_target_points(
         ],
         on=["morphology", "source_brain_region_id"],
         how="left",
-    )
-
-    # Drop morphologies with no target
-    target_points = target_points.dropna(axis=0, subset=["target_population_id"]).astype(
-        {"target_brain_region_id": int}
     )
 
     compute_coords(target_points, brain_regions_masks, atlas=atlas, rng=rng)

@@ -58,6 +58,10 @@ LOGGER = logging.getLogger(__name__)
 _HDF_DEFAULT_GROUP = "axon_grafting_points"
 
 
+class SynthesisError(Exception):
+    """Exception raised by axon synthesis."""
+
+
 @define
 class ParallelConfig:
     """Class to store the parallel configuration.
@@ -256,6 +260,13 @@ def _init_parallel(
     return dask.distributed.Client(**client_kwargs)
 
 
+def check_target(terminals):
+    """Check that the given terminals have at least one target."""
+    if terminals["target_population_id"].isna().all():
+        msg = "Can not synthesize the morphology because no target point could be found"
+        raise SynthesisError(msg)
+
+
 def synthesize_one_morph_axons(
     morph_terminals,
     inputs,
@@ -273,6 +284,8 @@ def synthesize_one_morph_axons(
     morph_custom_logger = MorphNameAdapter(logger, extra={"morph_name": morph_name})
     morph_custom_logger.debug("Starting synthesis")
     try:
+        check_target(morph_terminals)
+
         morph = load_morphology(morph_terminals["morph_file"].to_numpy()[0])
 
         # Translate the morphology to its position in the atlas
@@ -422,18 +435,18 @@ def synthesize_one_morph_axons(
 def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs) -> pd.DataFrame:
     """Synthesize all axons of each morphology."""
     if "target_orientation" not in df.columns:
+        df["target_orientation"] = np.repeat([np.eye(3)], len(df), axis=0).tolist()
         if inputs.atlas is not None:
+            mask = ~df["target_population_id"].isna()
             target_orientations = inputs.atlas.orientations.lookup(
-                df[TARGET_COORDS_COLS].to_numpy()
+                df.loc[mask, TARGET_COORDS_COLS].to_numpy()
             )
             missing_orientations = np.isnan(target_orientations).any(axis=(1, 2))
             if missing_orientations.any():
                 target_orientations[missing_orientations] = np.repeat(
                     [np.eye(3)], missing_orientations.sum(), axis=0
                 )
-            df["target_orientation"] = target_orientations.tolist()
-        else:
-            df["target_orientation"] = np.repeat([np.eye(3)], len(df), axis=0).tolist()
+            df.loc[df.loc[mask].index, "target_orientation"] = target_orientations.tolist()
 
     return df.groupby("morphology", group_keys=True).apply(
         lambda group: synthesize_one_morph_axons(group, inputs=inputs, **func_kwargs)
@@ -607,10 +620,12 @@ def synthesize_axons(  # noqa: PLR0912, PLR0913
     if res["file_path"].isna().any():
         LOGGER.error(
             "The following morphologies could not be synthesized (see the logs for details): %s",
-            res.loc[res["file_path"].isna(), "morphology"].unique().tolist(),
+            sorted(res.loc[res["file_path"].isna(), "morphology"].unique().tolist()),
         )
     LOGGER.info(
-        "Synthesized %s morphologies", len(res.loc[~res["file_path"].isna(), "morphology"].unique())
+        "Synthesized %s morphologies on %s",
+        len(res.loc[~res["file_path"].isna(), "morphology"].unique()),
+        len(source_points["morphology"].unique()),
     )
     try:
         if _parallel_client is not None:

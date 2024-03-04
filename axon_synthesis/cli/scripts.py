@@ -1,4 +1,6 @@
 """Entries of the Command Line Interface dedicated to the scripts."""
+import logging
+
 import click
 
 from axon_synthesis.atlas import AtlasHelper
@@ -47,4 +49,5 @@ def random_morphologies(global_config: GlobalConfig, *_args, **kwargs):
     atlas_kwargs_to_config(kwargs)
     kwargs["atlas_config"].load_region_map = True
     kwargs["atlas"] = AtlasHelper(kwargs.pop("atlas_config"))
+    kwargs["logger"] = logging.getLogger(__name__)
     create_random_morphologies(**kwargs)
