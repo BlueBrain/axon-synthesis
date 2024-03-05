@@ -206,6 +206,7 @@ def get_target_points(
 
     probs_cols = [
         "morphology",
+        "axon_id",
         "source_brain_region_id",
         "target_population_id",
         "target_brain_region_id",
@@ -217,7 +218,7 @@ def get_target_points(
             selected_mask,
             probs_cols,
         ],
-        on=["morphology", "source_brain_region_id"],
+        on=["morphology", "axon_id", "source_brain_region_id"],
         how="left",
     )
 
@@ -251,7 +252,11 @@ def get_target_points(
         },
     )
 
-    target_points = drop_close_points(target_points, duplicate_precision)
+    target_points = (
+        target_points.groupby(["morphology", "axon_id"])
+        .apply(lambda group: drop_close_points(group, duplicate_precision))
+        .reset_index(drop=True)
+    )
 
     # Export the target points
     if output_path is not None:

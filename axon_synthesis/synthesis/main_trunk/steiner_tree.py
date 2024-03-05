@@ -142,9 +142,9 @@ def compute_solution(
 
     # Compute Steiner Tree
     solution_nodes, solution_edges = pf.pcst_fast(  # pylint: disable=c-extension-no-member
-        edges[["from", "to"]].values,
+        edges[["from", "to"]].to_numpy(),
         prizes,
-        edges["weight"].values,
+        edges["weight"].to_numpy(),
         -1,
         1,
         "gw",
