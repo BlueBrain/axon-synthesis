@@ -9,6 +9,8 @@ import dask.dataframe as dd
 import dask.distributed
 import numpy as np
 import pandas as pd
+from attrs import asdict
+from attrs import converters
 from attrs import define
 from attrs import field
 from attrs import validators
@@ -63,6 +65,48 @@ class SynthesisError(Exception):
 
 
 @define
+class SynthesisConfig:
+    """Class to store the synthesis configuration.
+
+    Attributes:
+        input_dir: Path to the directory containing the inputs.
+        morphology_dir: Path to the directory containing the input morphologies.
+        morphology_data_file: Path to the MVD3 or SONATA file containing the morphology data.
+        axon_grafting_points_file: Path to the HDF5 file containing the section IDs where the axons
+            should be grafted in the input morphologies (axons are grafted to the soma if not
+            provided).
+        trunk_properties_file: Path to the file containing the trunk properties.
+        tuft_properties_file: Path to the file containing the tuft properties.
+        tuft_distributions_file: Path to the file containing the distributions used for tuft
+            synthesis.
+        tuft_parameters_file: Path to the file containing the parameters used for tuft synthesis.
+        rebuild_existing_axons: If set to True, all existing axons are removed before synthesis.
+    """
+
+    morphology_dir: FileType = field(converter=Path)
+    morphology_data_file: FileType = field(converter=Path)
+    axon_grafting_points_file: FileType | None = field(
+        default=None, converter=converters.optional(Path)
+    )
+    input_dir: FileType | None = field(default=None, converter=converters.optional(Path))
+    population_probabilities_file: FileType | None = field(
+        default=None, converter=converters.optional(Path)
+    )
+    projection_probabilities_file: FileType | None = field(
+        default=None, converter=converters.optional(Path)
+    )
+    trunk_properties_file: FileType | None = field(
+        default=None, converter=converters.optional(Path)
+    )
+    tuft_properties_file: FileType | None = field(default=None, converter=converters.optional(Path))
+    tuft_distributions_file: FileType | None = field(
+        default=None, converter=converters.optional(Path)
+    )
+    tuft_parameters_file: FileType | None = field(default=None, converter=converters.optional(Path))
+    rebuild_existing_axons: bool = field(default=False)
+
+
+@define
 class ParallelConfig:
     """Class to store the parallel configuration.
 
@@ -89,8 +133,10 @@ def load_axon_grafting_points(path: FileType | None = None, key: str = _HDF_DEFA
             if set(cols).difference(mapping.columns):
                 msg = f"The DataFrame loaded from '{path}' must contain the {cols} columns."
                 raise ValueError(msg)
-            return mapping
-    return pd.DataFrame([], columns=cols)
+            return mapping.fillna({"grafting_section_id": -1}).astype(  # type: ignore[call-overload]
+                {"grafting_section_id": int}
+            )
+    return pd.DataFrame([], columns=cols).astype({"grafting_section_id": int})
 
 
 def remove_existing_axons(morph):
@@ -423,7 +469,7 @@ def synthesize_one_morph_axons(
         }
     except Exception as exc:
         morph_custom_logger.exception(
-            "Skip the morphology because of the following error",
+            "Skip the morphology because of the following error:",
         )
         res = {
             "file_path": None,
@@ -483,32 +529,24 @@ def create_dask_dataframe(data: pd.DataFrame, npartitions: int, group_col="morph
     return ddf
 
 
-def synthesize_axons(  # noqa: PLR0912, PLR0913
-    input_dir: FileType,
-    morphology_data_file: FileType,
-    morphology_dir: FileType,
-    axon_grafting_points_file: FileType | None = None,
+def synthesize_axons(  # noqa: PLR0912
+    config: SynthesisConfig,
     output_config: OutputConfig | None = None,
     *,
     atlas_config: AtlasConfig | None = None,
     create_graph_config: CreateGraphConfig | None = None,
     post_process_config: PostProcessConfig | None = None,
-    rebuild_existing_axons: bool = False,
     rng: SeedType = None,
     parallel_config: ParallelConfig | None = None,
 ):  # pylint: disable=too-many-arguments
     """Synthesize the long-range axons.
 
     Args:
-        input_dir: The directory containing the inputs.
-        morphology_data_file: The path to the MVD3/sonata file.
-        morphology_dir: The directory containing the input morphologies.
-        axon_grafting_points_file: The file containing the grafting points.
+        config: The configuration used for synthesis.
+        output_config: The config used to adjust the outputs.
         atlas_config: The config used to load the Atlas.
         create_graph_config: The config used to create the graph.
         post_process_config: The config used to post-process the long-range trunk.
-        output_config: The config used to adjust the outputs.
-        rebuild_existing_axons: Rebuild the axons if they already exist.
         rng: The random seed or the random generator.
         parallel_config: The configuration for parallel computation.
     """
@@ -526,13 +564,13 @@ def synthesize_axons(  # noqa: PLR0912, PLR0913
     # Load all inputs
     if atlas_config is not None:
         atlas_config.load_region_map = True
-    inputs = Inputs.load(input_dir, atlas_config=atlas_config)
+    inputs = Inputs.load(config.input_dir, atlas_config=atlas_config, **asdict(config))
 
     # Load the cell collection
-    cells_df = CellCollection.load(morphology_data_file).as_dataframe()
+    cells_df = CellCollection.load(config.morphology_data_file).as_dataframe()
 
     # Load the axon grafting points
-    axon_grafting_points = load_axon_grafting_points(axon_grafting_points_file)
+    axon_grafting_points = load_axon_grafting_points(config.axon_grafting_points_file)
 
     # Ensure the graph creation config is complete
     if create_graph_config is None:
@@ -548,11 +586,11 @@ def synthesize_axons(  # noqa: PLR0912, PLR0913
     source_points = set_source_points(
         cells_df,
         inputs.atlas,
-        morphology_dir,
+        config.morphology_dir,
         inputs.population_probabilities,
         axon_grafting_points,
         rng=rng,
-        rebuild_existing_axons=rebuild_existing_axons,
+        rebuild_existing_axons=config.rebuild_existing_axons,
     )
 
     # Find targets for all axons
@@ -565,7 +603,7 @@ def synthesize_axons(  # noqa: PLR0912, PLR0913
         rng=rng,
         output_path=outputs.TARGET_POINTS,
     )
-    if rebuild_existing_axons:
+    if config.rebuild_existing_axons:
         # If the existing axons are rebuilt all the new axons will be grafted to the soma
         target_points["grafting_section_id"] = -1
 
@@ -585,7 +623,7 @@ def synthesize_axons(  # noqa: PLR0912, PLR0913
         "outputs": outputs,
         "create_graph_config": create_graph_config,
         "post_process_config": post_process_config,
-        "rebuild_existing_axons": rebuild_existing_axons,
+        "rebuild_existing_axons": config.rebuild_existing_axons,
         "logger": LOGGER,
     }
 

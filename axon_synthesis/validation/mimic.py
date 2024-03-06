@@ -18,6 +18,7 @@ from axon_synthesis.constants import DEFAULT_POPULATION
 from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.inputs.create import create_inputs
 from axon_synthesis.synthesis import ParallelConfig
+from axon_synthesis.synthesis import SynthesisConfig
 from axon_synthesis.synthesis import synthesize_axons
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.synthesis.main_trunk.post_process import PostProcessConfig
@@ -175,16 +176,19 @@ def mimic_axons(
     cells.save(morphology_data_file)
 
     # Synthesize the axons using the modified inputs
-    synthesize_axons(
-        input_dir,
-        morphology_data_file,
+    synthesis_config = SynthesisConfig(
         converted_morphologies_dir,
-        ".h5",
+        morphology_data_file,
+        None,
+        input_dir,
+        rebuild_existing_axons=True,
+    )
+    synthesize_axons(
+        synthesis_config,
         atlas_config=atlas_config,
         create_graph_config=create_graph_config,
         post_process_config=post_process_config,
         output_config=output_config,
-        rebuild_existing_axons=True,
         rng=rng,
         parallel_config=parallel_config,
     )

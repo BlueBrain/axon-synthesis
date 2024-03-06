@@ -254,8 +254,9 @@ def get_target_points(
 
     target_points = (
         target_points.groupby(["morphology", "axon_id"])
-        .apply(lambda group: drop_close_points(group, duplicate_precision))
-        .reset_index(drop=True)
+        .apply(lambda group: drop_close_points(group, duplicate_precision), include_groups=False)
+        .reset_index(drop=False)
+        .drop(columns=["level_2"])
     )
 
     # Export the target points

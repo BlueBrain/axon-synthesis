@@ -231,11 +231,12 @@ class Inputs(BasePathBuilder):
             )
             self.wmr.save()
 
-    def load_clustering_data(self, file_selection=FILE_SELECTION.REQUIRED_ONLY):
+    def load_clustering_data(self, file_selection=FILE_SELECTION.REQUIRED_ONLY, **kwargs):
         """Load the Atlas."""
         self.clustering_data = Clustering.load(
             self.CLUSTERING_DIRNAME,
             file_selection,
+            **kwargs,
         )
 
     @property
@@ -261,8 +262,11 @@ class Inputs(BasePathBuilder):
                 )
         return self._pop_neuron_numbers
 
-    def load_probabilities(self):
+    def load_probabilities(self, **kwargs):
         """Load the population and projection probabilities."""
+        self.update_from_dict(
+            "population_probabilities_file", "POPULATION_PROBABILITIES_FILENAME", kwargs
+        )
         self.population_probabilities = pd.read_csv(self.POPULATION_PROBABILITIES_FILENAME)
         self.population_probabilities = self.population_probabilities.astype(
             {
@@ -273,6 +277,9 @@ class Inputs(BasePathBuilder):
                     if col.endswith("population_id")
                 },
             }
+        )
+        self.update_from_dict(
+            "projection_probabilities_file", "PROJECTION_PROBABILITIES_FILENAME", kwargs
         )
         self.projection_probabilities = pd.read_csv(self.PROJECTION_PROBABILITIES_FILENAME)
         self.projection_probabilities = self.projection_probabilities.astype(
@@ -286,8 +293,9 @@ class Inputs(BasePathBuilder):
             }
         )
 
-    def load_tuft_params_and_distrs(self):
+    def load_tuft_params_and_distrs(self, **kwargs):
         """Load and validate the parameters and distributions used to generate the tufts."""
+        self.update_from_dict("tuft_parameters_file", "TUFT_PARAMETERS_FILENAME", kwargs)
         parameters = merge_json_files(DEFAULT_TUFT_PARAMETERS, self.TUFT_PARAMETERS_FILENAME)
         try:
             validate_neuron_params(parameters)
@@ -296,6 +304,7 @@ class Inputs(BasePathBuilder):
             raise ValidationError(msg) from exc
         self.tuft_parameters = parameters
 
+        self.update_from_dict("tuft_distributions_file", "TUFT_DISTRIBUTIONS_FILENAME", kwargs)
         distributions = merge_json_files(
             DEFAULT_TUFT_DISTRIBUTIONS, self.TUFT_DISTRIBUTIONS_FILENAME
         )
@@ -307,14 +316,29 @@ class Inputs(BasePathBuilder):
         self.tuft_distributions = distributions
 
     @classmethod
-    def load(cls, path: FileType, atlas_config: AtlasConfig | None = None) -> Self:
+    def load(
+        cls, path: FileType | None, atlas_config: AtlasConfig | None = None, **kwargs: dict
+    ) -> Self:
         """Load all the inputs from the given path."""
-        obj = cls(path)
+        if path is None:
+            missing_keys = {
+                "projection_probabilities_file",
+                "population_probabilities_file",
+                "trunk_properties_file",
+                "tuft_properties_file",
+            }.difference(kwargs.keys())
+            if missing_keys:
+                msg = (
+                    "The following keys are missing in kwargs because the 'path' is not "
+                    f"provided: {sorted(missing_keys)}"
+                )
+                raise RuntimeError(msg)
+        obj = cls(path or "")
         obj.load_atlas(atlas_config)
-        obj.load_clustering_data()
+        obj.load_clustering_data(**kwargs)
         obj.load_brain_regions_masks()
-        obj.load_probabilities()
-        obj.load_tuft_params_and_distrs()
+        obj.load_probabilities(**kwargs)
+        obj.load_tuft_params_and_distrs(**kwargs)
         if obj.pop_neuron_numbers is None:
             msg = "Could not load or build the population numbers in target regions"
             raise RuntimeError(msg)

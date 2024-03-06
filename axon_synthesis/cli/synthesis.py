@@ -12,6 +12,7 @@ from axon_synthesis.cli.common import parallel_kwargs_to_config
 from axon_synthesis.cli.common import parallel_options
 from axon_synthesis.cli.utils import GlobalConfig
 from axon_synthesis.cli.utils import ListParam
+from axon_synthesis.synthesis import SynthesisConfig
 from axon_synthesis.synthesis import synthesize_axons
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.synthesis.main_trunk.post_process import PostProcessConfig
@@ -329,40 +330,103 @@ def outputs_kwargs_to_config(config) -> None:
     config["output_config"] = OutputConfig(**kwargs)
 
 
+def synthesis_options(func):
+    """Decorate a click command to add synthesis-specific options."""
+
+    @optgroup.group(
+        "Synthesis parameters",
+        help="Parameters used to configure the synthesis process",
+    )
+    @optgroup.option(
+        "--input-dir",
+        type=click.Path(exists=True, file_okay=False),
+        required=True,
+        help="The directory containing the inputs.",
+    )
+    @optgroup.option(
+        "--morphology-dir",
+        type=click.Path(exists=True, file_okay=False),
+        required=True,
+        help="The directory containing the input morphologies",
+    )
+    @optgroup.option(
+        "--morphology-data-file",
+        type=click.Path(exists=True, dir_okay=False),
+        required=True,
+        help="The MVD3 or SONATA file containing morphology data.",
+    )
+    @optgroup.option(
+        "-r/-nr",
+        "--rebuild-existing-axons/--no-rebuild-existing-axons",
+        default=False,
+        help="Force rebuilding existing axons.",
+    )
+    @optgroup.option(
+        "--axon-grafting-points-file",
+        type=click.Path(exists=True, dir_okay=False),
+        required=False,
+        help=(
+            "Path to the HDF5 file containing the section IDs where the axons should be grafted in "
+            "the input morphologies (axons are grafted to the soma if not provided)."
+        ),
+    )
+    @optgroup.option(
+        "--population-probabilities-file",
+        type=click.Path(exists=True, dir_okay=False),
+        required=False,
+        help="Path to the file containing the population probabilities.",
+    )
+    @optgroup.option(
+        "--projection-probabilities-file",
+        type=click.Path(exists=True, dir_okay=False),
+        required=False,
+        help="Path to the file containing the projection probabilities",
+    )
+    @optgroup.option(
+        "--trunk-properties-file",
+        type=click.Path(exists=True, dir_okay=False),
+        required=False,
+        help="Path to the file containing the trunk properties.",
+    )
+    @optgroup.option(
+        "--tuft-properties-file",
+        type=click.Path(exists=True, dir_okay=False),
+        required=False,
+        help="Path to the file containing the tuft barcode given to NeuroTS.",
+    )
+    @optgroup.option(
+        "--tuft-distributions-file",
+        type=click.Path(exists=True, dir_okay=False),
+        required=False,
+        help="Path to the file containing the tuft distributions given to NeuroTS.",
+    )
+    @optgroup.option(
+        "--tuft-parameters-file",
+        type=click.Path(exists=True, dir_okay=False),
+        required=False,
+        help="Path to the file containing the tuft parameters given to NeuroTS.",
+    )
+    @functools.wraps(func)
+    def wrapper_synthesis_options(*args, **kwargs) -> Callable:
+        return func(*args, **kwargs)
+
+    return wrapper_synthesis_options
+
+
+def synthesis_kwargs_to_config(config) -> None:
+    """Extract the synthesis arguments from given config to create an SynthesisConfig object."""
+    kwargs = {}
+    for k in fields_dict(SynthesisConfig):
+        name = k
+        value = config.pop(name, None)
+        if value is not None:
+            kwargs[k] = value
+
+    config["config"] = SynthesisConfig(**kwargs)
+
+
 @click.command(short_help="Synthesize the axons for the given morphologies")
-@click.option(
-    "--input-dir",
-    type=click.Path(exists=True, file_okay=False),
-    required=True,
-    help="The directory containing the inputs.",
-)
-@click.option(
-    "--morphology-dir",
-    type=click.Path(exists=True, file_okay=False),
-    required=True,
-    help="The directory containing the input morphologies",
-)
-@click.option(
-    "--morphology-data-file",
-    type=click.Path(exists=True, dir_okay=False),
-    required=True,
-    help="The MVD3 or SONATA file containing morphology data.",
-)
-@click.option(
-    "-r/-nr",
-    "--rebuild-existing-axons/--no-rebuild-existing-axons",
-    default=False,
-    help="Force rebuilding existing axons.",
-)
-@click.option(
-    "--axon-grafting-points-file",
-    type=click.Path(exists=True, dir_okay=False),
-    required=False,
-    help=(
-        "Path to the HDF5 file containing the section IDs where the axons should be grafted in "
-        "the input morphologies (axons are grafted to the soma if not provided)."
-    ),
-)
+@synthesis_options
 @output_options
 @atlas_options
 @create_graph_options
@@ -374,6 +438,7 @@ def synthesize(global_config: GlobalConfig, **kwargs):
     global_config.to_config(kwargs)
     kwargs.pop("debug", None)
     outputs_kwargs_to_config(kwargs)
+    synthesis_kwargs_to_config(kwargs)
     atlas_kwargs_to_config(kwargs)
     create_graph_kwargs_to_config(kwargs)
     post_process_kwargs_to_config(kwargs)

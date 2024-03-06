@@ -304,6 +304,7 @@ class Clustering(BasePathBuilder):
         file_selection: FILE_SELECTION = FILE_SELECTION.NONE,
         *,
         allow_missing: bool = False,
+        **kwargs,
     ) -> Self:
         """Load the clustering data from a given directory."""
         path = Path(path)
@@ -315,6 +316,9 @@ class Clustering(BasePathBuilder):
 
         # Create the object
         obj = cls(path, parameters)
+
+        obj.update_from_dict("trunk_properties_file", "TRUNK_PROPS_FILENAME", kwargs)
+        obj.update_from_dict("tuft_properties_file", "TUFT_PROPS_FILENAME", kwargs)
 
         # Load data if they exist
         if file_selection <= FILE_SELECTION.REQUIRED_ONLY:

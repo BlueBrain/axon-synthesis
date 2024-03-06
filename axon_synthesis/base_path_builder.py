@@ -155,3 +155,9 @@ class BasePathBuilder:
         for k, v in files.items():
             if self.is_subdir(k):
                 v.mkdir(parents=True, exist_ok=True)
+
+    def update_from_dict(self, key, attr_name, data):
+        """Update an attribute from a given dictionary if the requested value is not None."""
+        value = data.get(key, None)
+        if value is not None:
+            setattr(self, attr_name, value)
