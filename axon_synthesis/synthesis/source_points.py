@@ -194,8 +194,7 @@ def set_source_points(
     if "grafting_section_id" not in cells_df.columns:
         cells_df["grafting_section_id"] = -1
     else:
-        cells_df["grafting_section_id"] = cells_df["grafting_section_id"].fillna(-1)
-    cells_df["grafting_section_id"] = cells_df["grafting_section_id"].astype(int)
+        cells_df["grafting_section_id"] = cells_df["grafting_section_id"].fillna(-1).astype(int)
 
     # If some coordinate columns are missing we reset them
     if len(set(SOURCE_COORDS_COLS).difference(cells_df.columns)) > 0:
