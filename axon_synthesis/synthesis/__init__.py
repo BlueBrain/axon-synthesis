@@ -69,9 +69,9 @@ class SynthesisConfig:
     """Class to store the synthesis configuration.
 
     Attributes:
-        input_dir: Path to the directory containing the inputs.
         morphology_dir: Path to the directory containing the input morphologies.
         morphology_data_file: Path to the MVD3 or SONATA file containing the morphology data.
+        input_dir: Path to the directory containing the inputs.
         axon_grafting_points_file: Path to the HDF5 file containing the section IDs where the axons
             should be grafted in the input morphologies (axons are grafted to the soma if not
             provided).

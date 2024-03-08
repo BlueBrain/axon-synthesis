@@ -102,9 +102,9 @@ class Inputs(BasePathBuilder):
     @staticmethod
     def _format_metadata(metadata: dict) -> dict:
         # Format metadata elements
+        metadata["path"] = Path(metadata["path"])
         metadata["clustering"] = Path(metadata["clustering"])
         metadata["morphology_path"] = Path(metadata["morphology_path"])
-        metadata["path"] = Path(metadata["path"])
         metadata["WMR"] = Path(metadata["WMR"])
 
         if "atlas" in metadata:
@@ -150,11 +150,10 @@ class Inputs(BasePathBuilder):
 
     def metadata_to_attributes(self):
         """Propagate metadata to attributes."""
-        self.reset_path(self.metadata["path"])
-        self._filenames["CLUSTERING_DIRNAME"] = Path(self.metadata["clustering"]).name
-        self._filenames["WMR_DIRNAME"] = Path(self.metadata["WMR"]).name
+        self._filenames["CLUSTERING_DIRNAME"] = Path(self.metadata["clustering"])
+        self._filenames["WMR_DIRNAME"] = Path(self.metadata["WMR"])
         if "morphology_path" in self.metadata:
-            self.MORPHOLOGY_DIRNAME = Path(self.metadata["morphology_path"])
+            self.MORPHOLOGY_DIRNAME = self.metadata["morphology_path"]
         self.neuron_density = self.metadata["neuron_density"]
         self._reset_attributes()
 

@@ -170,6 +170,7 @@ def get_target_points(
     no_target_mask = probs["random_number"] < 0
     n_tries = 0
     mask_size = no_target_mask.sum()
+    selected_mask = pd.Series(data=True, index=probs.index, dtype=bool)
     while n_tries < max_tries and mask_size > 0:
         # Select the populations according to the associated probabilities
         probs.loc[no_target_mask, "random_number"] = rng.uniform(size=mask_size)

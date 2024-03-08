@@ -164,9 +164,14 @@ def set_source_points(
         existing_axons.index.rename("axon_id", level=1, inplace=True)  # type: ignore[call-arg]
         existing_axons = existing_axons.reset_index()
         existing_axons["grafting_section_id"] = -1
-        existing_axons[SOURCE_COORDS_COLS] = np.stack(
-            existing_axons["XYZ"].to_numpy()  # type: ignore[arg-type]
-        )
+        if existing_axons.empty:
+            existing_axons[SOURCE_COORDS_COLS] = pd.DataFrame(
+                {col: pd.Series(dtype=float) for col in SOURCE_COORDS_COLS}
+            )
+        else:
+            existing_axons[SOURCE_COORDS_COLS] = np.stack(
+                existing_axons["XYZ"].to_numpy()  # type: ignore[arg-type]
+            )
         new_axons = (
             cells_df[
                 [
@@ -184,10 +189,16 @@ def set_source_points(
         )
 
         # We don't add axons starting from the soma when an existing axon is rebuilt
-        cells_df = (
-            pd.concat([cells_df.dropna(subset="grafting_section_id"), new_axons])
-            .sort_values(["morphology", "grafting_section_id"])
-            .reset_index(drop=True)
+        cells_df = pd.concat([cells_df.loc[cells_df.index.difference(new_axons.index)], new_axons])
+        cells_df.fillna(
+            {
+                "grafting_section_id": -1,
+                **{
+                    source_col: cells_df[col]
+                    for col, source_col in zip(COORDS_COLS, SOURCE_COORDS_COLS)
+                },
+            },
+            inplace=True,
         )
 
     # Format the grafting_section_id column

@@ -308,7 +308,7 @@ class Clustering(BasePathBuilder):
     ) -> Self:
         """Load the clustering data from a given directory."""
         path = Path(path)
-        paths = cls.build_paths(path)
+        paths = cls.build_default_paths(path)
 
         # Import the clustering configurations
         with paths["CLUSTERING_CONFIGURATIONS_FILENAME"].open(encoding="utf-8") as f:

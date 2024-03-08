@@ -87,7 +87,7 @@ def create_probabilities(cells_df, tuft_properties):
             on="morphology",
             how="left",
         )
-    )
+    ).dropna(subset="tuft_id")
     projection_probabilities["source_brain_region_id"] = projection_probabilities[
         "source_population_id"
     ].copy()

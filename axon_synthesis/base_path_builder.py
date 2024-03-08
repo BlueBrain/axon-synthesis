@@ -56,13 +56,6 @@ class BasePathBuilder:
         """Return a generator to the paths to the associated data files."""
         yield from self.build_paths(self.path).items()
 
-    def __setattr__(self, name: str, value: object) -> None:
-        """Reset the corresponding attribute if needed."""
-        if name in self._filenames:
-            value = Path(value)  # type: ignore[arg-type]
-            self._filenames[name] = value
-        super().__setattr__(name, value)
-
     def _reset_attributes(self, names=None) -> None:
         """Reset path attributes."""
         if names is None:
@@ -79,15 +72,25 @@ class BasePathBuilder:
             Path objects
             """
 
-    @classmethod
-    def build_paths(cls, path) -> dict[str, Path]:
+    def build_paths(self, path) -> dict[str, Path]:
         """Build the paths to the associated data files."""
+        return self.build_default_paths(
+            path, filenames=self._filenames, optional_keys=self._optional_keys
+        )
+
+    @classmethod
+    def build_default_paths(cls, path, filenames=None, optional_keys=None) -> dict[str, Path]:
+        """Build the default paths to the associated data files of the class."""
         path = Path(path)
         paths = {}
-        for k, v in cls._filenames.items():
+        if filenames is None:
+            filenames = cls._filenames
+        if optional_keys is None:
+            optional_keys = cls._filenames
+        for k, v in filenames.items():
             if v is not None:
                 paths[k] = path / v
-            elif k in cls._optional_keys:
+            elif k in optional_keys:
                 paths[k] = None
             else:
                 msg = f"Only optional keys can be set to None but {k} is not optional"
