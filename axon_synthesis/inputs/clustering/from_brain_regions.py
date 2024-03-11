@@ -12,7 +12,7 @@ from bluepyparallel import init_parallel_factory
 from plotly.subplots import make_subplots
 from voxcell.math_utils import voxel_intersection
 
-from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.utils import build_layout_properties
 from axon_synthesis.utils import disable_loggers
 from axon_synthesis.utils import neurite_to_graph

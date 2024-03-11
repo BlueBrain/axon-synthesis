@@ -470,7 +470,7 @@ def cluster_morphologies(
 
     if clustering.path.exists():
         LOGGER.warning(
-            "The '%s' folder already exists, the new morpholgies will be added to it",
+            "The '%s' folder already exists, the new morphologies will be added to it",
             clustering.path,
         )
 

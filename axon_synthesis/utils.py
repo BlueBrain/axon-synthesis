@@ -17,6 +17,7 @@ try:
 except ImportError:
     mpi_enabled = False
 
+import dask.dataframe as dd
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -167,8 +168,8 @@ def get_axons(morph):
     return [i for i in morph.neurites if i.type == NeuriteType.axon]
 
 
-def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=False, **graph_kwargs):
-    """Transform a neurite into a graph."""
+def neurite_to_pts(neurite, *, keep_section_segments=False):
+    """Extract points and segments from a neurite."""
     graph_nodes = []
     graph_edges = []
     node_id = -1
@@ -206,6 +207,12 @@ def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=Fal
         ["source", "target"],
     ).reset_index(drop=True)
 
+    return nodes, edges
+
+
+def neurite_to_graph(neurite, graph_cls=nx.DiGraph, *, keep_section_segments=False, **graph_kwargs):
+    """Transform a neurite into a graph."""
+    nodes, edges = neurite_to_pts(neurite, keep_section_segments=keep_section_segments)
     graph = nx.from_pandas_edgelist(edges, create_using=graph_cls, **graph_kwargs)
     nx.set_node_attributes(
         graph, nodes[["section_id", *COORDS_COLS, "radius", "is_terminal"]].to_dict("index")
@@ -447,3 +454,15 @@ def create_random_morphologies(
         logger.info("Generated %s random morphologies", len(dataset))
 
     return cells
+
+
+def create_dask_dataframe(data: pd.DataFrame, npartitions: int, group_col="morphology"):
+    """Ensure all rows of the same group belong to the same partition."""
+    ddf = dd.from_pandas(data, npartitions)
+    if len(ddf.divisions) > 2:
+        groups = np.array_split(data[group_col].unique(), npartitions)
+        new_divisions = [
+            data.loc[data[group_col].isin(i)].index.min() for i in groups if len(i) > 0
+        ] + [data.index.max()]
+        ddf = ddf.repartition(divisions=new_divisions)
+    return ddf

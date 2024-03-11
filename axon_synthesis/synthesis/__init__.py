@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 from typing import ClassVar
 
-import dask.dataframe as dd
 import dask.distributed
 import numpy as np
 import pandas as pd
@@ -52,6 +51,7 @@ from axon_synthesis.synthesis.tuft_properties import pick_barcodes
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import MorphNameAdapter
+from axon_synthesis.utils import create_dask_dataframe
 from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import save_morphology
 
@@ -515,18 +515,6 @@ def _partition_wrapper(
     inputs.load_tuft_params_and_distrs()
 
     return synthesize_group_morph_axons(df.copy(deep=False), inputs=inputs, **func_kwargs)
-
-
-def create_dask_dataframe(data: pd.DataFrame, npartitions: int, group_col="morphology"):
-    """Ensure all rows of the same group belong to the same partition."""
-    ddf = dd.from_pandas(data, npartitions)
-    if len(ddf.divisions) > 2:
-        groups = np.array_split(data[group_col].unique(), npartitions)
-        new_divisions = [
-            data.loc[data[group_col].isin(i)].index.min() for i in groups if len(i) > 0
-        ] + [data.index.max()]
-        ddf = ddf.repartition(divisions=new_divisions)
-    return ddf
 
 
 def synthesize_axons(  # noqa: PLR0912
