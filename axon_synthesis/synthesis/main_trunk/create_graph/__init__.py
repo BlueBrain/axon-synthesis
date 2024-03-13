@@ -3,6 +3,7 @@
 This is needed to easily compute a Steiner Tree (Euclidean Steiner Tree is complicated).
 """
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -259,7 +260,8 @@ def one_graph(
     logger.info("%s edges", len(edges_df))
 
     if output_path is not None:
-        nodes_df.to_hdf(output_path, key="nodes", mode="w")
+        Path(output_path).unlink(missing_ok=True)
+        nodes_df.to_hdf(output_path, key="nodes")
         edges_df.to_hdf(output_path, key="edges", mode="a")
 
     if figure_path is not None:

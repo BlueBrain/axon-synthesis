@@ -521,8 +521,8 @@ def cluster_morphologies(
             # terminals
             if len(axon.points) < MIN_AXON_POINTS:
                 LOGGER.warning(
-                    "The axon %s of %s is skipped because it has only %s points while we need at "
-                    "least 5 points are needed",
+                    "The axon %s of %s is skipped because it has only %s points while at least 5 "
+                    "points are needed for clustering",
                     axon_id,
                     group_name,
                     len(axon.points),

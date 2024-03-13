@@ -169,7 +169,8 @@ def compute_solution(
 
     if output_path is not None:
         # Export the solutions
-        nodes.to_hdf(str(output_path), key="solution_nodes", mode="w")
+        Path(output_path).unlink(missing_ok=True)
+        nodes.to_hdf(str(output_path), key="solution_nodes")
         edges.to_hdf(str(output_path), key="solution_edges", mode="a")
 
     in_solution_nodes = nodes.loc[nodes["is_solution"]]

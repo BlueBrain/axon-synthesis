@@ -192,7 +192,6 @@ def set_source_points(
         cells_df = pd.concat([cells_df.loc[cells_df.index.difference(new_axons.index)], new_axons])
         cells_df.fillna(
             {
-                "grafting_section_id": -1,
                 **{
                     source_col: cells_df[col]
                     for col, source_col in zip(COORDS_COLS, SOURCE_COORDS_COLS)

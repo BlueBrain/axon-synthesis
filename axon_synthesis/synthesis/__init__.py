@@ -136,7 +136,7 @@ def load_axon_grafting_points(path: FileType | None = None, key: str = _HDF_DEFA
             return mapping.fillna({"grafting_section_id": -1}).astype(  # type: ignore[call-overload]
                 {"grafting_section_id": int}
             )
-    return pd.DataFrame([], columns=cols).astype({"grafting_section_id": int})
+    return None
 
 
 def remove_existing_axons(morph):

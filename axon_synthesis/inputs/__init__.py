@@ -86,10 +86,10 @@ class Inputs(BasePathBuilder):
             self.load_metadata()
         else:
             self._metadata = {
-                "clustering": self.CLUSTERING_DIRNAME,
+                "clustering": self.CLUSTERING_DIRNAME.relative_to(self.path),
                 "neuron_density": self.neuron_density,
                 "path": self.path,
-                "WMR": self.WMR_DIRNAME,
+                "WMR": self.WMR_DIRNAME.relative_to(self.path),
             }
             if morphology_path is not None:
                 self._metadata["morphology_path"] = Path(morphology_path)
