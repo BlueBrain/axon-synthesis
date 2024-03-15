@@ -11,6 +11,7 @@ from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
 
 from axon_synthesis.atlas import AtlasConfig
+from axon_synthesis.constants import AXON_GRAFTING_POINT_HDF_GROUP
 from axon_synthesis.constants import COMMON_ANCESTOR_COORDS_COLS
 from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import DEFAULT_OUTPUT_PATH
@@ -73,21 +74,38 @@ def create_cell_collection(
 
 def create_probabilities(cells_df, tuft_properties):
     """Create the population and projection probabilities."""
+    # Create population IDs with one unique population for each morphology-axon couple
+    tuft_properties["population_id"] = tuft_properties.apply(
+        lambda row: f"{row['morphology']}_{row['axon_id']}", axis=1
+    )
+
     # Create population probabilities with all probs = 1
-    population_probabilities = cells_df[["population_id"]].copy()
+    population_probabilities = (
+        tuft_properties[["population_id"]].drop_duplicates().reset_index(drop=True)
+    )
     population_probabilities["brain_region_id"] = population_probabilities["population_id"]
     population_probabilities["probability"] = 1
 
     # Create projection probabilities with all probs = 1
     projection_probabilities = (
-        cells_df[["morphology", "morph_file", "population_id"]]
-        .rename(columns={"population_id": "source_population_id"})
-        .merge(
-            tuft_properties[["morphology", "axon_id", "tuft_id", *COMMON_ANCESTOR_COORDS_COLS]],
-            on="morphology",
-            how="left",
+        (
+            cells_df[["morphology", "morph_file"]].merge(
+                tuft_properties[
+                    [
+                        "morphology",
+                        "axon_id",
+                        "tuft_id",
+                        "population_id",
+                        *COMMON_ANCESTOR_COORDS_COLS,
+                    ]
+                ],
+                on="morphology",
+                how="left",
+            )
         )
-    ).dropna(subset="tuft_id")
+        .dropna(subset="tuft_id")
+        .rename(columns={"population_id": "source_population_id"})
+    )
     projection_probabilities["source_brain_region_id"] = projection_probabilities[
         "source_population_id"
     ].copy()
@@ -103,6 +121,15 @@ def create_probabilities(cells_df, tuft_properties):
         COMMON_ANCESTOR_COORDS_COLS
     ]
     projection_probabilities["probability"] = 1
+
+    # Copy the dummy source brain region ID to cells_df
+    cells_df["source_brain_region_id"] = cells_df.merge(
+        projection_probabilities[["morphology", "source_brain_region_id"]].drop_duplicates(
+            subset=["morphology"]
+        ),
+        on="morphology",
+        how="left",
+    )["source_brain_region_id"].to_numpy()
 
     return population_probabilities, projection_probabilities
 
@@ -147,9 +174,6 @@ def mimic_axons(
     cells = create_cell_collection(morphology_dir, morphology_data_file, converted_morphologies_dir)
     cells_df = cells.as_dataframe()
 
-    # Add population_id column to the cell collection with one unique pop for each cell-axon couple
-    cells_df["population_id"] = np.arange(len(cells_df)).astype(str)
-
     # Build and export the probabilities
     inputs.population_probabilities, inputs.projection_probabilities = create_probabilities(
         cells_df, inputs.clustering_data.tuft_properties
@@ -170,16 +194,26 @@ def mimic_axons(
     inputs.clustering_data.save()
 
     # Set the source properties
-    cells_df["source_brain_region_id"] = cells_df["population_id"].copy()
-    cells_df["source_population_id"] = cells_df["population_id"].copy()
     cells = CellCollection.from_dataframe(cells_df)
     cells.save(morphology_data_file)
+
+    # Create the axon grafting point file
+    axon_grafting_points_file = output_config.path.parent / "axon_grafting_points.h5"
+    axon_grafting_points = (
+        tuft_properties[["morphology", "population_id"]].drop_duplicates().reset_index(drop=True)
+    )
+    axon_grafting_points["grafting_section_id"] = -1
+    axon_grafting_points["source_brain_region_id"] = axon_grafting_points["population_id"]
+    axon_grafting_points["rebuilt_existing_axon_id"] = axon_grafting_points.groupby(
+        "morphology"
+    ).cumcount()
+    axon_grafting_points.to_hdf(axon_grafting_points_file, key=AXON_GRAFTING_POINT_HDF_GROUP)
 
     # Synthesize the axons using the modified inputs
     synthesis_config = SynthesisConfig(
         converted_morphologies_dir,
         morphology_data_file,
-        None,
+        axon_grafting_points_file,
         input_dir,
         rebuild_existing_axons=True,
     )

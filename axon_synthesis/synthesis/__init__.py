@@ -29,6 +29,7 @@ except ImportError:
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
+from axon_synthesis.constants import AXON_GRAFTING_POINT_HDF_GROUP
 from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import DEFAULT_OUTPUT_PATH
 from axon_synthesis.constants import TARGET_COORDS_COLS
@@ -56,8 +57,6 @@ from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import save_morphology
 
 LOGGER = logging.getLogger(__name__)
-
-_HDF_DEFAULT_GROUP = "axon_grafting_points"
 
 
 class SynthesisError(Exception):
@@ -123,7 +122,9 @@ class ParallelConfig:
     use_mpi: bool = field(default=False)
 
 
-def load_axon_grafting_points(path: FileType | None = None, key: str = _HDF_DEFAULT_GROUP):
+def load_axon_grafting_points(
+    path: FileType | None = None, key: str = AXON_GRAFTING_POINT_HDF_GROUP
+):
     """Load the axon mapping from the given file."""
     cols = ["morphology", "grafting_section_id"]
     if path is not None:

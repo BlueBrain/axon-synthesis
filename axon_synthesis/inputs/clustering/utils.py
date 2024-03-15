@@ -299,7 +299,7 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
         # Compute tuft orientation
         ancestor_pts = (
             tuft_ancestor.points[-1]
-            if not common_section.is_root
+            if not common_section.is_root or common_section.children
             else tuft_ancestor.points.mean(axis=0)
         )
         tuft_orientation = cluster_center - ancestor_pts
@@ -439,46 +439,45 @@ def create_clustered_morphology(
         name=f"Clustered trunk {Path(group_name).with_suffix('').name}{suffix}",
     )
 
-    for axon, new_axon, trunk_axon in zip(
-        get_axons(morph, axon_id),
-        get_axons(clustered_morph, axon_id),
-        get_axons(trunk_morph, axon_id),
-    ):
-        root = axon.root_node
-        new_root = new_axon.root_node
-        new_trunk_root = trunk_axon.root_node
+    axon = get_axons(morph, axon_id)
+    new_axon = get_axons(clustered_morph, axon_id)
+    trunk_axon = get_axons(trunk_morph, axon_id)
 
-        if not np.array_equal(root.points, new_root.points):
-            msg = "The axons were messed up!"
-            raise RuntimeError(msg)
+    root = axon.root_node
+    new_root = new_axon.root_node
+    new_trunk_root = trunk_axon.root_node
 
-        for sec in new_root.children:
-            clustered_morph.delete_section(sec.morphio_section)
-        for sec in new_trunk_root.children:
-            trunk_morph.delete_section(sec.morphio_section)
+    if not np.array_equal(root.points, new_root.points):
+        msg = "The axons were messed up!"
+        raise RuntimeError(msg)
 
-        current_sections = [(root, new_root, new_trunk_root)]
+    for sec in new_root.children:
+        clustered_morph.delete_section(sec.morphio_section)
+    for sec in new_trunk_root.children:
+        trunk_morph.delete_section(sec.morphio_section)
 
-        # Add kept sections
-        while current_sections:
-            current_section, current_new_section, current_trunk_section = current_sections.pop()
-            for child in current_section.children:
-                if child.id in kept_path:
-                    new_section = PointLevel(
-                        child.points[:, COLS.XYZ].tolist(),
-                        (child.points[:, COLS.R] * 2).tolist(),
-                    )
-                    current_sections.append(
-                        (
-                            child,
-                            current_new_section.append_section(new_section),
-                            current_trunk_section.append_section(new_section),
-                        ),
-                    )
+    current_sections = [(root, new_root, new_trunk_root)]
 
-            if current_section.id in sections_to_add:
-                for new_sec in sections_to_add[current_section.id]:
-                    current_new_section.append_section(new_sec)
+    # Add kept sections
+    while current_sections:
+        current_section, current_new_section, current_trunk_section = current_sections.pop()
+        for child in current_section.children:
+            if child.id in kept_path:
+                new_section = PointLevel(
+                    child.points[:, COLS.XYZ].tolist(),
+                    (child.points[:, COLS.R] * 2).tolist(),
+                )
+                current_sections.append(
+                    (
+                        child,
+                        current_new_section.append_section(new_section),
+                        current_trunk_section.append_section(new_section),
+                    ),
+                )
+
+        if current_section.id in sections_to_add:
+            for new_sec in sections_to_add[current_section.id]:
+                current_new_section.append_section(new_sec)
 
     for i in [clustered_morph, trunk_morph]:
         keep_only_neurites(i, NeuriteType.axon, axon_id)

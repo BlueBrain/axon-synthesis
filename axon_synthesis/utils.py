@@ -163,9 +163,14 @@ def add_camera_sync(fig_path):
         f.write(tmp.replace("</body>", js + "</body>"))
 
 
-def get_axons(morph):
+def get_axons(morph, axon_ids=None):
     """Get axons of the given morphology."""
-    return [i for i in morph.neurites if i.type == NeuriteType.axon]
+    axons = [i for i in morph.neurites if i.type == NeuriteType.axon]
+    if axon_ids is None:
+        return axons
+    if isinstance(axon_ids, int):
+        return axons[axon_ids]
+    return [axons[i] for i in axon_ids]
 
 
 def keep_only_neurites(morph, neurite_type=None, neurite_idx=None, *, copy=False):

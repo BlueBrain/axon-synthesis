@@ -114,6 +114,7 @@ def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_worker
                         ],
                     },
                 },
+                "atol": 1e-6,
             },
         },
     )

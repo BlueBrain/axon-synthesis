@@ -1,7 +1,1 @@
-{
-    "WMR": "inputs/WhiteMatterRecipe",
-    "clustering": "inputs/Clustering",
-    "morphology_path": "morphologies/repair_release/asc",
-    "neuron_density": null,
-    "path": "inputs"
-}
+{"WMR": "WhiteMatterRecipe", "clustering": "Clustering", "morphology_path": "morphologies/repair_release/asc", "neuron_density": null, "path": "inputs"}

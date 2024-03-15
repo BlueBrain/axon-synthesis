@@ -265,4 +265,6 @@ def get_target_points(
         with ignore_warnings(pd.errors.PerformanceWarning):
             target_points.to_hdf(output_path, key="target_points")
 
-    return target_points.sort_values("morphology").reset_index(drop=True)
+    return target_points.sort_values(["morphology", "axon_id", "terminal_id"]).reset_index(
+        drop=True
+    )

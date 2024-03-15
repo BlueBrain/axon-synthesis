@@ -202,7 +202,10 @@ def create_edges(all_points, from_coord_cols, to_coord_cols):
         The source-target order has no meaning.
     """
     if len(all_points) < 5:
-        msg = ""
+        msg = (
+            "Not enough points to create edges, at least 5 points are needed but only "
+            f"{len(all_points)} found"
+        )
         raise RuntimeError(msg)
 
     if FORCE_2D:

@@ -14,6 +14,7 @@ class CoordsCols(list):
         self.X = self[0]
         self.Y = self[1]
         self.Z = self[2]
+        self.XYZ = [self.X, self.Y, self.Z]
 
 
 # Point coordinates
@@ -30,6 +31,7 @@ FROM_COORDS_COLS = CoordsCols("x_from", "y_from", "z_from")
 TO_COORDS_COLS = CoordsCols("x_to", "y_to", "z_to")
 
 # Constants
+AXON_GRAFTING_POINT_HDF_GROUP = "axon_grafting_points"
 DEFAULT_OUTPUT_PATH = "out"
 DEFAULT_POPULATION = "default"
 WMR_ATLAS_ID = "id"  # Can also be "atlas_id" in other atlas versions

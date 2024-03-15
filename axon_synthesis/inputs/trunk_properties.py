@@ -75,7 +75,7 @@ def compute_trunk_properties(
     axon_id: int,
     config_name: str,
     atlas_region_id: int,
-) -> list[tuple]:
+) -> tuple:
     """Compute the properties of the trunk morphologies listed in the given DataFrame."""
     # Load morph paths
     logger.info("Extracting trunk properties from %s", trunk_morph.name)

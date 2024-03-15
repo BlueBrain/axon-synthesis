@@ -109,7 +109,7 @@ def plot_target_points(morph, source_point, target_points, output_path, logger=N
         x=target_points[:, 0],
         y=target_points[:, 1],
         z=target_points[:, 2],
-        marker={"color": "green", "size": 2},
+        marker={"color": "green", "size": 3},
         mode="markers",
         name="Target points",
     )

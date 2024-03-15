@@ -126,6 +126,83 @@ def fill_morph_file_col(cells_df, morph_dir):
         raise RuntimeError(msg)
 
 
+def combine_existing_axons(cells_df):
+    """Combine rebuilt existing axons with explicitly given axons."""
+    existing_axons = (
+        cells_df.groupby("morph_file")["morph_file"]
+        .apply(lambda group: find_existing_axons(group.name))
+        .apply(pd.Series)
+        .stack()
+        .rename("XYZ")  # type: ignore[call-overload]
+    )
+    existing_axons.index.rename("axon_id", level=1, inplace=True)  # type: ignore[call-arg]
+    existing_axons = existing_axons.reset_index()
+    existing_axons["grafting_section_id"] = -1
+    if existing_axons.empty:
+        existing_axons[SOURCE_COORDS_COLS] = pd.DataFrame(
+            {col: pd.Series(dtype=float) for col in SOURCE_COORDS_COLS}
+        )
+    else:
+        existing_axons[SOURCE_COORDS_COLS] = np.stack(
+            existing_axons["XYZ"].to_numpy()  # type: ignore[arg-type]
+        )
+    new_axons = (
+        cells_df[
+            [
+                col
+                for col in cells_df.columns
+                if col not in ["grafting_section_id", *SOURCE_COORDS_COLS]
+            ]
+        ]
+        .drop_duplicates("morphology")
+        .merge(
+            existing_axons[["morph_file", "grafting_section_id", *SOURCE_COORDS_COLS]],
+            on="morph_file",
+            how="right",
+        )
+    )
+
+    if "rebuilt_existing_axon_id" in cells_df.columns:
+        if cells_df[["morphology", "rebuilt_existing_axon_id"]].duplicated().any():
+            msg = "The 'rebuilt_existing_axon_id' should be unique for each morphology"
+            raise ValueError(msg)
+        new_axons["rebuilt_existing_axon_id"] = new_axons.groupby("morphology").cumcount()
+        all_axons = (
+            new_axons.reset_index()
+            .merge(
+                cells_df[["morphology", "rebuilt_existing_axon_id"]]
+                .drop_duplicates()
+                .reset_index(),
+                on=["morphology", "rebuilt_existing_axon_id"],
+                how="outer",
+                indicator=True,
+                suffixes=("_new_axons", "_cells_df"),
+            )
+            .dropna(subset=["morph_file"])
+        )
+        new_axons = new_axons.loc[
+            all_axons.loc[all_axons["_merge"] == "left_only", "index_new_axons"]
+            .astype(int)
+            .to_numpy()
+        ]
+        cells_df = cells_df.loc[
+            all_axons.loc[all_axons["_merge"] == "both", "index_cells_df"].astype(int).to_numpy()
+        ]
+
+    # We don't add axons starting from the soma when an existing axon is rebuilt
+    cells_df = pd.concat([cells_df.loc[cells_df.index.difference(new_axons.index)], new_axons])
+    cells_df.fillna(
+        {
+            **{
+                source_col: cells_df[col]
+                for col, source_col in zip(COORDS_COLS, SOURCE_COORDS_COLS)
+            },
+        },
+        inplace=True,
+    )
+    return cells_df
+
+
 def set_source_points(
     cells_df: pd.DataFrame,
     atlas: AtlasHelper | None,
@@ -140,6 +217,8 @@ def set_source_points(
     if "morph_file" not in cells_df.columns:
         fill_morph_file_col(cells_df, morph_dir)
 
+    cells_df = cells_df.reset_index(drop=True)
+
     # Get source points from the axon_grafting_points file
     if axon_grafting_points is not None:
         axon_grafting_points = axon_grafting_points[
@@ -147,58 +226,20 @@ def set_source_points(
                 col
                 for col in axon_grafting_points.columns
                 if col
-                in ["morphology", "grafting_section_id", *SOURCE_COORDS_COLS, "population_id"]
+                in [
+                    "morphology",
+                    "grafting_section_id",
+                    *SOURCE_COORDS_COLS,
+                    "population_id",
+                    "rebuilt_existing_axon_id",
+                ]
             ]
         ]
         cells_df = cells_df.merge(axon_grafting_points, on="morphology", how="left")
 
     # Find existing axons to rebuild them if required
     if rebuild_existing_axons:
-        existing_axons = (
-            cells_df.groupby("morph_file")["morph_file"]
-            .apply(lambda group: find_existing_axons(group.name))
-            .apply(pd.Series)
-            .stack()
-            .rename("XYZ")  # type: ignore[call-overload]
-        )
-        existing_axons.index.rename("axon_id", level=1, inplace=True)  # type: ignore[call-arg]
-        existing_axons = existing_axons.reset_index()
-        existing_axons["grafting_section_id"] = -1
-        if existing_axons.empty:
-            existing_axons[SOURCE_COORDS_COLS] = pd.DataFrame(
-                {col: pd.Series(dtype=float) for col in SOURCE_COORDS_COLS}
-            )
-        else:
-            existing_axons[SOURCE_COORDS_COLS] = np.stack(
-                existing_axons["XYZ"].to_numpy()  # type: ignore[arg-type]
-            )
-        new_axons = (
-            cells_df[
-                [
-                    col
-                    for col in cells_df.columns
-                    if col not in ["grafting_section_id", *SOURCE_COORDS_COLS]
-                ]
-            ]
-            .drop_duplicates("morphology")
-            .merge(
-                existing_axons[["morph_file", "grafting_section_id", *SOURCE_COORDS_COLS]],
-                on="morph_file",
-                how="right",
-            )
-        )
-
-        # We don't add axons starting from the soma when an existing axon is rebuilt
-        cells_df = pd.concat([cells_df.loc[cells_df.index.difference(new_axons.index)], new_axons])
-        cells_df.fillna(
-            {
-                **{
-                    source_col: cells_df[col]
-                    for col, source_col in zip(COORDS_COLS, SOURCE_COORDS_COLS)
-                },
-            },
-            inplace=True,
-        )
+        cells_df = combine_existing_axons(cells_df)
 
     # Format the grafting_section_id column
     if "grafting_section_id" not in cells_df.columns:

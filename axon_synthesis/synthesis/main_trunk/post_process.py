@@ -648,6 +648,9 @@ def post_process_trunk(
         )
         parent_histories[i[-1]] = last_history
 
+        if len(resampled_pts) <= len(pts):
+            resampled_pts = pts
+
         resampled_diams = resample_diameters(pts, resampled_pts, diams)
 
         # Update section points and diameters

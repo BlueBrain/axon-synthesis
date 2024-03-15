@@ -128,7 +128,7 @@ def segments_proj_intensities(segments, bbox, voxel_dimensions, center, logger=N
             "lengths": intersections["lengths"].explode(),
         }
     )
-    elements["indices"] = elements["indices"].apply(lambda x: tuple(x))
+    elements["indices"] = elements["indices"].apply(tuple)
 
     lengths = elements.groupby("indices")["lengths"].sum().reset_index()
     indices = tuple(np.vstack(lengths["indices"].to_numpy()).T.tolist())
@@ -203,12 +203,11 @@ def proj_intensities_one_morph(morph_data, config):
             "Skip the morphology because of the following error:",
         )
         raise
-    else:
-        return {
-            "file_paths": file_paths,
-            "voxel_dimensions": grid_voxel_dimensions,
-            "axon_ids": axon_ids,
-        }
+    return {
+        "file_paths": file_paths,
+        "voxel_dimensions": grid_voxel_dimensions,
+        "axon_ids": axon_ids,
+    }
 
 
 def compute_projection_intensities(
