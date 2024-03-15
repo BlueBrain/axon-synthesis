@@ -31,6 +31,8 @@ from axon_synthesis.constants import DEFAULT_POPULATION
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import disable_loggers
+from axon_synthesis.utils import get_axons
+from axon_synthesis.utils import keep_only_neurites
 from axon_synthesis.utils import save_morphology
 
 logger = logging.getLogger(__name__)
@@ -158,6 +160,35 @@ def tuft_morph_path(root_path, group_name, axon_id, tuft_id):
     return root_path / f"{Path(group_name).with_suffix('').name}_{axon_id}_{tuft_id}.asc"
 
 
+def clusters_basic_tuft(
+    config_name,
+    axon_id,
+    group_name,
+    group,
+    nodes,
+    **_kwargs,
+):
+    """Create one cluster with all points of the group."""
+    terminals = nodes.drop(-1)
+    new_terminal_points = [
+        [
+            group_name,
+            config_name,
+            axon_id,
+            1,
+            len(terminals),
+            *terminals[COORDS_COLS].mean().tolist(),
+        ]
+    ]
+
+    group.loc[
+        group["graph_node_id"].isin(terminals.index),
+        "tuft_id",
+    ] = 1
+
+    return new_terminal_points, group["tuft_id"]
+
+
 def compute_mean_tuft_length(
     volume,
     n_pot,
@@ -266,16 +297,21 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
         ].to_numpy()[0]
 
         # Compute tuft orientation
-        tuft_orientation = cluster_center - tuft_ancestor.points[-1]
+        ancestor_pts = (
+            tuft_ancestor.points[-1]
+            if not common_section.is_root
+            else tuft_ancestor.points.mean(axis=0)
+        )
+        tuft_orientation = cluster_center - ancestor_pts
         tuft_orientation /= np.linalg.norm(tuft_orientation)
         if atlas_orientations is not None:
             try:
-                atlas_orientation = atlas_orientations.lookup(tuft_ancestor.points[-1])[0].T
+                atlas_orientation = atlas_orientations.lookup(ancestor_pts)[0].T
             except VoxcellError:
                 logger.debug(
                     "Could not retrieve the atlas orientation for %s at %s",
                     group_name,
-                    tuft_ancestor.points[-1],
+                    ancestor_pts,
                 )
             else:
                 if ~np.isnan(atlas_orientation).any():
@@ -353,7 +389,7 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 tuft_id,
                 cluster_center.tolist(),
                 common_ancestor,
-                *tuft_ancestor.points[-1].tolist(),
+                *ancestor_pts.tolist(),
                 path_distance,
                 radial_distance,
                 path_length,
@@ -388,7 +424,9 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
     return kept_path
 
 
-def create_clustered_morphology(morph, group_name, kept_path, sections_to_add, suffix=None):
+def create_clustered_morphology(
+    morph, group_name, axon_id, kept_path, sections_to_add, suffix=None
+):
     """Create a new morphology with the kept path and add new sections to cluster centers."""
     if not suffix:
         suffix = ""
@@ -397,18 +435,15 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add, s
         name=f"Clustered {Path(group_name).with_suffix('').name}{suffix}",
     )
     trunk_morph = Morphology(
-        morph,
+        clustered_morph,
         name=f"Clustered trunk {Path(group_name).with_suffix('').name}{suffix}",
     )
 
     for axon, new_axon, trunk_axon in zip(
-        morph.neurites,
-        clustered_morph.neurites,
-        trunk_morph.neurites,
+        get_axons(morph, axon_id),
+        get_axons(clustered_morph, axon_id),
+        get_axons(trunk_morph, axon_id),
     ):
-        if axon.type != NeuriteType.axon:
-            continue
-
         root = axon.root_node
         new_root = new_axon.root_node
         new_trunk_root = trunk_axon.root_node
@@ -444,6 +479,9 @@ def create_clustered_morphology(morph, group_name, kept_path, sections_to_add, s
             if current_section.id in sections_to_add:
                 for new_sec in sections_to_add[current_section.id]:
                     current_new_section.append_section(new_sec)
+
+    for i in [clustered_morph, trunk_morph]:
+        keep_only_neurites(i, NeuriteType.axon, axon_id)
     return clustered_morph, trunk_morph
 
 

@@ -168,6 +168,32 @@ def get_axons(morph):
     return [i for i in morph.neurites if i.type == NeuriteType.axon]
 
 
+def keep_only_neurites(morph, neurite_type=None, neurite_idx=None, *, copy=False):
+    """Delete neurites except the ones with a given type or index.
+
+    .. note::
+        If both the type and index are given, the index is only applied for the neurites of the
+        given type.
+    """
+    if copy:
+        morph = Morphology(morph)
+
+    if neurite_type is not None:
+        for i in morph.root_sections:
+            if i.type != neurite_type:
+                morph.delete_section(i)
+
+    if neurite_idx is not None:
+        to_delete = []
+        for num, i in enumerate(morph.root_sections):
+            if num != neurite_idx:
+                to_delete.append(i)
+        for i in to_delete:
+            morph.delete_section(i)
+
+    return morph
+
+
 def neurite_to_pts(neurite, *, keep_section_segments=False):
     """Extract points and segments from a neurite."""
     graph_nodes = []

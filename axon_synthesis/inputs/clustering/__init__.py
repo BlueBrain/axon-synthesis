@@ -26,6 +26,7 @@ from axon_synthesis.inputs.clustering.from_spheres import compute_clusters as cl
 from axon_synthesis.inputs.clustering.plot import plot_cluster_properties
 from axon_synthesis.inputs.clustering.plot import plot_clusters
 from axon_synthesis.inputs.clustering.utils import DefaultValidatingValidator
+from axon_synthesis.inputs.clustering.utils import clusters_basic_tuft
 from axon_synthesis.inputs.clustering.utils import compute_shortest_paths
 from axon_synthesis.inputs.clustering.utils import create_clustered_morphology
 from axon_synthesis.inputs.clustering.utils import export_morph
@@ -59,6 +60,7 @@ OUTPUT_COLS = [
 ]
 
 CLUSTERING_FUNCS = {
+    "basic": clusters_basic_tuft,
     "sphere": clusters_from_spheres,
     "sphere_parents": clusters_from_sphere_parents,
     "barcode": clusters_from_barcodes,
@@ -519,26 +521,28 @@ def cluster_morphologies(
         for axon_id, axon in enumerate(get_axons(morph)):
             # Create a graph for each axon and compute the shortest paths from the soma to all
             # terminals
-            if len(axon.points) < MIN_AXON_POINTS:
-                LOGGER.warning(
-                    "The axon %s of %s is skipped because it has only %s points while at least 5 "
-                    "points are needed for clustering",
-                    axon_id,
-                    group_name,
-                    len(axon.points),
-                )
-                continue
             nodes, edges, directed_graph = neurite_to_graph(axon)
             shortest_paths = compute_shortest_paths(directed_graph)
             node_to_terminals = nodes_to_terminals_mapping(directed_graph, shortest_paths)
 
             for config_name, config in clustering.parameters.items():
-                if config["method"] == "brain_regions" and (atlas is None or wmr is None):
+                clustering_method = config["method"]
+                if clustering_method == "brain_regions" and (atlas is None or wmr is None):
                     msg = (
                         "The atlas and wmr can not be None when the clustering method is "
                         "'brain_regions'."
                     )
                     raise ValueError(msg)
+                if len(axon.points) < MIN_AXON_POINTS:
+                    LOGGER.warning(
+                        "The axon %s of %s is clustered with basic algorithm because it has only "
+                        "%s points while at least 5 points are needed for other clustering "
+                        "algorithms",
+                        axon_id,
+                        group_name,
+                        len(axon.points),
+                    )
+                    clustering_method = "basic"
                 axon_group = group.loc[group["axon_id"] == axon_id].copy(deep=True)
                 axon_group["config_name"] = config_name
                 axon_group = axon_group.merge(
@@ -572,7 +576,7 @@ def cluster_morphologies(
                     "nb_workers": nb_workers,
                     "debug": debug,
                 }
-                new_terminal_points, tuft_ids = CLUSTERING_FUNCS[config["method"]](  # type: ignore[operator]
+                new_terminal_points, tuft_ids = CLUSTERING_FUNCS[clustering_method](  # type: ignore[operator]
                     **clustering_kwargs
                 )
 
@@ -621,16 +625,17 @@ def cluster_morphologies(
                 clustered_morph, trunk_morph = create_clustered_morphology(
                     morph,
                     group_name,
+                    axon_id,
                     kept_path,
                     sections_to_add,
                     suffix=suffix,
                 )
 
                 # Compute trunk properties
-                trunk_props.extend(
+                trunk_props.append(
                     compute_trunk_properties(
                         trunk_morph, str(group_name), axon_id, config_name, atlas_region_id
-                    ),
+                    )
                 )
 
                 # Export the trunk and clustered morphologies

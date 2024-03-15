@@ -79,37 +79,31 @@ def compute_trunk_properties(
     """Compute the properties of the trunk morphologies listed in the given DataFrame."""
     # Load morph paths
     logger.info("Extracting trunk properties from %s", trunk_morph.name)
-    long_range_trunk_props = []
 
     # Compute long-range trunk features that will be used for smoothing and jittering
-    long_range_trunks = get_axons(trunk_morph)
-    for axon in long_range_trunks:
-        trunk_stats = morph_stats.extract_stats(
-            axon,
-            {
-                "neurite": {
-                    "segment_lengths": {"modes": ["raw", "mean", "std"]},
-                    "segment_meander_angles": {"modes": ["raw", "mean", "std"]},
-                    "segment_angles": {"modes": ["raw"]},
-                    "segment_path_lengths": {"modes": ["raw"]},
-                },
+    long_range_trunk = get_axons(trunk_morph, 0)
+    trunk_stats = morph_stats.extract_stats(
+        long_range_trunk,
+        {
+            "neurite": {
+                "segment_lengths": {"modes": ["raw", "mean", "std"]},
+                "segment_meander_angles": {"modes": ["raw", "mean", "std"]},
+                "segment_angles": {"modes": ["raw"]},
+                "segment_path_lengths": {"modes": ["raw"]},
             },
-        )["axon"]
-        long_range_trunk_props.append(
-            (
-                morph_name,
-                config_name,
-                axon_id,
-                atlas_region_id,
-                np.array(trunk_stats["raw_segment_lengths"]).tolist(),
-                trunk_stats["mean_segment_lengths"],
-                trunk_stats["std_segment_lengths"],
-                np.array(trunk_stats["raw_segment_meander_angles"]).tolist(),
-                trunk_stats["mean_segment_meander_angles"],
-                trunk_stats["std_segment_meander_angles"],
-                np.array(trunk_stats["raw_segment_angles"]).tolist(),
-                np.array(trunk_stats["raw_segment_path_lengths"]).tolist(),
-            ),
-        )
-
-    return long_range_trunk_props
+        },
+    )["axon"]
+    return (
+        morph_name,
+        config_name,
+        axon_id,
+        atlas_region_id,
+        np.array(trunk_stats["raw_segment_lengths"]).tolist(),
+        trunk_stats["mean_segment_lengths"],
+        trunk_stats["std_segment_lengths"],
+        np.array(trunk_stats["raw_segment_meander_angles"]).tolist(),
+        trunk_stats["mean_segment_meander_angles"],
+        trunk_stats["std_segment_meander_angles"],
+        np.array(trunk_stats["raw_segment_angles"]).tolist(),
+        np.array(trunk_stats["raw_segment_path_lengths"]).tolist(),
+    )
