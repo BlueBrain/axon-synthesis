@@ -192,12 +192,7 @@ def combine_existing_axons(cells_df):
     # We don't add axons starting from the soma when an existing axon is rebuilt
     cells_df = pd.concat([cells_df.loc[cells_df.index.difference(new_axons.index)], new_axons])
     cells_df.fillna(
-        {
-            **{
-                source_col: cells_df[col]
-                for col, source_col in zip(COORDS_COLS, SOURCE_COORDS_COLS)
-            },
-        },
+        {source_col: 0 for source_col in SOURCE_COORDS_COLS},
         inplace=True,
     )
     return cells_df

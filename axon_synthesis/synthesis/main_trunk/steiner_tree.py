@@ -75,7 +75,7 @@ def plot_solution(nodes, edges, figure_path, logger=None):
         x=[nodes.loc[0, COORDS_COLS.X]],
         y=[nodes.loc[0, COORDS_COLS.Y]],
         z=[nodes.loc[0, COORDS_COLS.Z]],
-        marker={"color": "red", "size": 4},
+        marker={"color": "purple", "size": 4},
         mode="markers",
         name="Source point",
     )
@@ -93,7 +93,7 @@ def plot_solution(nodes, edges, figure_path, logger=None):
         x=nodes.loc[nodes["is_terminal"], COORDS_COLS.X].to_numpy()[1:],
         y=nodes.loc[nodes["is_terminal"], COORDS_COLS.Y].to_numpy()[1:],
         z=nodes.loc[nodes["is_terminal"], COORDS_COLS.Z].to_numpy()[1:],
-        marker={"color": "blue", "size": 4},
+        marker={"color": "chocolate", "size": 4},
         mode="markers",
         name="Target points",
     )

@@ -19,15 +19,21 @@ def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermed
     """Add intermediate points between source points and target points."""
     terms = pts[:, :3] - ref_coords
     term_dists = np.linalg.norm(terms, axis=1)
-    nb_inter = np.clip(
-        term_dists // min_intermediate_distance,
-        0,
-        intermediate_number,
-    )
+    if min_intermediate_distance <= 0:
+        nb_inter = np.repeat(intermediate_number, len(terms))
+    else:
+        nb_inter = np.clip(
+            term_dists // min_intermediate_distance,
+            0,
+            intermediate_number,
+        )
+
+    if (nb_inter <= 0).all():
+        return pts
 
     inter_pts = []
     for x, y, z, num in np.hstack([terms, np.atleast_2d(nb_inter).T]):
-        if num == 0:
+        if num == 0 or np.linalg.norm([x, y, z]) == 0:
             continue
         inter_pts.append(
             (

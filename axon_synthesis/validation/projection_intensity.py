@@ -18,7 +18,6 @@ from neurom import COLS
 from voxcell import VoxelData
 from voxcell.math_utils import voxel_intersection
 
-from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import FROM_COORDS_COLS
 from axon_synthesis.constants import TO_COORDS_COLS
 from axon_synthesis.synthesis import ParallelConfig
@@ -154,24 +153,7 @@ def proj_intensities_one_morph(morph_data, config):
             center = axon.root_node.points[0, COLS.XYZ]
 
             # Create the DF of segments
-            nodes, edges = neurite_to_pts(axon, keep_section_segments=True)
-
-            edges = edges.merge(nodes, left_on="source", right_index=True).rename(
-                columns={
-                    COORDS_COLS.X: FROM_COORDS_COLS.X,
-                    COORDS_COLS.Y: FROM_COORDS_COLS.Y,
-                    COORDS_COLS.Z: FROM_COORDS_COLS.Z,
-                }
-            )
-            edges = edges.merge(
-                nodes, left_on="target", right_index=True, suffixes=("_from", "_to")
-            ).rename(
-                columns={
-                    COORDS_COLS.X: TO_COORDS_COLS.X,
-                    COORDS_COLS.Y: TO_COORDS_COLS.Y,
-                    COORDS_COLS.Z: TO_COORDS_COLS.Z,
-                }
-            )
+            nodes, edges = neurite_to_pts(axon, keep_section_segments=True, edges_with_coords=True)
             edges["length"] = np.linalg.norm(
                 edges[FROM_COORDS_COLS].to_numpy() - edges[TO_COORDS_COLS].to_numpy(),
                 axis=1,

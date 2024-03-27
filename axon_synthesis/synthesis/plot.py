@@ -56,7 +56,7 @@ def plot_final_morph(morph, target_points, output_path, initial_morph=None, logg
         y=y,
         z=z,
         mode="markers",
-        marker={"size": 2, "color": "orange"},
+        marker={"size": 2, "color": "chocolate"},
         name="Target points",
     )
     fig.add_trace(node_trace, row=1, col=1)
@@ -100,7 +100,7 @@ def plot_target_points(morph, source_point, target_points, output_path, logger=N
         x=[source_point[0]],
         y=[source_point[1]],
         z=[source_point[2]],
-        marker={"color": "red", "size": 4},
+        marker={"color": "purple", "size": 4},
         mode="markers",
         name="Source point",
     )
@@ -109,7 +109,7 @@ def plot_target_points(morph, source_point, target_points, output_path, logger=N
         x=target_points[:, 0],
         y=target_points[:, 1],
         z=target_points[:, 2],
-        marker={"color": "green", "size": 3},
+        marker={"color": "chocolate", "size": 3},
         mode="markers",
         name="Target points",
     )

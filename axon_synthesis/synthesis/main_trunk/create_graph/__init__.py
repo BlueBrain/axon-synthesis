@@ -191,6 +191,18 @@ def one_graph(
         bbox=bbox,
     )
 
+    # Add some intermediate points to ensure there are enough points to build a graph
+    if len(nodes_df) <= 5:
+        all_pts = add_intermediate_points(
+            nodes_df[[*COORDS_COLS, "NodeProvider"]].to_numpy(),
+            source_coords,
+            0,
+            5 - len(nodes_df),
+        )
+        filling_pts = pd.DataFrame(all_pts[len(nodes_df) :], columns=[*COORDS_COLS, "NodeProvider"])
+        filling_pts[["is_terminal", "terminal_id"]] = (False, -1)
+        nodes_df = pd.concat([nodes_df, filling_pts], ignore_index=True)
+
     # Reset index and set IDs
     nodes_df = nodes_df.reset_index(drop=True)
     nodes_df.loc[:, "id"] = nodes_df.index.to_numpy()

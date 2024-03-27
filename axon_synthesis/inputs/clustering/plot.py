@@ -40,7 +40,7 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
         y=y,
         z=z,
         mode="markers",
-        marker={"size": 5, "color": "red"},
+        marker={"size": 5, "color": "chocolate"},
         name="Cluster centers",
     )
     cluster_lines = [

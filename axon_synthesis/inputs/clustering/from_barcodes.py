@@ -134,7 +134,7 @@ def compute_clusters(
             ax_hist.plot(
                 hist_data_horizontal[0][:-1],
                 hist_data_horizontal[1],
-                color="orange",
+                color="chocolate",
                 alpha=0.7,
                 label="Histogram horizontal",
             )
@@ -157,7 +157,7 @@ def compute_clusters(
             ax_hist.legend()
 
             # Plot derivatives
-            ax_der.plot(bin_centers, der1, color="orange", alpha=0.7, label="1st derivative")
+            ax_der.plot(bin_centers, der1, color="chocolate", alpha=0.7, label="1st derivative")
             ax_der.plot(bin_centers, der2, color="blue", alpha=0.7, label="2nd derivative")
             ax_der.vlines(
                 min_positions,

@@ -31,6 +31,8 @@ from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
 
 from axon_synthesis.constants import COORDS_COLS
+from axon_synthesis.constants import FROM_COORDS_COLS
+from axon_synthesis.constants import TO_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
@@ -199,7 +201,7 @@ def keep_only_neurites(morph, neurite_type=None, neurite_idx=None, *, copy=False
     return morph
 
 
-def neurite_to_pts(neurite, *, keep_section_segments=False):
+def neurite_to_pts(neurite, *, keep_section_segments=False, edges_with_coords=False):
     """Extract points and segments from a neurite."""
     graph_nodes = []
     graph_edges = []
@@ -237,6 +239,24 @@ def neurite_to_pts(neurite, *, keep_section_segments=False):
     edges = edges.sort_values(
         ["source", "target"],
     ).reset_index(drop=True)
+
+    if edges_with_coords:
+        edges = edges.merge(nodes, left_on="source", right_index=True).rename(
+            columns={
+                COORDS_COLS.X: FROM_COORDS_COLS.X,
+                COORDS_COLS.Y: FROM_COORDS_COLS.Y,
+                COORDS_COLS.Z: FROM_COORDS_COLS.Z,
+            }
+        )
+        edges = edges.merge(
+            nodes, left_on="target", right_index=True, suffixes=("_from", "_to")
+        ).rename(
+            columns={
+                COORDS_COLS.X: TO_COORDS_COLS.X,
+                COORDS_COLS.Y: TO_COORDS_COLS.Y,
+                COORDS_COLS.Z: TO_COORDS_COLS.Z,
+            }
+        )
 
     return nodes, edges
 
@@ -359,7 +379,7 @@ def compute_bbox(points, relative_buffer=None):
 def compute_aspect_ratios(bbox):
     """Compute the aspect ratios of a bounding box."""
     aspect_ratios = bbox[1] - bbox[0]
-    aspect_ratios /= aspect_ratios[0]
+    aspect_ratios /= aspect_ratios[np.argmax(aspect_ratios)]
     return aspect_ratios
 
 
