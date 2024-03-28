@@ -122,6 +122,11 @@ def create_probabilities(cells_df, tuft_properties):
     ]
     projection_probabilities["probability"] = 1
 
+    return population_probabilities, projection_probabilities
+
+
+def update_cells(cells_df, projection_probabilities):
+    """Update the cell collection according to the computed projection probabilities."""
     # Copy the dummy source brain region ID to cells_df
     cells_df["source_brain_region_id"] = cells_df.merge(
         projection_probabilities[["morphology", "source_brain_region_id"]].drop_duplicates(
@@ -131,7 +136,14 @@ def create_probabilities(cells_df, tuft_properties):
         how="left",
     )["source_brain_region_id"].to_numpy()
 
-    return population_probabilities, projection_probabilities
+    # Drop morphologies with missing brain region IDs
+    missing_brain_regions = cells_df.loc[cells_df["source_brain_region_id"].isna()]
+    if not missing_brain_regions.empty:
+        LOGGER.warning(
+            "Could not find the source brain region of the following morphologies: %s",
+            ", ".join(missing_brain_regions["morphology"].sort_values().tolist()),
+        )
+        cells_df.drop(missing_brain_regions.index, inplace=True)
 
 
 def mimic_axons(
@@ -180,6 +192,9 @@ def mimic_axons(
         cells_df, inputs.clustering_data.tuft_properties
     )
     inputs.export_probabilities()
+
+    # Update the cell properties
+    update_cells(cells_df, inputs.projection_probabilities)
 
     # Update tuft properties
     tuft_properties = inputs.clustering_data.tuft_properties.merge(

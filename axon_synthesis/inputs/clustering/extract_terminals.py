@@ -27,7 +27,8 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
     axons = get_axons(morph)
 
     nb_axons = len(axons)
-    LOGGER.info("%s: %s axon%s found", morph_name, nb_axons, "s" if nb_axons > 1 else "")
+    log_func = LOGGER.warning if nb_axons == 0 else LOGGER.info
+    log_func("%s: %s axon%s found", morph_name, nb_axons, "s" if nb_axons > 1 else "")
 
     for axon_id, axon in enumerate(axons):
         # Add root point
@@ -97,6 +98,10 @@ def process_morphologies(
             parallel_factory.shutdown()
             cluster.close()
 
+    results = results.loc[results["res"].apply(len) > 0]
     final_results = results["res"].explode().apply(pd.Series)
     final_results.columns = ["morph_file", "axon_id", "terminal_id", "section_id", *COORDS_COLS]
+    if final_results.empty:
+        msg = "No morphology with axon found"
+        raise RuntimeError(msg)
     return final_results
