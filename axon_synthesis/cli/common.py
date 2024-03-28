@@ -16,6 +16,11 @@ def atlas_options(func):
 
     @optgroup.group("Atlas parameters", help="Parameters used to read and prepare the atlas")
     @optgroup.option(
+        "--atlas-enable/--atlas-disable",
+        default=None,
+        help="Enable or disable the Atlas",
+    )
+    @optgroup.option(
         "--atlas-path",
         type=click.Path(exists=True, file_okay=False),
         required=True,
@@ -44,11 +49,15 @@ def atlas_options(func):
 
 def atlas_kwargs_to_config(config) -> None:
     """Extract the atlas arguments from given config to create an AtlasConfig object."""
-    config["atlas_config"] = AtlasConfig(
+    atlas_config = AtlasConfig(
         config.pop("atlas_path"),
         config.pop("atlas_region_filename"),
         config.pop("atlas_layer_names", None),
     )
+    if config.pop("atlas_enable", False):
+        config["atlas_config"] = atlas_config
+    else:
+        config["atlas_config"] = None
 
 
 def parallel_options(func):
