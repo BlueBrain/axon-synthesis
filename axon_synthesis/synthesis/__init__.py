@@ -11,8 +11,8 @@ import pandas as pd
 from attrs import asdict
 from attrs import converters
 from attrs import define
+from attrs import evolve
 from attrs import field
-from attrs import validators
 from neurom import NeuriteType
 from neurom.core import Morphology
 from neurom.geom.transform import Translation
@@ -52,9 +52,13 @@ from axon_synthesis.synthesis.tuft_properties import pick_barcodes
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import MorphNameAdapter
+from axon_synthesis.utils import ParallelConfig
 from axon_synthesis.utils import create_dask_dataframe
+from axon_synthesis.utils import disable_distributed_loggers
 from axon_synthesis.utils import load_morphology
+from axon_synthesis.utils import permanently_disable_distributed_loggers
 from axon_synthesis.utils import save_morphology
+from axon_synthesis.utils import setup_logger
 
 LOGGER = logging.getLogger(__name__)
 
@@ -103,23 +107,6 @@ class SynthesisConfig:
     )
     tuft_parameters_file: FileType | None = field(default=None, converter=converters.optional(Path))
     rebuild_existing_axons: bool = field(default=False)
-
-
-@define
-class ParallelConfig:
-    """Class to store the parallel configuration.
-
-    Attributes:
-        nb_processes: The number of processes.
-        dask_config: The dask configuration to use.
-        progress_bar: If set to True, a progress bar is displayed during computation.
-        use_mpi: Trigger the use of MPI.
-    """
-
-    nb_processes: int = field(default=0, validator=validators.ge(0))
-    dask_config: dict | None = field(default=None)
-    progress_bar: bool = field(default=True)
-    use_mpi: bool = field(default=False)
 
 
 def load_axon_grafting_points(
@@ -210,6 +197,7 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name):
     return AxonPaths("")
 
 
+@disable_distributed_loggers()
 def _init_parallel(
     parallel_config: ParallelConfig, *, mpi_only: bool = False, max_nb_processes: int | None = None
 ) -> dask.distributed.Client | None:
@@ -304,7 +292,13 @@ def _init_parallel(
     LOGGER.debug("Using the following dask configuration: %s", json.dumps(dask.config.config))
 
     # This is needed to make dask aware of the workers
-    return dask.distributed.Client(**client_kwargs)
+    client = dask.distributed.Client(**client_kwargs)
+
+    # Setup logging in workers
+    client.run(setup_logger, level=logging.getLevelName(LOGGER.getEffectiveLevel()))
+    client.run(permanently_disable_distributed_loggers)
+
+    return client
 
 
 def check_target(terminals):
@@ -518,7 +512,7 @@ def _partition_wrapper(
     return synthesize_group_morph_axons(df.copy(deep=False), inputs=inputs, **func_kwargs)
 
 
-def synthesize_axons(  # noqa: PLR0912
+def synthesize_axons(
     config: SynthesisConfig,
     output_config: OutputConfig | None = None,
     *,
@@ -539,8 +533,7 @@ def synthesize_axons(  # noqa: PLR0912
         rng: The random seed or the random generator.
         parallel_config: The configuration for parallel computation.
     """
-    if parallel_config is None:
-        parallel_config = ParallelConfig()
+    parallel_config = ParallelConfig() if parallel_config is None else evolve(parallel_config)
     _parallel_client = _init_parallel(parallel_config)
 
     rng = np.random.default_rng(rng)
@@ -656,10 +649,11 @@ def synthesize_axons(  # noqa: PLR0912
     )
     try:
         if _parallel_client is not None:
-            _parallel_client.close()
+            with disable_distributed_loggers():
+                _parallel_client.close()
+                del _parallel_client
     except Exception:
         LOGGER.exception(
             "The internal parallel client may not have been closed properly because of this error"
         )
-    del _parallel_client
     return res

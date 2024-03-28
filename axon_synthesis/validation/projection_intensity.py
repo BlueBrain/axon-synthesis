@@ -16,7 +16,6 @@ from dask.distributed import LocalCluster
 from morph_tool.utils import is_morphology
 from neurom import COLS
 from voxcell import VoxelData
-from voxcell.math_utils import voxel_intersection
 
 from axon_synthesis.constants import FROM_COORDS_COLS
 from axon_synthesis.constants import TO_COORDS_COLS
@@ -24,10 +23,11 @@ from axon_synthesis.synthesis import ParallelConfig
 from axon_synthesis.typing import FileType
 from axon_synthesis.utils import MorphNameAdapter
 from axon_synthesis.utils import compute_bbox
-from axon_synthesis.utils import disable_loggers
+from axon_synthesis.utils import disable_distributed_loggers
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import neurite_to_pts
+from axon_synthesis.validation.utils import segment_intersection_lengths
 
 LOGGER = logging.getLogger(__name__)
 
@@ -83,59 +83,6 @@ def get_morphologies(morphology_dir) -> pd.DataFrame:
     return cells_df.sort_values("morphology", ignore_index=True)
 
 
-def segment_voxel_intersections(row, grid, *, return_sub_segments=False):
-    """Get indices and intersection lengths of the voxels intersected by the given segment."""
-    start_pt = [row[FROM_COORDS_COLS.X], row[FROM_COORDS_COLS.Y], row[FROM_COORDS_COLS.Z]]
-    end_pt = [row[TO_COORDS_COLS.X], row[TO_COORDS_COLS.Y], row[TO_COORDS_COLS.Z]]
-    indices, sub_segments = voxel_intersection(
-        [start_pt, end_pt],
-        grid,
-        return_sub_segments=True,
-    )
-    res = {
-        "indices": indices,
-        "lengths": np.linalg.norm(sub_segments[:, [3, 4, 5]] - sub_segments[:, [0, 1, 2]], axis=1),
-    }
-    if return_sub_segments:
-        res["sub_segments"] = sub_segments
-    return pd.Series(res)
-
-
-def segments_proj_intensities(segments, bbox, voxel_dimensions, center, logger=None):
-    """Compute the projection intensities of the given segments."""
-    shape = np.clip((bbox[1] - bbox[0]) // voxel_dimensions, 1, np.inf) + 3
-    if logger is not None:
-        logger.debug(
-            "Create grid with size=%s, voxel_dimensions=%s and offset=%s",
-            shape.astype(int),
-            voxel_dimensions,
-            bbox[0],
-        )
-    grid = VoxelData(np.zeros(shape.astype(int)), voxel_dimensions, offset=bbox[0])
-
-    # Ensure the center is located at the center of a voxel
-    grid.offset -= (
-        1.5 - np.modf(grid.positions_to_indices(center, keep_fraction=True))[0]
-    ) * voxel_dimensions
-
-    # Compute intersections
-    intersections = segments.apply(segment_voxel_intersections, args=(grid,), axis=1)
-
-    elements = pd.DataFrame(
-        {
-            "indices": intersections["indices"].explode(),
-            "lengths": intersections["lengths"].explode(),
-        }
-    )
-    elements["indices"] = elements["indices"].apply(tuple)
-
-    lengths = elements.groupby("indices")["lengths"].sum().reset_index()
-    indices = tuple(np.vstack(lengths["indices"].to_numpy()).T.tolist())
-
-    grid.raw[indices] += lengths["lengths"].astype(float).to_numpy()
-    return grid
-
-
 def proj_intensities_one_morph(morph_data, config):
     """Compute the projection intensities from of a given morphology file."""
     morph_name = morph_data.get("morphology", "NO MORPH NAME FOUND")
@@ -153,7 +100,7 @@ def proj_intensities_one_morph(morph_data, config):
             center = axon.root_node.points[0, COLS.XYZ]
 
             # Create the DF of segments
-            nodes, edges = neurite_to_pts(axon, keep_section_segments=True, edges_with_coords=True)
+            _nodes, edges = neurite_to_pts(axon, keep_section_segments=True, edges_with_coords=True)
             edges["length"] = np.linalg.norm(
                 edges[FROM_COORDS_COLS].to_numpy() - edges[TO_COORDS_COLS].to_numpy(),
                 axis=1,
@@ -161,7 +108,7 @@ def proj_intensities_one_morph(morph_data, config):
 
             for voxel_dimensions in config.grid_voxel_dimensions:
                 # Create the grid
-                heat_map = segments_proj_intensities(edges, bbox, voxel_dimensions, center)
+                heat_map = segment_intersection_lengths(edges, bbox, voxel_dimensions, center)
 
                 # Export the result
                 filename = str(
@@ -208,7 +155,7 @@ def compute_projection_intensities(
     # Initialize parallel computation
     if parallel_config is None:
         parallel_config = ParallelConfig(0)
-    with disable_loggers("asyncio", "distributed", "distributed.worker"):
+    with disable_distributed_loggers():
         if parallel_config.nb_processes > 1:
             LOGGER.info("Start parallel computation using %s workers", parallel_config.nb_processes)
             cluster = LocalCluster(n_workers=parallel_config.nb_processes, timeout="60s")

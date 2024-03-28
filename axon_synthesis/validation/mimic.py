@@ -164,6 +164,7 @@ def mimic_axons(
         clustering_parameters,
         rng=rng,
         debug=debug,
+        parallel_config=parallel_config,
     )
 
     # Modify the inputs for the mimic workflow

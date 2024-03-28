@@ -6,6 +6,7 @@ from axon_synthesis.inputs import Inputs
 from axon_synthesis.inputs.clustering import cluster_morphologies
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
+from axon_synthesis.utils import ParallelConfig
 from axon_synthesis.white_matter_recipe import WmrConfig
 
 LOGGER = logging.getLogger(__name__)
@@ -20,9 +21,9 @@ def create_inputs(
     neuron_density: float | None = None,
     bouton_density: float | None = None,
     *,
-    nb_workers: int = 1,
     debug: bool = False,
     rng: SeedType = None,
+    parallel_config: ParallelConfig | None = None,
 ):
     """Create all inputs required to synthesize long-range axons."""
     inputs = Inputs(output_dir, morphology_dir, neuron_density=neuron_density, create=True)
@@ -54,8 +55,8 @@ def create_inputs(
         pop_neuron_numbers=inputs.pop_neuron_numbers,
         bouton_density=bouton_density,
         debug=debug,
-        nb_workers=nb_workers,
         rng=rng,
+        parallel_config=parallel_config,
     )
     inputs.clustering_data.save()
 

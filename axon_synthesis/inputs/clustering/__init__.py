@@ -36,6 +36,7 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import ParallelConfig
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import neurite_to_graph
@@ -464,10 +465,13 @@ def cluster_morphologies(
     pop_neuron_numbers: pd.DataFrame | None,
     bouton_density: float | None,
     debug: bool = False,
-    nb_workers: int = 1,
     rng: SeedType = None,
+    parallel_config: ParallelConfig | None = None,
 ) -> Clustering:
     """Compute the cluster of all morphologies of the given directory."""
+    if parallel_config is None:
+        parallel_config = ParallelConfig()
+
     clustering = Clustering(output_path, clustering_parameters, create=True)
 
     if clustering.path.exists():
@@ -496,7 +500,7 @@ def cluster_morphologies(
         else None
     )
 
-    terminals = extract_terminals.process_morphologies(morph_dir)
+    terminals = extract_terminals.process_morphologies(morph_dir, parallel_config)
     terminals[["config", "tuft_id"]] = None, -1
 
     all_terminal_points: list[tuple]
@@ -573,7 +577,7 @@ def cluster_morphologies(
                     "trunk_morphologies_path": clustering.TRUNK_MORPHOLOGIES_DIRNAME,
                     "tuft_morphologies_path": clustering.TUFT_MORPHOLOGIES_DIRNAME,
                     "figure_path": clustering.FIGURE_DIRNAME,
-                    "nb_workers": nb_workers,
+                    "nb_workers": parallel_config.nb_processes,
                     "debug": debug,
                 }
                 new_terminal_points, tuft_ids = CLUSTERING_FUNCS[clustering_method](  # type: ignore[operator]

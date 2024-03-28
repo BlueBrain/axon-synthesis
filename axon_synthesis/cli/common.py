@@ -8,7 +8,7 @@ from click_option_group import optgroup
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.cli.utils import DictParam
 from axon_synthesis.cli.utils import ListParam
-from axon_synthesis.synthesis import ParallelConfig
+from axon_synthesis.utils import ParallelConfig
 
 
 def atlas_options(func):

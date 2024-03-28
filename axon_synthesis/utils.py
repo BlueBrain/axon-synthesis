@@ -21,6 +21,9 @@ import dask.dataframe as dd
 import networkx as nx
 import numpy as np
 import pandas as pd
+from attrs import define
+from attrs import field
+from attrs import validators
 from morph_tool.converter import convert
 from morphio.mut import Morphology as MorphIoMorphology
 from neurom import NeuriteType
@@ -37,7 +40,35 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
 
+_DISTRIBUTED_LOGGERS = [
+    "asyncio",
+    "distributed",
+    "distributed.batched",
+    "distributed.core",
+    "distributed.http",
+    "distributed.http.proxy",
+    "distributed.nanny",
+    "distributed.scheduler",
+    "distributed.worker",
+]
 LOGGER = logging.getLogger(__name__)
+
+
+@define
+class ParallelConfig:
+    """Class to store the parallel configuration.
+
+    Attributes:
+        nb_processes: The number of processes.
+        dask_config: The dask configuration to use.
+        progress_bar: If set to True, a progress bar is displayed during computation.
+        use_mpi: Trigger the use of MPI.
+    """
+
+    nb_processes: int = field(default=0, validator=validators.ge(0))
+    dask_config: dict | None = field(default=None)
+    progress_bar: bool = field(default=True)
+    use_mpi: bool = field(default=False)
 
 
 class MorphNameAdapter(logging.LoggerAdapter):
@@ -67,13 +98,14 @@ def sublogger(
     return logging.getLogger(name)
 
 
-def setup_logger(level="info", prefix="", suffix=""):
+def setup_logger(level: str = "info", prefix: str = "", suffix: str = ""):
     """Setup application logger."""
     if mpi_enabled:  # pragma: no cover
         comm = MPI.COMM_WORLD  # pylint: disable=c-extension-no-member
         if comm.Get_size() > 1:
             rank = comm.Get_rank()
             prefix = f"#{rank} - {prefix}"
+    level = level.lower()
     levels = {
         "debug": logging.DEBUG,
         "info": logging.INFO,
@@ -316,6 +348,21 @@ def disable_loggers(*logger_names):
     finally:
         for i, j in disabled_loggers:
             i.disabled = j
+
+
+@contextmanager
+def disable_distributed_loggers():
+    """A context manager that will disable logging messages from the 'distributed' library."""
+    with disable_loggers(*_DISTRIBUTED_LOGGERS):
+        yield
+
+
+def permanently_disable_distributed_loggers():
+    """Permanently disable logging messages from the 'distributed' library."""
+    loggers = [logging.getLogger(i) for i in _DISTRIBUTED_LOGGERS]
+
+    for i in loggers:
+        i.disabled = True
 
 
 @contextmanager

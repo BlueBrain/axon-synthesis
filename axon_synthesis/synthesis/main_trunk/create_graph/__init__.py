@@ -111,6 +111,11 @@ class CreateGraphConfig:
         else:
             self.favored_region_tree = None
 
+    def region_tree_from_file(self, file):
+        """Get the favored region tree from a file."""
+        data = np.load(file, allow_pickle=False)
+        self.favored_region_tree = KDTree(data)
+
 
 def one_graph(
     source_coords: np.ndarray,

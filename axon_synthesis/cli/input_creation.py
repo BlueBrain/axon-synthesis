@@ -7,6 +7,8 @@ from click_option_group import optgroup
 from axon_synthesis import inputs
 from axon_synthesis.cli.common import atlas_kwargs_to_config
 from axon_synthesis.cli.common import atlas_options
+from axon_synthesis.cli.common import parallel_kwargs_to_config
+from axon_synthesis.cli.common import parallel_options
 from axon_synthesis.cli.utils import DictParam
 from axon_synthesis.cli.utils import GlobalConfig
 from axon_synthesis.white_matter_recipe import WmrConfig
@@ -136,10 +138,12 @@ def fetch_white_matter_recipe(**kwargs):
     required=True,
     help="Output directory",
 )
+@parallel_options
 @click.pass_obj
 def create_inputs(global_config: GlobalConfig, **kwargs):
     """The command to create inputs."""
     global_config.to_config(kwargs)
     atlas_kwargs_to_config(kwargs)
     wmr_kwargs_to_config(kwargs)
+    parallel_kwargs_to_config(kwargs)
     inputs.create.create_inputs(**kwargs)
