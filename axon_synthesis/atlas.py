@@ -14,6 +14,7 @@ from attrs import field
 from voxcell import OrientationField
 from voxcell import VoxelData
 from voxcell.nexus.voxelbrain import Atlas
+from voxcell.voxel_data import ValueToIndexVoxels
 
 from axon_synthesis.typing import ArrayLike
 from axon_synthesis.typing import FileType
@@ -162,19 +163,23 @@ class AtlasHelper:
 
         # TODO: Maybe we can keep all the masks in memory? It's just a set of lists of ints.
         with h5py.File(output_path, "w") as f:
+            index = ValueToIndexVoxels(self.brain_regions.raw)
             for current_id, self_and_descendants_atlas_ids in region_map_df[
                 ["self_and_descendants"]
             ].to_records(index=True):
                 LOGGER.debug("Create mask for %s", current_id)
-                mask = _is_in(self_and_descendants_atlas_ids, self.brain_regions.raw)
-                if not mask.any():
-                    mask = _is_in(self_and_descendants_atlas_ids, self.brain_regions.raw)
+                flat_indices = np.concatenate(
+                    [index.value_to_1d_indices(i) for i in self_and_descendants_atlas_ids]
+                )
+                if flat_indices.size == 0:
                     LOGGER.warning(
                         "No voxel found for atlas ID %s using the following descendants: %s",
                         current_id,
                         self_and_descendants_atlas_ids,
                     )
-                coords = np.argwhere(mask)
+                coords = np.array(
+                    np.unravel_index(flat_indices, self.brain_regions.shape, order=index._order)  # noqa: SLF001
+                ).T
                 f.create_dataset(
                     str(current_id), data=coords, compression="gzip", compression_opts=9
                 )

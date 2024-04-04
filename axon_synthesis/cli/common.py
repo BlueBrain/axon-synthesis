@@ -17,7 +17,7 @@ def atlas_options(func):
     @optgroup.group("Atlas parameters", help="Parameters used to read and prepare the atlas")
     @optgroup.option(
         "--atlas-enable/--atlas-disable",
-        default=None,
+        default=True,
         help="Enable or disable the Atlas",
     )
     @optgroup.option(
