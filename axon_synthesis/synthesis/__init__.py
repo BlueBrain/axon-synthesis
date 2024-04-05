@@ -168,7 +168,14 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name):
             )
             if outputs.STEINER_TREE_SOLUTION_FIGURES is not None
             else None,
-            "STEINER_TREE_SOLUTION": (outputs.STEINER_TREE_SOLUTIONS / morph_file_name)
+            "STEINER_TREE_SOLUTION_NODES": (
+                outputs.STEINER_TREE_SOLUTIONS / (Path(morph_file_name).stem + "_nodes.feather")
+            )
+            if outputs.STEINER_TREE_SOLUTIONS is not None
+            else None,
+            "STEINER_TREE_SOLUTION_EDGES": (
+                outputs.STEINER_TREE_SOLUTIONS / (Path(morph_file_name).stem + "_edges.feather")
+            )
             if outputs.STEINER_TREE_SOLUTIONS is not None
             else None,
             "TARGET_POINT_FIGURE": (outputs.TARGET_POINT_FIGURES / figure_file_name)
@@ -188,7 +195,8 @@ def one_axon_paths(outputs, morph_file_name, figure_file_name):
             "POSTPROCESS_TRUNK_FIGURE",
             "POSTPROCESS_TRUNK_MORPHOLOGY",
             "STEINER_TREE_SOLUTION_FIGURE",
-            "STEINER_TREE_SOLUTION",
+            "STEINER_TREE_SOLUTION_NODES",
+            "STEINER_TREE_SOLUTION_EDGES",
             "TARGET_POINT_FIGURE",
             "TUFT_FIGURES",
             "TUFT_MORPHOLOGIES",
@@ -387,7 +395,8 @@ def synthesize_one_morph_axons(
             _, solution_edges = compute_solution(
                 nodes,
                 edges,
-                output_path=axon_paths.STEINER_TREE_SOLUTION,
+                output_path_nodes=axon_paths.STEINER_TREE_SOLUTION_NODES,
+                output_path_edges=axon_paths.STEINER_TREE_SOLUTION_EDGES,
                 figure_path=axon_paths.STEINER_TREE_SOLUTION_FIGURE,
                 logger=axon_custom_logger,
             )

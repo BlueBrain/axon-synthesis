@@ -1,5 +1,6 @@
 """Helpers for atlas."""
 import contextlib
+import copy
 import logging
 import operator
 from functools import cached_property
@@ -91,11 +92,9 @@ class AtlasHelper:
         if self.config.load_region_map:
             LOGGER.debug("Loading region map from the atlas")
             self.region_map = atlas.load_region_map()
-            self.region_map_df = self.region_map.as_dataframe()
             self._build_region_map_df_level()
         else:
             self.region_map = None
-            self.region_map_df = None
 
         self.layers = (
             self.config.layer_names if self.config.layer_names is not None else list(range(1, 7))
@@ -123,6 +122,29 @@ class AtlasHelper:
 
         # TODO: Compute the depth for specific layers of each region (like in region-grower)
         self.depths = VoxelData.reduce(operator.sub, [self.pia_coord, atlas.load_data("[PH]y")])
+
+    def copy(self):
+        """Return a copy of the current atlas."""
+        return copy.deepcopy(self)
+
+    @property
+    def region_map(self):
+        """Return the region map."""
+        return self._region_map
+
+    @region_map.setter
+    def region_map(self, value) -> pd.DataFrame | None:
+        """Setter for the region map."""
+        self._region_map = value
+        if value is None:
+            self._region_map_df = None
+        else:
+            self._region_map_df = value.as_dataframe()
+
+    @property
+    def region_map_df(self):
+        """Return the DF representation of the region map."""
+        return self._region_map_df
 
     @cached_property
     def pia_coord(self) -> VoxelData:

@@ -50,7 +50,7 @@ def compute_coords(
             )
         else:
             msg = (
-                "The target points should contain the {TARGET_COORDS_COLS} columns when no brain "
+                f"The target points should contain the {TARGET_COORDS_COLS} columns when no brain "
                 "region mask is given"
             )
             raise RuntimeError(msg)

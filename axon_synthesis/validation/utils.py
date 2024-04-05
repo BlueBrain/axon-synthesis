@@ -26,9 +26,11 @@ def segment_voxel_intersections(row, grid, *, return_sub_segments=False):
     return pd.Series(res)
 
 
-def segment_intersection_lengths(segments, bbox, voxel_dimensions, center, logger=None):
+def segment_intersection_lengths(segments, bbox, voxel_dimensions, center=None, logger=None):
     """Compute the intersection lengths of the given segments with the given grid."""
-    shape = (np.clip((bbox[1] - bbox[0]) // voxel_dimensions, 1, np.inf) + 3).astype(int)
+    shape = np.clip((bbox[1] - bbox[0]) // voxel_dimensions, 1, np.inf).astype(int)
+    if center is not None:
+        shape += 3
     if logger is not None:
         logger.debug(
             "Create grid with size=%s, voxel_dimensions=%s and offset=%s",
@@ -39,9 +41,10 @@ def segment_intersection_lengths(segments, bbox, voxel_dimensions, center, logge
     grid = VoxelData(np.zeros(shape), voxel_dimensions, offset=bbox[0])
 
     # Ensure the center is located at the center of a voxel
-    grid.offset -= (
-        1.5 - np.modf(grid.positions_to_indices(center, keep_fraction=True))[0]
-    ) * voxel_dimensions
+    if center is not None:
+        grid.offset -= (
+            1.5 - np.modf(grid.positions_to_indices(center, keep_fraction=True))[0]
+        ) * voxel_dimensions
 
     # Compute intersections
     intersections = segments.apply(segment_voxel_intersections, args=(grid,), axis=1)

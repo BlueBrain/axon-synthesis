@@ -121,7 +121,8 @@ def compute_solution(
     nodes: pd.DataFrame,
     edges: pd.DataFrame,
     *,
-    output_path: FileType | None = None,
+    output_path_nodes: FileType | None = None,
+    output_path_edges: FileType | None = None,
     figure_path: FileType | None = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
@@ -167,11 +168,12 @@ def compute_solution(
         "is_solution",
     ] = True
 
-    if output_path is not None:
-        # Export the solutions
-        Path(output_path).unlink(missing_ok=True)
-        nodes.to_hdf(str(output_path), key="solution_nodes")
-        edges.to_hdf(str(output_path), key="solution_edges", mode="a")
+    if output_path_nodes is not None:
+        # Export the solution nodes
+        nodes.to_feather(str(output_path_nodes))
+    if output_path_edges is not None:
+        # Export the solution edges
+        edges.to_feather(str(output_path_edges))
 
     in_solution_nodes = nodes.loc[nodes["is_solution"]]
     in_solution_edges = edges.loc[edges["is_solution"]]
