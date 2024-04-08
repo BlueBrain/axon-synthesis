@@ -40,7 +40,7 @@ mpi = [
 ]
 test = [
     "brainbuilder>=0.18.3",
-    "dir-content-diff>=1.7",
+    "dir-content-diff>=1.8",
     "dir-content-diff-plugins>=0.0.6",
     "matplotlib>=3.5",
     "mock>=3",

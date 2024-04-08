@@ -20,4 +20,4 @@ seaborn
 tables
 typing_extensions
 TMD
-voxcell>=3.1.8
+voxcell>=3.1.9

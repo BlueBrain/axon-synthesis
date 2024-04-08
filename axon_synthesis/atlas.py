@@ -133,7 +133,7 @@ class AtlasHelper:
         return self._region_map
 
     @region_map.setter
-    def region_map(self, value) -> pd.DataFrame | None:
+    def region_map(self, value) -> None:
         """Setter for the region map."""
         self._region_map = value
         if value is None:
@@ -190,18 +190,13 @@ class AtlasHelper:
                 ["self_and_descendants"]
             ].to_records(index=True):
                 LOGGER.debug("Create mask for %s", current_id)
-                flat_indices = np.concatenate(
-                    [index.value_to_1d_indices(i) for i in self_and_descendants_atlas_ids]
-                )
-                if flat_indices.size == 0:
+                coords = index.value_to_indices(self_and_descendants_atlas_ids)
+                if len(coords) == 0:
                     LOGGER.warning(
                         "No voxel found for atlas ID %s using the following descendants: %s",
                         current_id,
                         self_and_descendants_atlas_ids,
                     )
-                coords = np.array(
-                    np.unravel_index(flat_indices, self.brain_regions.shape, order=index._order)  # noqa: SLF001
-                ).T
                 f.create_dataset(
                     str(current_id), data=coords, compression="gzip", compression_opts=9
                 )
