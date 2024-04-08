@@ -290,8 +290,8 @@ class WhiteMatterRecipe(BasePathBuilder):
             all_targets["target_projection_strength"]
             * all_targets["target_layer_profile_region_prob"]
         )
-        all_targets["subregion_acronym"] = all_targets["subregion_acronym"].fillna(
-            all_targets["region_acronym"], inplace=True
+        all_targets["subregion_acronym"] = all_targets.fillna(
+            {"subregion_acronym": all_targets["region_acronym"]}, inplace=True
         )
         all_targets = all_targets.rename(
             columns={"atlas_region_id": "source_brain_region_id", "pop_raw_name": "population_id"}
@@ -494,7 +494,7 @@ class WhiteMatterRecipe(BasePathBuilder):
             .rename(columns={"level_2": "layer_index"}),
         )
         wm_layer_profiles["formatted_layer"] = wm_layer_profiles["layer"].str.extract("l(.*)")
-        wm_layer_profiles["formatted_layer"].fillna(wm_layer_profiles["layer"], inplace=True)
+        wm_layer_profiles.fillna({"formatted_layer": wm_layer_profiles["layer"]}, inplace=True)
 
         # Get projections
         LOGGER.debug("Extracting projections from white matter recipe")
@@ -582,8 +582,8 @@ class WhiteMatterRecipe(BasePathBuilder):
             .set_index(["proj_index", "target_num"])["region_acronym"]
             .sort_index()
         )
-        wm_projection_targets["target_region"].fillna(
-            wm_projection_targets["target_population_name"],
+        wm_projection_targets.fillna(
+            {"target_region": wm_projection_targets["target_population_name"]},
             inplace=True,
         )
         wm_projection_targets = (
@@ -666,7 +666,7 @@ class WhiteMatterRecipe(BasePathBuilder):
             )
             .set_index("index")
         )
-        wm_projection_targets["target_layer_profile_density"].fillna(1, inplace=True)
+        wm_projection_targets.fillna({"target_layer_profile_density": 1}, inplace=True)
         wm_projection_targets["target_layer_profile_prob"] = (
             wm_projection_targets["target_layer_profile_density"]
             * wm_projection_targets["sub_region_volume_frac_target"]

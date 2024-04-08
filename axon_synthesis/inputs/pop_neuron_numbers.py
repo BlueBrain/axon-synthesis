@@ -22,7 +22,7 @@ def compute(populations, neuron_density, output_path=None):
     ).astype(int)
 
     # Format the population numbers
-    populations["pop_neuron_numbers"].clip(lower=2, inplace=True)
+    populations["pop_neuron_numbers"] = populations["pop_neuron_numbers"].clip(lower=2)
     res = populations[
         [
             "pop_raw_name",
