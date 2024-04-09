@@ -144,6 +144,8 @@ def update_cells(cells_df, projection_probabilities):
             ", ".join(missing_brain_regions["morphology"].sort_values().tolist()),
         )
         cells_df.drop(missing_brain_regions.index, inplace=True)
+        cells_df.reset_index(drop=True, inplace=True)
+        cells_df.index += 1
 
 
 def mimic_axons(
