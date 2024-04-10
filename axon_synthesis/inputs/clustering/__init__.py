@@ -8,6 +8,9 @@ from typing import TYPE_CHECKING
 from typing import ClassVar
 
 import pandas as pd
+from bluepyparallel import evaluate
+from bluepyparallel import init_parallel_factory
+from dask.distributed import LocalCluster
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import FILE_SELECTION
@@ -37,7 +40,9 @@ from axon_synthesis.typing import SeedType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import ParallelConfig
+from axon_synthesis.utils import disable_distributed_loggers
 from axon_synthesis.utils import get_axons
+from axon_synthesis.utils import get_morphology_paths
 from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import neurite_to_graph
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
@@ -455,6 +460,249 @@ def export_clusters(
     # TODO: Should the 'use_ancestors' mode be moved here from the graph creation step?
 
 
+def cluster_one_morph(
+    morph_path: FileType,
+    clustering: Clustering,
+    atlas: AtlasHelper | None,
+    wmr: WhiteMatterRecipe | None,
+    projection_pop_numbers: pd.DataFrame | None,
+    bouton_density: float | None,
+    debug: bool = False,
+    rng: SeedType = None,
+    parallel_config: ParallelConfig | None = None,
+):
+    if parallel_config is None:
+        parallel_config = ParallelConfig()
+
+    pts = extract_terminals.process_morph(morph_path)
+    if len(pts) == 0:
+        return [], [], [], {}
+    terminals = pd.DataFrame(
+        pts, columns=["morph_file", "axon_id", "terminal_id", "section_id", *COORDS_COLS]
+    )
+    terminals[["config", "tuft_id"]] = None, -1
+
+    brain_regions = atlas.brain_regions if atlas is not None else None
+
+    all_terminal_points: list[tuple]
+    cluster_props: list[tuple]
+    trunk_props: list[tuple]
+    all_terminal_points, cluster_props, trunk_props = [], [], []
+    morph_paths: MutableMapping[str, list] = defaultdict(list)
+
+    morph_name = str(terminals.loc[0, "morph_file"])
+
+    LOGGER.debug("%s: %s points", morph_name, len(terminals))
+
+    # Load the morphology
+    morph = load_morphology(morph_name)
+
+    # Get the source brain region
+    atlas_region_id = brain_regions.lookup(morph.soma.center) if atlas is not None else None
+
+    # Run the clustering function on each axon
+    for axon_id, axon in enumerate(get_axons(morph)):
+        # Create a graph for each axon and compute the shortest paths from the soma to all
+        # terminals
+        nodes, edges, directed_graph = neurite_to_graph(axon)
+        shortest_paths = compute_shortest_paths(directed_graph)
+        node_to_terminals = nodes_to_terminals_mapping(directed_graph, shortest_paths)
+
+        for config_name, config in clustering.parameters.items():
+            clustering_method = config["method"]
+            if clustering_method == "brain_regions" and (atlas is None or wmr is None):
+                msg = (
+                    "The atlas and wmr can not be None when the clustering method is "
+                    "'brain_regions'."
+                )
+                raise ValueError(msg)
+            if len(axon.points) < MIN_AXON_POINTS:
+                LOGGER.warning(
+                    "The axon %s of %s is clustered with basic algorithm because it has only "
+                    "%s points while at least 5 points are needed for other clustering "
+                    "algorithms",
+                    axon_id,
+                    morph_name,
+                    len(axon.points),
+                )
+                clustering_method = "basic"
+            axon_group = terminals.loc[terminals["axon_id"] == axon_id].copy(deep=True)
+            axon_group["config_name"] = config_name
+            axon_group = axon_group.merge(
+                nodes.reset_index().rename(columns={"id": "graph_node_id"})[
+                    ["section_id", "graph_node_id"]
+                ],
+                on="section_id",
+                how="left",
+            )
+            suffix = f"_{config_name}_{axon_id}"
+            clustering_kwargs = {
+                "atlas": atlas,
+                "wmr": wmr,
+                "config": config,
+                "config_name": config_name,
+                "morph": morph,
+                "axon": axon,
+                "axon_id": axon_id,
+                "group_name": morph_name,
+                "group": axon_group,
+                "nodes": nodes,
+                "edges": edges,
+                "directed_graph": directed_graph,
+                "shortest_paths": shortest_paths,
+                "node_to_terminals": node_to_terminals,
+                "output_cols": OUTPUT_COLS,
+                "clustered_morphologies_path": clustering.CLUSTERED_MORPHOLOGIES_DIRNAME,
+                "trunk_morphologies_path": clustering.TRUNK_MORPHOLOGIES_DIRNAME,
+                "tuft_morphologies_path": clustering.TUFT_MORPHOLOGIES_DIRNAME,
+                "figure_path": clustering.FIGURE_DIRNAME,
+                "nb_workers": parallel_config.nb_processes,
+                "debug": debug,
+            }
+            new_terminal_points, tuft_ids = CLUSTERING_FUNCS[clustering_method](  # type: ignore[operator]
+                **clustering_kwargs
+            )
+
+            # Add the cluster to the final points
+            all_terminal_points.extend(new_terminal_points)
+
+            # Propagate cluster IDs
+            axon_group["tuft_id"] = tuft_ids
+
+            LOGGER.info(
+                "%s (axon %s): %s points after merge",
+                morph_name,
+                axon_id,
+                len(new_terminal_points),
+            )
+
+            cluster_df = pd.DataFrame(new_terminal_points, columns=OUTPUT_COLS)
+
+            # Reduce clusters to one section
+            sections_to_add: MutableMapping[int, PointLevel] = defaultdict(list)
+            kept_path = reduce_clusters(
+                axon_group,
+                morph_name,
+                morph,
+                axon,
+                axon_id,
+                cluster_df,
+                directed_graph,
+                nodes,
+                sections_to_add,
+                morph_paths,
+                cluster_props,
+                shortest_paths,
+                bouton_density,
+                brain_regions,
+                atlas_region_id,
+                atlas.orientations if atlas is not None else None,
+                projection_pop_numbers=projection_pop_numbers,
+                export_tuft_morph_dir=clustering.TUFT_MORPHOLOGIES_DIRNAME if debug else None,
+                config_name=config_name,
+                rng=rng,
+            )
+
+            # Create the clustered morphology
+            clustered_morph, trunk_morph = create_clustered_morphology(
+                morph,
+                morph_name,
+                axon_id,
+                kept_path,
+                sections_to_add,
+                suffix=suffix,
+            )
+
+            # Compute trunk properties
+            trunk_props.append(
+                compute_trunk_properties(
+                    trunk_morph, str(morph_name), axon_id, config_name, atlas_region_id
+                )
+            )
+
+            # Export the trunk and clustered morphologies
+            morph_paths["clustered"].append(
+                (
+                    morph_name,
+                    config_name,
+                    axon_id,
+                    export_morph(
+                        clustering.CLUSTERED_MORPHOLOGIES_DIRNAME,
+                        morph_name,
+                        clustered_morph,
+                        "clustered",
+                        suffix=suffix,
+                    ),
+                ),
+            )
+            morph_paths["trunks"].append(
+                (
+                    morph_name,
+                    config_name,
+                    axon_id,
+                    export_morph(
+                        clustering.TRUNK_MORPHOLOGIES_DIRNAME,
+                        morph_name,
+                        trunk_morph,
+                        "trunk",
+                        suffix=suffix,
+                    ),
+                ),
+            )
+
+            # Plot the clusters
+            if debug:
+                plot_clusters(
+                    morph,
+                    clustered_morph,
+                    axon_group,
+                    morph_name,
+                    cluster_df,
+                    clustering.FIGURE_DIRNAME
+                    / f"{Path(str(morph_name)).with_suffix('').name}{suffix}.html",
+                )
+
+    return trunk_props, cluster_props, all_terminal_points, morph_paths
+
+
+# class ClusteringResult:
+#     """Class to store clustering result for one morphology."""
+#     def __init__(self, trunk_props, cluster_props, all_terminal_points, morph_paths):
+#         self.trunk_props = trunk_props
+#         self.cluster_props = cluster_props
+#         self.all_terminal_points = all_terminal_points
+#         self.morph_paths = morph_paths
+
+# @dask_serialize.register(ClusteringResult)
+# def serialize(human: ClusteringResult) -> Tuple[Dict, List[bytes]]:
+#     header = {}
+#     frames = [human.name.encode()]
+#     return header, frames
+
+# @dask_deserialize.register(ClusteringResult)
+# def deserialize(header: Dict, frames: List[bytes]) -> ClusteringResult:
+#     return Human(frames[0].decode())
+
+
+def _wrapper(data: dict, **kwargs: dict) -> dict:
+    """Wrap process_morph() for parallel computation."""
+    print("#################################")
+    print(data)
+    print("#################################")
+    print(kwargs)
+    print("#################################")
+    trunk_props, cluster_props, all_terminal_points, morph_paths = cluster_one_morph(
+        **data, **kwargs
+    )
+
+    return {
+        "trunk_props": trunk_props,
+        "cluster_props": cluster_props,
+        "terminal_points": all_terminal_points,
+        "morph_paths": morph_paths,
+    }
+
+
 def cluster_morphologies(
     morph_dir: FileType,
     clustering_parameters: dict,
@@ -485,7 +733,6 @@ def cluster_morphologies(
         clustering.parameters,
     )
 
-    brain_regions = atlas.brain_regions if atlas is not None else None
     projection_pop_numbers = (
         wmr.projection_targets.merge(
             pop_neuron_numbers[
@@ -500,189 +747,52 @@ def cluster_morphologies(
         else None
     )
 
-    terminals = extract_terminals.process_morphologies(morph_dir, parallel_config)
-    terminals[["config", "tuft_id"]] = None, -1
+    morphologies = get_morphology_paths(morph_dir)
 
-    all_terminal_points: list[tuple]
-    cluster_props: list[tuple]
-    trunk_props: list[tuple]
-    all_terminal_points, cluster_props, trunk_props = [], [], []
-    morph_paths: MutableMapping[str, list] = defaultdict(list)
+    with disable_distributed_loggers():
+        if parallel_config.nb_processes > 1:
+            LOGGER.info("Start parallel computation using %s workers", parallel_config.nb_processes)
+            cluster = LocalCluster(n_workers=parallel_config.nb_processes, timeout="60s")
+            parallel_factory = init_parallel_factory(
+                "dask_dataframe", address=cluster, serializers=["pickle"], deserializers=["pickle"]
+            )
+        else:
+            LOGGER.info("Start computation")
+            parallel_factory = init_parallel_factory(None)
 
-    for group_name, group in terminals.groupby("morph_file"):
-        # group_name = str(group_name)
+        # Extract terminals of each morphology
+        results = evaluate(
+            morphologies,
+            _wrapper,
+            [
+                ["trunk_props", None],
+                ["cluster_props", None],
+                ["terminal_points", None],
+                ["morph_paths", None],
+            ],
+            parallel_factory=parallel_factory,
+            func_kwargs={
+                "clustering": clustering,
+                "atlas": atlas,
+                "wmr": wmr,
+                "projection_pop_numbers": projection_pop_numbers,
+                "bouton_density": bouton_density,
+                "debug": debug,
+                "rng": rng,
+                "parallel_config": parallel_config,
+            },
+        )
 
-        # TODO: Parallelize this loop?
-        LOGGER.debug("%s: %s points", group_name, len(group))
+        # Close the Dask cluster if opened
+        if parallel_config.nb_processes > 1:
+            parallel_factory.shutdown()
+            cluster.close()
 
-        # Load the morphology
-        morph = load_morphology(group_name)
-
-        # Get the source brain region
-        atlas_region_id = brain_regions.lookup(morph.soma.center) if atlas is not None else None
-
-        # Run the clustering function on each axon
-        for axon_id, axon in enumerate(get_axons(morph)):
-            # Create a graph for each axon and compute the shortest paths from the soma to all
-            # terminals
-            nodes, edges, directed_graph = neurite_to_graph(axon)
-            shortest_paths = compute_shortest_paths(directed_graph)
-            node_to_terminals = nodes_to_terminals_mapping(directed_graph, shortest_paths)
-
-            for config_name, config in clustering.parameters.items():
-                clustering_method = config["method"]
-                if clustering_method == "brain_regions" and (atlas is None or wmr is None):
-                    msg = (
-                        "The atlas and wmr can not be None when the clustering method is "
-                        "'brain_regions'."
-                    )
-                    raise ValueError(msg)
-                if len(axon.points) < MIN_AXON_POINTS:
-                    LOGGER.warning(
-                        "The axon %s of %s is clustered with basic algorithm because it has only "
-                        "%s points while at least 5 points are needed for other clustering "
-                        "algorithms",
-                        axon_id,
-                        group_name,
-                        len(axon.points),
-                    )
-                    clustering_method = "basic"
-                axon_group = group.loc[group["axon_id"] == axon_id].copy(deep=True)
-                axon_group["config_name"] = config_name
-                axon_group = axon_group.merge(
-                    nodes.reset_index().rename(columns={"id": "graph_node_id"})[
-                        ["section_id", "graph_node_id"]
-                    ],
-                    on="section_id",
-                    how="left",
-                )
-                suffix = f"_{config_name}_{axon_id}"
-                clustering_kwargs = {
-                    "atlas": atlas,
-                    "wmr": wmr,
-                    "config": config,
-                    "config_name": config_name,
-                    "morph": morph,
-                    "axon": axon,
-                    "axon_id": axon_id,
-                    "group_name": group_name,
-                    "group": axon_group,
-                    "nodes": nodes,
-                    "edges": edges,
-                    "directed_graph": directed_graph,
-                    "shortest_paths": shortest_paths,
-                    "node_to_terminals": node_to_terminals,
-                    "output_cols": OUTPUT_COLS,
-                    "clustered_morphologies_path": clustering.CLUSTERED_MORPHOLOGIES_DIRNAME,
-                    "trunk_morphologies_path": clustering.TRUNK_MORPHOLOGIES_DIRNAME,
-                    "tuft_morphologies_path": clustering.TUFT_MORPHOLOGIES_DIRNAME,
-                    "figure_path": clustering.FIGURE_DIRNAME,
-                    "nb_workers": parallel_config.nb_processes,
-                    "debug": debug,
-                }
-                new_terminal_points, tuft_ids = CLUSTERING_FUNCS[clustering_method](  # type: ignore[operator]
-                    **clustering_kwargs
-                )
-
-                # Add the cluster to the final points
-                all_terminal_points.extend(new_terminal_points)
-
-                # Propagate cluster IDs
-                axon_group["tuft_id"] = tuft_ids
-                # terminals.loc[axon_group.index, "tuft_id"] = axon_group["tuft_id"]
-
-                LOGGER.info(
-                    "%s (axon %s): %s points after merge",
-                    group_name,
-                    axon_id,
-                    len(new_terminal_points),
-                )
-
-                cluster_df = pd.DataFrame(new_terminal_points, columns=OUTPUT_COLS)
-
-                # Reduce clusters to one section
-                sections_to_add: MutableMapping[int, PointLevel] = defaultdict(list)
-                kept_path = reduce_clusters(
-                    axon_group,
-                    group_name,
-                    morph,
-                    axon,
-                    axon_id,
-                    cluster_df,
-                    directed_graph,
-                    nodes,
-                    sections_to_add,
-                    morph_paths,
-                    cluster_props,
-                    shortest_paths,
-                    bouton_density,
-                    brain_regions,
-                    atlas_region_id,
-                    atlas.orientations if atlas is not None else None,
-                    projection_pop_numbers=projection_pop_numbers,
-                    export_tuft_morph_dir=clustering.TUFT_MORPHOLOGIES_DIRNAME if debug else None,
-                    config_name=config_name,
-                    rng=rng,
-                )
-
-                # Create the clustered morphology
-                clustered_morph, trunk_morph = create_clustered_morphology(
-                    morph,
-                    group_name,
-                    axon_id,
-                    kept_path,
-                    sections_to_add,
-                    suffix=suffix,
-                )
-
-                # Compute trunk properties
-                trunk_props.append(
-                    compute_trunk_properties(
-                        trunk_morph, str(group_name), axon_id, config_name, atlas_region_id
-                    )
-                )
-
-                # Export the trunk and clustered morphologies
-                morph_paths["clustered"].append(
-                    (
-                        group_name,
-                        config_name,
-                        axon_id,
-                        export_morph(
-                            clustering.CLUSTERED_MORPHOLOGIES_DIRNAME,
-                            group_name,
-                            clustered_morph,
-                            "clustered",
-                            suffix=suffix,
-                        ),
-                    ),
-                )
-                morph_paths["trunks"].append(
-                    (
-                        group_name,
-                        config_name,
-                        axon_id,
-                        export_morph(
-                            clustering.TRUNK_MORPHOLOGIES_DIRNAME,
-                            group_name,
-                            trunk_morph,
-                            "trunk",
-                            suffix=suffix,
-                        ),
-                    ),
-                )
-
-                # Plot the clusters
-                if debug:
-                    plot_clusters(
-                        morph,
-                        clustered_morph,
-                        axon_group,
-                        group_name,
-                        cluster_df,
-                        clustering.FIGURE_DIRNAME
-                        / f"{Path(str(group_name)).with_suffix('').name}{suffix}.html",
-                    )
+    trunk_props = results["trunk_props"].dropna().explode().tolist()
+    cluster_props = results["cluster_props"].dropna().explode().tolist()
+    all_terminal_points = results["terminal_points"].dropna().explode().tolist()
+    paths = results["morph_paths"].dropna().apply(pd.Series)
+    morph_paths = {col: paths[col].explode().tolist() for col in paths.columns}
 
     export_clusters(
         clustering, trunk_props, cluster_props, all_terminal_points, morph_paths, debug=debug

@@ -6,13 +6,13 @@ import pandas as pd
 from bluepyparallel import evaluate
 from bluepyparallel import init_parallel_factory
 from dask.distributed import LocalCluster
-from morph_tool.utils import is_morphology
 
 from axon_synthesis.typing import FileType
 from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import ParallelConfig
 from axon_synthesis.utils import disable_distributed_loggers
 from axon_synthesis.utils import get_axons
+from axon_synthesis.utils import get_morphology_paths
 from axon_synthesis.utils import load_morphology
 
 LOGGER = logging.getLogger(__name__)
@@ -65,14 +65,8 @@ def process_morphologies(
     """Extract terminals from all the morphologies in the given directory."""
     if parallel_config is None:
         parallel_config = ParallelConfig()
-    morph_dir = Path(morph_dir)
-    morphology_paths = []
-    for morph_path in morph_dir.iterdir():
-        if not is_morphology(morph_path):
-            continue
-        morphology_paths.append(morph_path)
 
-    morphologies = pd.DataFrame(morphology_paths, columns=["morph_path"])
+    morphologies = get_morphology_paths(morph_dir)
 
     with disable_distributed_loggers():
         if parallel_config.nb_processes > 1:

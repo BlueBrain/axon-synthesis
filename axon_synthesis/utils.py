@@ -25,6 +25,7 @@ from attrs import define
 from attrs import field
 from attrs import validators
 from morph_tool.converter import convert
+from morph_tool.utils import is_morphology
 from morphio.mut import Morphology as MorphIoMorphology
 from neurom import NeuriteType
 from neurom import load_morphology as neurom_load_morphology
@@ -195,6 +196,18 @@ def add_camera_sync(fig_path):
 
     with Path(fig_path).open("w", encoding="utf-8") as f:
         f.write(tmp.replace("</body>", js + "</body>"))
+
+
+def get_morphology_paths(morph_dir):
+    """Get all morphology paths from a given directory."""
+    morph_dir = Path(morph_dir)
+    morphology_paths = []
+    for morph_path in morph_dir.iterdir():
+        if not is_morphology(morph_path):
+            continue
+        morphology_paths.append(morph_path)
+
+    return pd.DataFrame(morphology_paths, columns=["morph_path"])
 
 
 def get_axons(morph, axon_ids=None):
