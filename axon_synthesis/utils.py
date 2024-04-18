@@ -413,11 +413,15 @@ def merge_json_files(*files):
     return result
 
 
-def compute_bbox(points, relative_buffer=None):
+def compute_bbox(points, relative_buffer=None, absolute_buffer=None):
     """Compute the bounding box of the given points and optionally apply a buffer to it."""
     bbox = np.vstack([points.min(axis=0), points.max(axis=0)])
+    bbox_buffer = None
     if relative_buffer is not None:
-        bbox_buffer = (bbox[1] - bbox[0]) * 0.1
+        bbox_buffer = (bbox[1] - bbox[0]) * relative_buffer
+    if absolute_buffer is not None and (bbox_buffer is None or absolute_buffer > bbox_buffer):
+        bbox_buffer = absolute_buffer
+    if bbox_buffer is not None:
         bbox[0] -= bbox_buffer
         bbox[1] += bbox_buffer
     return bbox
@@ -430,9 +434,11 @@ def compute_aspect_ratios(bbox):
     return aspect_ratios
 
 
-def build_layout_properties(pts, relative_buffer: float | None = None) -> dict:
+def build_layout_properties(
+    pts, relative_buffer: float | None = None, absolute_buffer: float | None = None
+) -> dict:
     """Build a dictionary with layout properties for Plotly figures."""
-    bbox = compute_bbox(pts, relative_buffer)
+    bbox = compute_bbox(pts, relative_buffer, absolute_buffer)
     aspect_ratios = compute_aspect_ratios(bbox)
 
     return {
