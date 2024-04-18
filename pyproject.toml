@@ -29,6 +29,7 @@ dependencies = {file = ["requirements.txt"]}
 
 [project.optional-dependencies]
 docs = [
+    "docutils<0.21",
     "m2r2",
     "sphinx",
     "sphinx-bluebrain-theme",
