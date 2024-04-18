@@ -489,7 +489,7 @@ def extend_validator_with_default(validator_class) -> Validator:
     _no_default = object()
     validate_properties = validator_class.VALIDATORS["properties"]
 
-    def set_defaults_and_validate(
+    def set_defaults_and_validate(  # type: ignore[return]
         validator, properties, instance, schema
     ) -> Iterator[ValidationError] | None:
         drop_if_empty = set()

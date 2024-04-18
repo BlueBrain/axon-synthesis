@@ -467,10 +467,12 @@ def cluster_one_morph(
     wmr: WhiteMatterRecipe | None,
     projection_pop_numbers: pd.DataFrame | None,
     bouton_density: float | None,
+    *,
     debug: bool = False,
     rng: SeedType = None,
     parallel_config: ParallelConfig | None = None,
 ):
+    """Run clustering on one morphology."""
     if parallel_config is None:
         parallel_config = ParallelConfig()
 
@@ -665,35 +667,10 @@ def cluster_one_morph(
     return trunk_props, cluster_props, all_terminal_points, morph_paths
 
 
-# class ClusteringResult:
-#     """Class to store clustering result for one morphology."""
-#     def __init__(self, trunk_props, cluster_props, all_terminal_points, morph_paths):
-#         self.trunk_props = trunk_props
-#         self.cluster_props = cluster_props
-#         self.all_terminal_points = all_terminal_points
-#         self.morph_paths = morph_paths
-
-# @dask_serialize.register(ClusteringResult)
-# def serialize(human: ClusteringResult) -> Tuple[Dict, List[bytes]]:
-#     header = {}
-#     frames = [human.name.encode()]
-#     return header, frames
-
-# @dask_deserialize.register(ClusteringResult)
-# def deserialize(header: Dict, frames: List[bytes]) -> ClusteringResult:
-#     return Human(frames[0].decode())
-
-
 def _wrapper(data: dict, **kwargs: dict) -> dict:
     """Wrap process_morph() for parallel computation."""
-    print("#################################")
-    print(data)
-    print("#################################")
-    print(kwargs)
-    print("#################################")
-    trunk_props, cluster_props, all_terminal_points, morph_paths = cluster_one_morph(
-        **data, **kwargs
-    )
+    all_kwargs = {**data, **kwargs}
+    trunk_props, cluster_props, all_terminal_points, morph_paths = cluster_one_morph(**all_kwargs)
 
     return {
         "trunk_props": trunk_props,
@@ -748,6 +725,10 @@ def cluster_morphologies(
     )
 
     morphologies = get_morphology_paths(morph_dir)
+
+    if len(morphologies) == 0:
+        LOGGER.error("No morphology file found in '%s'", morph_dir)
+        return clustering
 
     with disable_distributed_loggers():
         if parallel_config.nb_processes > 1:
