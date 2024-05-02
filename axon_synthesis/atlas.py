@@ -1,6 +1,7 @@
 """Helpers for atlas."""
 import contextlib
 import copy
+import json
 import logging
 import operator
 from functools import cached_property
@@ -121,7 +122,18 @@ class AtlasHelper:
         #     flatmap.save_nrrd(self.output()["flatmap"].path, encoding="raw")
 
         # TODO: Compute the depth for specific layers of each region (like in region-grower)
-        self.depths = VoxelData.reduce(operator.sub, [self.pia_coord, atlas.load_data("[PH]y")])
+        self.y = atlas.load_data("[PH]y")
+        self.depths = VoxelData.reduce(operator.sub, [self.pia_coord, self.y])
+
+    def save(self, path):
+        """Export the atlas to the given directory."""
+        path = Path(path)
+        self.brain_regions.save_nrrd(str(path / "brain_regions.nrrd"))
+        self.orientations.save_nrrd(str(path / "orientations.nrrd"))
+        self.top_layer.save_nrrd(str(path / f"[PH]{self.layers[0]}.nrrd"))
+        self.y.save_nrrd(str(path / "[PH]y.nrrd"))
+        with (path / "hierarchy.json").open(mode="w", encoding="utf-8") as f:
+            json.dump(self.region_map.as_dict(), f, indent=4)
 
     def copy(self):
         """Return a copy of the current atlas."""
@@ -140,6 +152,7 @@ class AtlasHelper:
             self._region_map_df = None
         else:
             self._region_map_df = value.as_dataframe()
+            self._build_region_map_df_level()
 
     @property
     def region_map_df(self):

@@ -1,11 +1,17 @@
 """Module with some validation utils."""
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+from morph_tool.converter import convert
 from voxcell import VoxelData
 from voxcell.math_utils import voxel_intersection
 
 from axon_synthesis.constants import FROM_COORDS_COLS
 from axon_synthesis.constants import TO_COORDS_COLS
+from axon_synthesis.typing import FileType
+from axon_synthesis.utils import disable_loggers
+from axon_synthesis.utils import temp_dir
 
 
 def segment_voxel_intersections(row, grid, *, return_sub_segments=False):
@@ -55,10 +61,31 @@ def segment_intersection_lengths(segments, bbox, voxel_dimensions, center=None, 
             "lengths": intersections["lengths"].explode(),
         }
     )
+    outside_segments = elements.loc[elements["indices"].isna()]
+    if not outside_segments.empty:
+        if logger is not None:
+            logger.warning("Found %s segments outside the given grid", len(outside_segments))
+        elements = elements.dropna(subset=["indices"])
     elements["indices"] = elements["indices"].apply(tuple)
 
     lengths = elements.groupby("indices")["lengths"].sum().reset_index()
-    indices = tuple(np.vstack(lengths["indices"].to_numpy()).T.tolist())
+    indices = tuple(np.vstack(lengths["indices"].to_numpy()).T.tolist())  # type: ignore[call-overload]
 
     grid.raw[indices] += lengths["lengths"].astype(float).to_numpy()
     return grid
+
+
+def copy_morph_to_tmp_dir(morph):
+    """Copy the given morphology in a temporary directory."""
+    tmp_dir = temp_dir()
+    if isinstance(morph, FileType):  # type: ignore[arg-type,misc]
+        filename = Path(morph)
+        name = filename.stem
+        ext = filename.suffix
+    else:
+        name = morph.name
+        ext = ".asc"
+    filename = (Path(tmp_dir.name) / name).with_suffix(ext)
+    with disable_loggers("morph_tool.converter"):
+        convert(morph, filename)
+    return tmp_dir, filename

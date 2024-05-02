@@ -1,5 +1,6 @@
 attrs
 BluePyParallel
+brainbuilder>=0.18.3
 click>=8
 click_option_group>=0.5
 configobj>=5

@@ -1,6 +1,8 @@
 """Entries of the Command Line Interface dedicated to the validation."""
 import click
 
+from axon_synthesis.cli.common import atlas_kwargs_to_config
+from axon_synthesis.cli.common import atlas_options
 from axon_synthesis.cli.common import parallel_kwargs_to_config
 from axon_synthesis.cli.common import parallel_options
 from axon_synthesis.cli.input_creation import clustering_parameters_option
@@ -11,6 +13,7 @@ from axon_synthesis.cli.synthesis import outputs_kwargs_to_config
 from axon_synthesis.cli.synthesis import post_process_kwargs_to_config
 from axon_synthesis.cli.synthesis import post_process_options
 from axon_synthesis.cli.utils import GlobalConfig
+from axon_synthesis.cli.utils import ListParam
 from axon_synthesis.validation.mimic import mimic_axons
 
 
@@ -23,7 +26,24 @@ from axon_synthesis.validation.mimic import mimic_axons
     required=True,
     help="The directory containing the input morphologies",
 )
+@click.option(
+    "--workflows",
+    type=ListParam(
+        schema={
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": [
+                    "basic",
+                    "preferred_regions",
+                ],
+            },
+        },
+    ),
+    help="The mimic workflows to synthesize",
+)
 @output_options
+@atlas_options(required=False)
 @clustering_parameters_option
 @create_graph_options
 @post_process_options
@@ -32,6 +52,7 @@ from axon_synthesis.validation.mimic import mimic_axons
 def mimic(global_config: GlobalConfig, *_args, **kwargs):
     """The command to synthesize mimicking axons."""
     global_config.to_config(kwargs)
+    atlas_kwargs_to_config(kwargs)
     create_graph_kwargs_to_config(kwargs)
     post_process_kwargs_to_config(kwargs)
     outputs_kwargs_to_config(kwargs)

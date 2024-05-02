@@ -27,6 +27,7 @@ except ImportError:
     mpi_enabled = False
 
 from axon_synthesis.atlas import AtlasConfig
+from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import FILE_SELECTION
 from axon_synthesis.base_path_builder import BasePathBuilder
 from axon_synthesis.constants import AXON_GRAFTING_POINT_HDF_GROUP
@@ -304,7 +305,8 @@ def _init_parallel(
 
     # Setup logging in workers
     client.run(setup_logger, level=logging.getLevelName(LOGGER.getEffectiveLevel()))
-    client.run(permanently_disable_distributed_loggers)
+    if LOGGER.getEffectiveLevel() > logging.DEBUG:
+        client.run(permanently_disable_distributed_loggers)
 
     return client
 
@@ -518,6 +520,8 @@ def _partition_wrapper(
     inputs.load_probabilities()
     inputs.load_tuft_params_and_distrs()
 
+    func_kwargs["logger"] = LOGGER
+
     return synthesize_group_morph_axons(df.copy(deep=False), inputs=inputs, **func_kwargs)
 
 
@@ -525,7 +529,7 @@ def synthesize_axons(
     config: SynthesisConfig,
     output_config: OutputConfig | None = None,
     *,
-    atlas_config: AtlasConfig | None = None,
+    atlas_config: AtlasConfig | AtlasHelper | None = None,
     create_graph_config: CreateGraphConfig | None = None,
     post_process_config: PostProcessConfig | None = None,
     rng: SeedType = None,
@@ -553,7 +557,7 @@ def synthesize_axons(
     outputs.create_dirs(file_selection=FILE_SELECTION.REQUIRED_ONLY)
 
     # Load all inputs
-    if atlas_config is not None:
+    if atlas_config is not None and isinstance(atlas_config, AtlasConfig):
         atlas_config.load_region_map = True
     inputs = Inputs.load(config.input_dir, atlas_config=atlas_config, **asdict(config))
 

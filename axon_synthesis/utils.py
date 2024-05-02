@@ -4,6 +4,7 @@ import inspect
 import json
 import logging
 import re
+import tempfile
 import warnings
 from collections.abc import MutableMapping
 from contextlib import contextmanager
@@ -68,7 +69,7 @@ class ParallelConfig:
 
     nb_processes: int = field(default=0, validator=validators.ge(0))
     dask_config: dict | None = field(default=None)
-    progress_bar: bool = field(default=True)
+    progress_bar: bool = field(default=False)
     use_mpi: bool = field(default=False)
 
 
@@ -130,6 +131,11 @@ def setup_logger(level: str = "info", prefix: str = "", suffix: str = ""):
                 logging.getLogger(logger_name).level,
                 logging.WARNING,
             )
+
+
+def temp_dir(*args, **kwargs):
+    """Create a temporary directory."""
+    return tempfile.TemporaryDirectory(*args, **kwargs)
 
 
 def fill_diag(mat, val=1):

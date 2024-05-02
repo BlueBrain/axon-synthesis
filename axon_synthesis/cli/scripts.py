@@ -40,7 +40,7 @@ from axon_synthesis.utils import create_random_morphologies
     type=str,
     help="The prefix of morphology names",
 )
-@atlas_options
+@atlas_options(required=True)
 @click.pass_obj
 def random_morphologies(global_config: GlobalConfig, *_args, **kwargs):
     """The command to create random empty morphologies."""

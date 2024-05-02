@@ -130,7 +130,7 @@ def get_target_points(
     source_points["axon_id"] = source_points.groupby("morphology").cumcount()
 
     # Get ascendants in the hierarchy
-    if atlas is not None:
+    if atlas is not None and "st_level" not in source_points.columns:
         cells_region_parents = source_points.merge(
             atlas.brain_regions_and_ascendants,
             left_on="source_brain_region_id",

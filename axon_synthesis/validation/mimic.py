@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from attrs import evolve
 from morph_tool.converter import convert
 from morph_tool.utils import is_morphology
 from neurom.core import Morphology
@@ -11,12 +12,14 @@ from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
 
 from axon_synthesis.atlas import AtlasConfig
+from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.constants import AXON_GRAFTING_POINT_HDF_GROUP
 from axon_synthesis.constants import COMMON_ANCESTOR_COORDS_COLS
 from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import DEFAULT_OUTPUT_PATH
 from axon_synthesis.constants import DEFAULT_POPULATION
 from axon_synthesis.constants import TARGET_COORDS_COLS
+from axon_synthesis.inputs import Inputs
 from axon_synthesis.inputs.create import create_inputs
 from axon_synthesis.synthesis import ParallelConfig
 from axon_synthesis.synthesis import SynthesisConfig
@@ -27,6 +30,8 @@ from axon_synthesis.synthesis.outputs import OutputConfig
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import disable_loggers
+from axon_synthesis.validation.atlas_utils import morph_atlas
+from axon_synthesis.validation.utils import copy_morph_to_tmp_dir
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,29 +41,33 @@ def create_cell_collection(
 ) -> CellCollection:
     """Create a CellCollection object from a directory containing morphologies."""
     morphology_dir = Path(morphology_dir)
-    morph_files = [i for i in morphology_dir.iterdir() if is_morphology(i)]
+    raw_morph_files = [i for i in morphology_dir.iterdir() if is_morphology(i)]
 
-    centers = np.zeros((len(morph_files), 3), dtype=float)
+    centers = np.zeros((len(raw_morph_files), 3), dtype=float)
     if convert_to is not None:
         convert_to = Path(convert_to)
         convert_to.mkdir(parents=True, exist_ok=True)
-        converted_files = []
-        for num, file in enumerate(morph_files):
+        morph_files = []
+        for num, file in enumerate(raw_morph_files):
             converted_file = (convert_to / file.stem).with_suffix(".h5")
             morph = Morphology(file)
             centers[num] = morph.soma.center
             morph = morph.transform(Translation(-morph.soma.center))
             with disable_loggers("morph_tool.converter"):
                 convert(morph, converted_file, nrn_order=True)
-            converted_files.append(converted_file)
-        morph_files = converted_files
+            morph_files.append(converted_file)
+    else:
+        morph_files = raw_morph_files
 
-    morph_names = [i.stem for i in morph_files]
+    morph_names = [i.stem for i in raw_morph_files]
+    raw_morph_files = [str(i) for i in raw_morph_files]
     morph_files = [str(i) for i in morph_files]
     if not morph_files:
         msg = f"No morphology file found in '{morphology_dir}'"
         raise RuntimeError(msg)
-    cells_df = pd.DataFrame({"morphology": morph_names, "morph_file": morph_files})
+    cells_df = pd.DataFrame(
+        {"morphology": morph_names, "raw_file": raw_morph_files, "morph_file": morph_files}
+    )
     cells_df["mtype"] = DEFAULT_POPULATION
     cells_df["region"] = DEFAULT_POPULATION
     cells_df[COORDS_COLS] = centers
@@ -83,6 +92,7 @@ def create_probabilities(cells_df, tuft_properties):
     population_probabilities = (
         tuft_properties[["population_id"]].drop_duplicates().reset_index(drop=True)
     )
+
     population_probabilities["brain_region_id"] = population_probabilities["population_id"]
     population_probabilities["probability"] = 1
 
@@ -110,8 +120,8 @@ def create_probabilities(cells_df, tuft_properties):
         "source_population_id"
     ].copy()
     projection_probabilities["target_population_id"] = (
-        projection_probabilities["source_brain_region_id"]
-        + "_"
+        projection_probabilities["source_population_id"]
+        + "-"
         + projection_probabilities["tuft_id"].astype(str)
     )
     projection_probabilities["target_brain_region_id"] = projection_probabilities[
@@ -148,6 +158,62 @@ def update_cells(cells_df, projection_probabilities):
         cells_df.index += 1
 
 
+def mimic_preferred_regions_workflow(
+    synthesis_config,
+    atlas_config,
+    create_graph_config,
+    post_process_config,
+    output_config,
+    rng,
+    parallel_config,
+):
+    """Synthesize axons using morphology preferred regions."""
+    # Load the cell collection
+    cells_df = CellCollection.load(synthesis_config.morphology_data_file).as_dataframe()
+    atlas_config = evolve(atlas_config, load_region_map=True)
+    atlas = AtlasHelper(atlas_config)
+
+    # Synthesize each morphology
+    parallel_config_tmp = evolve(parallel_config, nb_processes=0)
+    for name, morph in cells_df["raw_file"].to_dict().items():
+        tmp_dir, _filename = copy_morph_to_tmp_dir(morph)
+        atlas_tmp_dir, atlas_tmp = morph_atlas(
+            morph,
+            voxel_dimensions=atlas.brain_regions.voxel_dimensions,
+            preferred_regions_axon_id=0,
+        )
+        synthesis_config_tmp = evolve(
+            synthesis_config,
+            morphology_dir=tmp_dir.name,
+            morphology_data_file=Path(tmp_dir.name) / "circuit.h5",
+        )
+        create_graph_config_tmp = evolve(
+            create_graph_config,
+            favored_regions=["dft"],
+        )
+        cell_row = cells_df.loc[[name]].reset_index(drop=True)
+        cell_row.index += 1
+        CellCollection.from_dataframe(cell_row).save(synthesis_config_tmp.morphology_data_file)
+        synthesize_axons(
+            synthesis_config_tmp,
+            atlas_config=atlas_tmp,
+            create_graph_config=create_graph_config_tmp,
+            post_process_config=post_process_config,
+            output_config=output_config,
+            rng=rng,
+            parallel_config=parallel_config_tmp,
+        )
+        tmp_dir.cleanup()
+        atlas_tmp_dir.cleanup()
+
+
+def export_cells_df(cells_df, path):
+    """Export cells DF for future debugging."""
+    cells_df = cells_df.copy(deep=False)
+    cells_df["orientation"] = cells_df["orientation"].apply(np.ndarray.tolist)
+    cells_df.to_feather(path)
+
+
 def mimic_axons(
     morphology_dir: FileType,
     clustering_parameters: dict,
@@ -156,6 +222,7 @@ def mimic_axons(
     create_graph_config: CreateGraphConfig | None = None,
     post_process_config: PostProcessConfig | None = None,
     output_config: OutputConfig | None = None,
+    workflows: list[str] | None = None,
     rng: SeedType = None,
     debug: bool = False,
     parallel_config: ParallelConfig | None = None,
@@ -171,15 +238,19 @@ def mimic_axons(
         msg = "The 'clustering_parameters' JSON object should contain exactly 1 entry."
         raise ValueError(msg)
 
-    # Create raw inputs
-    inputs = create_inputs(
-        morphology_dir,
-        input_dir,
-        clustering_parameters,
-        rng=rng,
-        debug=debug,
-        parallel_config=parallel_config,
-    )
+    # Create raw inputs if they don't exist
+    if not input_dir.exists():
+        inputs = create_inputs(
+            morphology_dir,
+            input_dir,
+            clustering_parameters,
+            rng=rng,
+            debug=debug,
+            parallel_config=parallel_config,
+        )
+    else:
+        inputs = Inputs(input_dir, morphology_dir)
+        inputs.load_clustering_data()
 
     # Modify the inputs for the mimic workflow
 
@@ -212,6 +283,8 @@ def mimic_axons(
     inputs.clustering_data.save()
 
     # Set the source properties
+    cells_df["st_level"] = 0
+    export_cells_df(cells_df, output_config.path.parent / "cells_df.feather")
     cells = CellCollection.from_dataframe(cells_df)
     cells.save(morphology_data_file)
 
@@ -235,12 +308,38 @@ def mimic_axons(
         input_dir,
         rebuild_existing_axons=True,
     )
-    synthesize_axons(
-        synthesis_config,
-        atlas_config=atlas_config,
-        create_graph_config=create_graph_config,
-        post_process_config=post_process_config,
-        output_config=output_config,
-        rng=rng,
-        parallel_config=parallel_config,
-    )
+
+    # Choose the workflows to process
+    if workflows is None:
+        workflows = ["basic"]
+
+    if "basic" in workflows:
+        LOGGER.info("Starting 'basic' workflow")
+        synthesize_axons(
+            synthesis_config,
+            # atlas_config=atlas_config,
+            create_graph_config=create_graph_config,
+            post_process_config=post_process_config,
+            output_config=output_config,
+            rng=rng,
+            parallel_config=parallel_config,
+        )
+
+    if "preferred_regions" in workflows:
+        LOGGER.info("Starting 'preferred regions' workflow")
+        if atlas_config is None:
+            msg = "An atlas configuration is required for this workflow"
+            raise ValueError(msg)
+        output_config.path = output_config.path.with_name(
+            output_config.path.name + "_preferred_regions"
+        )
+
+        mimic_preferred_regions_workflow(
+            synthesis_config,
+            atlas_config=atlas_config,
+            create_graph_config=create_graph_config,
+            post_process_config=post_process_config,
+            output_config=output_config,
+            rng=rng,
+            parallel_config=parallel_config,
+        )

@@ -78,7 +78,7 @@ def fetch_white_matter_recipe(**kwargs):
     required=True,
     help="The directory containing the input morphologies",
 )
-@atlas_options
+@atlas_options(required=False)
 @optgroup.group(
     "White Matter Recipe parameters",
     help="Parameters used to load and process the White Matter Recipe file",

@@ -52,6 +52,7 @@ class Inputs(BasePathBuilder):
         *,
         pop_probability_path: FileType | None = None,
         proj_probability_path: FileType | None = None,
+        brain_regions_mask_path: FileType | None = None,
         neuron_density: float | None = None,
         **kwargs,
     ):
@@ -62,6 +63,8 @@ class Inputs(BasePathBuilder):
             morphology_path: The path of the directory containing the input morphologies.
             pop_probability_path: The path to the file containing the population probabilities.
             proj_probability_path: The path to the file containing the projection probabilities.
+            brain_regions_mask_path: The path to the file containing the pre-computed brain
+                region masks.
             neuron_density: The mean neuron density used to compute the expected total number of
                 neurons in target regions.
             **kwargs: The keyword arguments are passed to the base constructor.
@@ -97,6 +100,8 @@ class Inputs(BasePathBuilder):
                 self._metadata["population_probabilities"] = Path(pop_probability_path)
             if proj_probability_path is not None:
                 self._metadata["projection_probabilities"] = Path(proj_probability_path)
+            if brain_regions_mask_path is not None:
+                self._metadata["brain_regions_mask"] = Path(brain_regions_mask_path)
             self.metadata_to_attributes()
 
     @staticmethod
@@ -152,6 +157,10 @@ class Inputs(BasePathBuilder):
         """Propagate metadata to attributes."""
         self._filenames["CLUSTERING_DIRNAME"] = Path(self.metadata["clustering"])
         self._filenames["WMR_DIRNAME"] = Path(self.metadata["WMR"])
+        if "brain_regions_mask" in self.metadata:
+            self._filenames["BRAIN_REGIONS_MASK_FILENAME"] = str(
+                self.metadata["brain_regions_mask"]
+            )
         if "morphology_path" in self.metadata:
             self.MORPHOLOGY_DIRNAME = self.metadata["morphology_path"]
         self.neuron_density = self.metadata["neuron_density"]
@@ -170,7 +179,10 @@ class Inputs(BasePathBuilder):
         # if not getattr(atlas_config, "load_region_map", True):
         #     LOGGER.debug("The 'load_region_map' attribute is forced to 'True'")
         #     atlas_config.load_region_map = True
-        self.atlas = AtlasHelper(atlas_config)
+        if isinstance(atlas_config, AtlasHelper):
+            self.atlas = atlas_config
+        else:
+            self.atlas = AtlasHelper(atlas_config)
         self._update_atlas_metadata()
 
     def load_brain_regions_masks(self):
@@ -316,7 +328,10 @@ class Inputs(BasePathBuilder):
 
     @classmethod
     def load(
-        cls, path: FileType | None, atlas_config: AtlasConfig | None = None, **kwargs: dict
+        cls,
+        path: FileType | None,
+        atlas_config: AtlasConfig | AtlasHelper | None = None,
+        **kwargs: dict,
     ) -> Self:
         """Load all the inputs from the given path."""
         if path is None:

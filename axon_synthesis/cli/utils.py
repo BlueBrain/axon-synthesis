@@ -6,6 +6,7 @@ from typing import Any
 
 import click
 from configobj import ConfigObj
+from jsonschema import validate
 
 
 def _format_value(data: dict, name: str) -> dict[str, Any]:
@@ -98,6 +99,11 @@ class ListParam(click.ParamType):
 
     name = "list"
 
+    def __init__(self, *args, schema=None, **kwargs):
+        """The ListParam constructor."""
+        self.schema = schema
+        super().__init__(*args, **kwargs)
+
     def convert(self, value, param, ctx):
         """Convert a given value."""
         try:
@@ -105,7 +111,8 @@ class ListParam(click.ParamType):
                 value = json.loads(value)
         except json.JSONDecodeError:
             self.fail(f"{value!r} is not a valid JSON array", param, ctx)
-
+        if self.schema is not None:
+            validate(value, schema=self.schema)
         return value
 
 
@@ -114,6 +121,11 @@ class DictParam(click.ParamType):
 
     name = "dict"
 
+    def __init__(self, *args, schema=None, **kwargs):
+        """The DictParam constructor."""
+        self.schema = schema
+        super().__init__(*args, **kwargs)
+
     def convert(self, value, param, ctx):
         """Convert a given value."""
         try:
@@ -121,5 +133,7 @@ class DictParam(click.ParamType):
                 value = json.loads(value)
         except json.JSONDecodeError:
             self.fail(f"{value!r} is not a valid JSON object", param, ctx)
+        if self.schema is not None:
+            validate(value, schema=self.schema)
 
         return value

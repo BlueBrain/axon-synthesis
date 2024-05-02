@@ -94,7 +94,6 @@ class CreateGraphConfig:
     # Favored regions
     favored_regions: RegionIdsType | None = field(
         default=None,
-        validator=validators.optional(validators.instance_of(RegionIdsType.__args__)),  # type: ignore[attr-defined]
     )
     favoring_sigma: float = field(default=100, validator=validators.gt(0))
     favoring_amplitude: float = field(default=1, validator=validators.gt(0))

@@ -11,40 +11,43 @@ from axon_synthesis.cli.utils import ListParam
 from axon_synthesis.utils import ParallelConfig
 
 
-def atlas_options(func):
+def atlas_options(*, required=False):
     """Decorate a click command to add Atlas-specific options."""
 
-    @optgroup.group("Atlas parameters", help="Parameters used to read and prepare the atlas")
-    @optgroup.option(
-        "--atlas-enable/--atlas-disable",
-        default=True,
-        help="Enable or disable the Atlas",
-    )
-    @optgroup.option(
-        "--atlas-path",
-        type=click.Path(exists=True, file_okay=False),
-        required=True,
-        help="Path to the Atlas folder",
-    )
-    @optgroup.option(
-        "--atlas-region-filename",
-        type=str,
-        required=True,
-        help="Name of NRRD file containing the brain regions in the Atlas folder",
-    )
-    @optgroup.option(
-        "--atlas-layer-names",
-        type=ListParam(),
-        help=(
-            "Names of the layers given as a JSON list (the atlas folder must contain a file name "
-            "'[PH]<layer_name>.nrrd' for each given layer)"
-        ),
-    )
-    @functools.wraps(func)
-    def wrapper_atlas_options(*args, **kwargs) -> Callable:
-        return func(*args, **kwargs)
+    def inner_atlas_options(func) -> Callable:
+        @optgroup.group("Atlas parameters", help="Parameters used to read and prepare the atlas")
+        @optgroup.option(
+            "--atlas-enable/--atlas-disable",
+            default=True,
+            help="Enable or disable the Atlas",
+        )
+        @optgroup.option(
+            "--atlas-path",
+            type=click.Path(exists=True, file_okay=False),
+            required=required,
+            help="Path to the Atlas folder",
+        )
+        @optgroup.option(
+            "--atlas-region-filename",
+            type=str,
+            required=required,
+            help="Name of NRRD file containing the brain regions in the Atlas folder",
+        )
+        @optgroup.option(
+            "--atlas-layer-names",
+            type=ListParam(),
+            help=(
+                "Names of the layers given as a JSON list (the atlas folder must contain a file "
+                "name '[PH]<layer_name>.nrrd' for each given layer)"
+            ),
+        )
+        @functools.wraps(func)
+        def wrapper_atlas_options(*args, **kwargs) -> Callable:
+            return func(*args, **kwargs)
 
-    return wrapper_atlas_options
+        return wrapper_atlas_options
+
+    return inner_atlas_options
 
 
 def atlas_kwargs_to_config(config) -> None:

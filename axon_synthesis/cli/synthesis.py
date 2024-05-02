@@ -428,7 +428,7 @@ def synthesis_kwargs_to_config(config) -> None:
 @click.command(short_help="Synthesize the axons for the given morphologies")
 @synthesis_options
 @output_options
-@atlas_options
+@atlas_options(required=True)
 @create_graph_options
 @post_process_options
 @parallel_options

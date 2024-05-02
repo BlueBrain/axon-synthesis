@@ -1,6 +1,8 @@
 """Cluster the terminal points of a morphology to define a main truk and a set of tufts."""
 import json
 import logging
+import os
+import pickle
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
@@ -8,6 +10,7 @@ from typing import TYPE_CHECKING
 from typing import ClassVar
 
 import pandas as pd
+from attrs import evolve
 from bluepyparallel import evaluate
 from bluepyparallel import init_parallel_factory
 from dask.distributed import LocalCluster
@@ -39,12 +42,15 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.typing import Self
 from axon_synthesis.utils import COORDS_COLS
+from axon_synthesis.utils import MorphNameAdapter
 from axon_synthesis.utils import ParallelConfig
 from axon_synthesis.utils import disable_distributed_loggers
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import get_morphology_paths
 from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import neurite_to_graph
+from axon_synthesis.utils import setup_logger
+from axon_synthesis.utils import temp_dir
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
 
 if TYPE_CHECKING:
@@ -478,7 +484,8 @@ def cluster_one_morph(
 
     pts = extract_terminals.process_morph(morph_path)
     if len(pts) == 0:
-        return [], [], [], {}
+        LOGGER.warning("The morphology %s has no axon point", morph_path)
+        return ClusteringResult([], [], [], {})
     terminals = pd.DataFrame(
         pts, columns=["morph_file", "axon_id", "terminal_id", "section_id", *COORDS_COLS]
     )
@@ -493,8 +500,9 @@ def cluster_one_morph(
     morph_paths: MutableMapping[str, list] = defaultdict(list)
 
     morph_name = str(terminals.loc[0, "morph_file"])
+    morph_custom_logger = MorphNameAdapter(LOGGER, extra={"morph_name": morph_name})
 
-    LOGGER.debug("%s: %s points", morph_name, len(terminals))
+    morph_custom_logger.debug("%s: %s points", morph_name, len(terminals))
 
     # Load the morphology
     morph = load_morphology(morph_name)
@@ -509,6 +517,9 @@ def cluster_one_morph(
         nodes, edges, directed_graph = neurite_to_graph(axon)
         shortest_paths = compute_shortest_paths(directed_graph)
         node_to_terminals = nodes_to_terminals_mapping(directed_graph, shortest_paths)
+        axon_custom_logger = MorphNameAdapter(
+            LOGGER, extra={"morph_name": morph_name, "axon_id": axon_id}
+        )
 
         for config_name, config in clustering.parameters.items():
             clustering_method = config["method"]
@@ -519,7 +530,7 @@ def cluster_one_morph(
                 )
                 raise ValueError(msg)
             if len(axon.points) < MIN_AXON_POINTS:
-                LOGGER.warning(
+                axon_custom_logger.warning(
                     "The axon %s of %s is clustered with basic algorithm because it has only "
                     "%s points while at least 5 points are needed for other clustering "
                     "algorithms",
@@ -571,7 +582,7 @@ def cluster_one_morph(
             # Propagate cluster IDs
             axon_group["tuft_id"] = tuft_ids
 
-            LOGGER.info(
+            axon_custom_logger.info(
                 "%s (axon %s): %s points after merge",
                 morph_name,
                 axon_id,
@@ -664,7 +675,7 @@ def cluster_one_morph(
                     / f"{Path(str(morph_name)).with_suffix('').name}{suffix}.html",
                 )
 
-    return trunk_props, cluster_props, all_terminal_points, morph_paths
+    return ClusteringResult(trunk_props, cluster_props, all_terminal_points, morph_paths)
 
 
 def _wrapper(data: dict, **kwargs: dict) -> dict:
@@ -678,6 +689,80 @@ def _wrapper(data: dict, **kwargs: dict) -> dict:
         "terminal_points": all_terminal_points,
         "morph_paths": morph_paths,
     }
+
+
+class ClusteringResult:
+    """Class to store clustering result for one morphology."""
+
+    TRUNK_PROPS_FILENAME = "trunk_props"
+    CLUSTER_PROPS_FILENAME = "cluster_props"
+    ALL_TERMINAL_POINTS_FILENAME = "all_terminal_points"
+    MORPH_PATH_FILENAME = "morph_paths"
+
+    def __init__(self, trunk_props, cluster_props, all_terminal_points, morph_paths):
+        """The ClusteringResult constructor."""
+        self.trunk_props = trunk_props
+        self.cluster_props = cluster_props
+        self.all_terminal_points = all_terminal_points
+        self.morph_paths = morph_paths
+
+    def __getitem__(self, name):
+        """Behave like a dict."""
+        return getattr(self, name)
+
+    def __iter__(self):
+        """Make the class iterable."""
+        yield self.trunk_props
+        yield self.cluster_props
+        yield self.all_terminal_points
+        yield self.morph_paths
+
+    def save(self, **kwargs):
+        """Save internals to a temporary directory."""
+        tmpdir = temp_dir(**kwargs)
+        dir_path = Path(tmpdir.name)
+        with (dir_path / self.TRUNK_PROPS_FILENAME).open(mode="wb") as f:
+            pickle.dump(self.trunk_props, f)
+        with (dir_path / self.CLUSTER_PROPS_FILENAME).open(mode="wb") as f:
+            pickle.dump(self.cluster_props, f)
+        with (dir_path / self.ALL_TERMINAL_POINTS_FILENAME).open(mode="wb") as f:
+            pickle.dump(self.all_terminal_points, f)
+        with (dir_path / self.MORPH_PATH_FILENAME).open(mode="wb") as f:
+            pickle.dump(self.morph_paths, f)
+        return tmpdir
+
+    @classmethod
+    def load(cls, path: FileType) -> Self:
+        """Load internals from a directory."""
+        dir_path = Path(path)
+        with (dir_path / cls.TRUNK_PROPS_FILENAME).open(mode="wb") as f:
+            trunk_props = pickle.load(f)  # noqa: S301
+        with (dir_path / cls.CLUSTER_PROPS_FILENAME).open(mode="wb") as f:
+            cluster_props = pickle.load(f)  # noqa: S301
+        with (dir_path / cls.ALL_TERMINAL_POINTS_FILENAME).open(mode="wb") as f:
+            all_terminal_points = pickle.load(f)  # noqa: S301
+        with (dir_path / cls.MORPH_PATH_FILENAME).open(mode="wb") as f:
+            morph_paths = pickle.load(f)  # noqa: S301
+        return cls(trunk_props, cluster_props, all_terminal_points, morph_paths)
+
+
+# This might be useful to optimize Dask communication
+# @dask_serialize.register(ClusteringResult)
+# def serialize(res: ClusteringResult) -> tuple[dict, list[bytes]]:
+#     import pdb
+#     pdb.set_trace()
+#     header = {}
+#     tmpdir = res.save()
+#     LOGGER.critical("Saved to %s", tmpdir.name)
+#     frames = [str(tmpdir.name).encode()]
+#     return header, frames
+
+# @dask_deserialize.register(ClusteringResult)
+# def deserialize(header: dict, frames: list[bytes]) -> ClusteringResult:
+#     import pdb
+#     pdb.set_trace()
+#     LOGGER.critical("Load from %s", frames[0].decode())
+#     return ClusteringResult.load(frames[0].decode())
 
 
 def cluster_morphologies(
@@ -729,16 +814,27 @@ def cluster_morphologies(
     if len(morphologies) == 0:
         LOGGER.error("No morphology file found in '%s'", morph_dir)
         return clustering
+    parallel_config_tmp = evolve(
+        parallel_config,
+        nb_processes=min(len(morphologies), parallel_config.nb_processes, os.cpu_count() or 0),
+    )
 
     with disable_distributed_loggers():
-        if parallel_config.nb_processes > 1:
-            LOGGER.info("Start parallel computation using %s workers", parallel_config.nb_processes)
-            cluster = LocalCluster(n_workers=parallel_config.nb_processes, timeout="60s")
+        if parallel_config_tmp.nb_processes > 1:
+            LOGGER.info(
+                "Start parallel computation using %s workers", parallel_config_tmp.nb_processes
+            )
+            cluster = LocalCluster(n_workers=parallel_config_tmp.nb_processes, timeout="60s")
+            cluster.get_client().run(
+                setup_logger, level=logging.getLevelName(LOGGER.getEffectiveLevel())
+            )
             parallel_factory = init_parallel_factory(
-                "dask_dataframe", address=cluster, serializers=["pickle"], deserializers=["pickle"]
+                "dask_dataframe",
+                address=cluster,  # serializers=["pickle"], deserializers=["pickle"]
             )
         else:
             LOGGER.info("Start computation")
+            cluster = None
             parallel_factory = init_parallel_factory(None)
 
         # Extract terminals of each morphology
@@ -760,19 +856,20 @@ def cluster_morphologies(
                 "bouton_density": bouton_density,
                 "debug": debug,
                 "rng": rng,
-                "parallel_config": parallel_config,
+                "parallel_config": parallel_config_tmp,
             },
+            progress_bar=False,
         )
 
         # Close the Dask cluster if opened
-        if parallel_config.nb_processes > 1:
+        if cluster is not None:
             parallel_factory.shutdown()
             cluster.close()
 
-    trunk_props = results["trunk_props"].dropna().explode().tolist()
-    cluster_props = results["cluster_props"].dropna().explode().tolist()
-    all_terminal_points = results["terminal_points"].dropna().explode().tolist()
-    paths = results["morph_paths"].dropna().apply(pd.Series)
+    trunk_props = results["trunk_props"].dropna().explode().dropna().tolist()
+    cluster_props = results["cluster_props"].dropna().explode().dropna().tolist()
+    all_terminal_points = results["terminal_points"].dropna().explode().dropna().tolist()
+    paths = results["morph_paths"].dropna().apply(pd.Series).dropna()
     morph_paths = {col: paths[col].explode().tolist() for col in paths.columns}
 
     export_clusters(
