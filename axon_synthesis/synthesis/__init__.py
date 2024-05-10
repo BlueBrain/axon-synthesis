@@ -386,7 +386,6 @@ def synthesize_one_morph_axons(
                 create_graph_config,
                 bbox=inputs.atlas.brain_regions.bbox if inputs.atlas is not None else None,
                 depths=inputs.atlas.depths if inputs.atlas is not None else None,
-                favored_region_tree=create_graph_config.favored_region_tree,
                 rng=rng,
                 output_path=axon_paths.GRAPH_CREATION_DATA,
                 figure_path=axon_paths.GRAPH_CREATION_FIGURE,

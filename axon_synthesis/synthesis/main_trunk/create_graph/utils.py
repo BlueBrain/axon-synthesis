@@ -10,6 +10,7 @@ from scipy.spatial import Voronoi  # pylint: disable=no-name-in-module
 
 from axon_synthesis.constants import COORDS_COLS
 from axon_synthesis.constants import NodeProvider
+from axon_synthesis.typing import SeedType
 
 FORCE_2D = False
 """Force the Voronoï and Delaunay calculations to ignore the Z coordinate."""
@@ -56,50 +57,73 @@ def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermed
     return np.concatenate([pts, *[i[1] for i in inter_pts]])
 
 
+def generate_random_points(
+    bbox,
+    min_random_point_distance: float,
+    rng: SeedType,
+    *,
+    existing_pts_tree: KDTree | None = None,
+    max_tries: int = 10,
+):
+    """Generate random points in a bounding box and with a min distance."""
+    n_fails = 0
+    rng = np.random.default_rng(rng)
+    new_pts: list[np.ndarray] = []
+    while n_fails < max_tries:
+        xyz = np.array(
+            [
+                rng.uniform(bbox[0, 0], bbox[1, 0]),
+                rng.uniform(bbox[0, 1], bbox[1, 1]),
+                rng.uniform(bbox[0, 2], bbox[1, 2]),
+            ],
+        )
+        if (
+            existing_pts_tree is None
+            or np.isinf(
+                existing_pts_tree.query(
+                    xyz,
+                    distance_upper_bound=min_random_point_distance,
+                    k=2,
+                )[0][1],
+            )
+        ) and (
+            len(new_pts) == 0
+            or np.linalg.norm(
+                xyz - new_pts,
+                axis=1,
+            ).min()
+            > min_random_point_distance
+        ):
+            new_pts.append(xyz)
+            n_fails = 0
+        else:
+            n_fails += 1
+    return new_pts
+
+
 def add_random_points(
     all_pts,
-    min_random_point_distance,
-    bbox_buffer,
-    rng,
+    min_random_point_distance: float | None,
+    bbox_buffer: float,
+    rng: SeedType,
     *,
     max_tries: int = 10,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
     """Add random points in the bounding box of the given points."""
     if min_random_point_distance is not None:
-        n_fails = 0
         all_xyz = all_pts[:, :3]
         bbox = np.vstack([all_xyz.min(axis=0), all_xyz.max(axis=0)])
         bbox[0] -= bbox_buffer
         bbox[1] += bbox_buffer
         tree = KDTree(all_xyz)
-        new_pts: list[np.ndarray] = []
-        while n_fails < max_tries:
-            xyz = np.array(
-                [
-                    rng.uniform(bbox[0, 0], bbox[1, 0]),
-                    rng.uniform(bbox[0, 1], bbox[1, 1]),
-                    rng.uniform(bbox[0, 2], bbox[1, 2]),
-                ],
-            )
-            if np.isinf(
-                tree.query(
-                    xyz,
-                    distance_upper_bound=min_random_point_distance,
-                    k=2,
-                )[0][1],
-            ) and (
-                len(new_pts) == 0
-                or np.linalg.norm(
-                    xyz - new_pts,
-                    axis=1,
-                ).min()
-                > min_random_point_distance
-            ):
-                new_pts.append(xyz)
-                n_fails = 0
-            else:
-                n_fails += 1
+        new_pts = generate_random_points(
+            bbox,
+            min_random_point_distance,
+            rng=rng,
+            existing_pts_tree=tree,
+            max_tries=max_tries,
+        )
 
         if new_pts:
             if logger is not None:

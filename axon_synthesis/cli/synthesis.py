@@ -95,6 +95,11 @@ def create_graph_options(func):
         help="The list of brain regions in which edge weights are divided by the favoring factor",
     )
     @optgroup.option(
+        "--create-graph-favored-region-min-random-point-distance",
+        type=click.FloatRange(min=0, min_open=True),
+        help="The min distance used to pick random points in favored regions",
+    )
+    @optgroup.option(
         "--create-graph-favoring-sigma",
         type=click.FloatRange(min=0, min_open=True),
         help="The sigma used to favor the given regions",
@@ -134,6 +139,9 @@ def create_graph_kwargs_to_config(config) -> None:
         "depth_penalty_sigma": config.pop("create_graph_depth_penalty_sigma", None),
         "depth_penalty_amplitude": config.pop("create_graph_depth_penalty_amplitude", None),
         "favored_regions": config.pop("create_graph_favored_regions", None),
+        "favored_region_min_random_point_distance": config.pop(
+            "create_graph_favored_region_min_random_point_distance", None
+        ),
         "favoring_sigma": config.pop("create_graph_favoring_sigma", None),
         "favoring_amplitude": config.pop("create_graph_favoring_amplitude", None),
         "use_depth_penalty": config.pop("create_graph_use_depth_penalty", None),

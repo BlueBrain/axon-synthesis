@@ -97,10 +97,61 @@ class CreateGraphConfig:
     )
     favoring_sigma: float = field(default=100, validator=validators.gt(0))
     favoring_amplitude: float = field(default=1, validator=validators.gt(0))
+    favored_region_min_random_point_distance: float | None = field(
+        default=None, validator=validators.optional(validators.ge(0))
+    )
     favored_region_tree: KDTree | None = field(default=None)
+    favored_region_random_points: list[float] | None = field(default=None)
 
     # Terminal penalty
     use_terminal_penalty: bool = field(default=False)
+
+    def pick_favored_region_random_points(self, rng=None, max_tries: int = 10):
+        """Create random points in favored regions with min distance between them."""
+        if self.favored_region_tree is None:
+            msg = (
+                "The 'favored_region_tree' must be computed before picking favored region random "
+                "points"
+            )
+            raise RuntimeError(msg)
+        rng = np.random.default_rng(rng)
+        n_fails = 0
+        new_pts: list[np.ndarray] = []
+        min_dist = (
+            self.favored_region_min_random_point_distance
+            if self.favored_region_min_random_point_distance is not None
+            else self.min_random_point_distance
+        )
+        while n_fails < max_tries:
+            xyz = rng.choice(self.favored_region_tree.data)
+            if (
+                len(new_pts) == 0
+                or np.linalg.norm(
+                    xyz - new_pts,
+                    axis=1,
+                ).min()
+                > min_dist
+            ):
+                new_pts.append(xyz)
+                n_fails = 0
+            else:
+                n_fails += 1
+
+        if len(new_pts) == 0:
+            # Ensure at least one point is added (the closest point from the barycenter of the
+            # given points)
+            new_pts.append(
+                self.favored_region_tree.data[
+                    np.argmin(
+                        np.linalg.norm(
+                            self.favored_region_tree.data
+                            - self.favored_region_tree.data.mean(axis=0),
+                            axis=1,
+                        )
+                    )
+                ]
+            )
+        return np.hstack([new_pts, np.ones((len(new_pts), 1)) * NodeProvider.random])
 
     def compute_region_tree(self, atlas: AtlasHelper, *, force: bool = False):
         """Compute the favored region tree using the given Atlas."""
@@ -109,6 +160,7 @@ class CreateGraphConfig:
             self.favored_region_tree = KDTree(favored_region_points)
         else:
             self.favored_region_tree = None
+            self.favored_region_random_points = None
 
     def region_tree_from_file(self, file):
         """Get the favored region tree from a file."""
@@ -120,7 +172,6 @@ def one_graph(
     source_coords: np.ndarray,
     target_points: pd.DataFrame,
     config: CreateGraphConfig,
-    favored_region_tree: KDTree | None = None,
     bbox: np.ndarray | None = None,
     depths: VoxelData | None = None,
     *,
@@ -157,7 +208,16 @@ def one_graph(
         config.intermediate_number,
     )
 
-    # Add random points
+    # Add random points from the favored regions
+    if config.favored_region_tree is not None:
+        all_pts = np.concatenate(
+            [
+                all_pts,
+                config.pick_favored_region_random_points(),
+            ]
+        )
+
+    # Add random points from other regions
     all_pts = add_random_points(
         all_pts,
         config.min_random_point_distance,
@@ -244,13 +304,13 @@ def one_graph(
             config.depth_penalty_amplitude,
         )
 
-    # Reduce the lengths of edges that are close to fiber tracts
-    if favored_region_tree is not None:
+    # Reduce the lengths of edges that are close to the favored regions
+    if config.favored_region_tree is not None:
         penalties *= add_favored_reward(
             edges_df,
             FROM_COORDS_COLS,
             TO_COORDS_COLS,
-            favored_region_tree,
+            config.favored_region_tree,
             config.favoring_sigma,
             config.favoring_amplitude,
         )
@@ -258,8 +318,6 @@ def one_graph(
     # TODO: increase weights of more impossible edges?
 
     # Apply cumulative penalties
-    # import pdb
-    # pdb.set_trace()
     edges_df["weight"] = edges_df["length"] * penalties
 
     # TODO: Remove points and edges from forbidden regions?
