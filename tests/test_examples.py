@@ -62,12 +62,12 @@ def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_worker
                 },
             },
             "GraphCreationData data": {
-                "patterns": [r"synthesis/GraphCreationData/\S*\.h5$"],
+                "patterns": [r"synthesis_basic_\S*/GraphCreationData/\S*\.h5$"],
                 "comparator": dir_content_diff.pandas.HdfComparator(),
                 "load_kwargs": {"key": "nodes"},
             },
             "SteinerTreeSolutions data": {
-                "patterns": [r"synthesis/SteinerTreeSolutions/\S*\.h5$"],
+                "patterns": [r"synthesis_basic_\S*/SteinerTreeSolutions/\S*\.h5$"],
                 "comparator": dir_content_diff.pandas.HdfComparator(),
                 "load_kwargs": {"key": "solution_nodes"},
             },
@@ -106,7 +106,8 @@ def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_worker
                     },
                 }
             },
-            "synthesis/target_points.h5": {
+            "Target points": {
+                "patterns": [r"synthesis_basic_\S*/target_points.h5"],
                 "comparator": dir_content_diff.pandas.HdfComparator(),
                 "format_data_kwargs": {
                     "replace_pattern": {

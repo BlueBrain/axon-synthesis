@@ -1,8 +1,6 @@
 """Entries of the Command Line Interface dedicated to the validation."""
 import click
 
-from axon_synthesis.cli.common import atlas_kwargs_to_config
-from axon_synthesis.cli.common import atlas_options
 from axon_synthesis.cli.common import parallel_kwargs_to_config
 from axon_synthesis.cli.common import parallel_options
 from axon_synthesis.cli.input_creation import clustering_parameters_option
@@ -42,8 +40,20 @@ from axon_synthesis.validation.mimic import mimic_axons
     ),
     help="The mimic workflows to synthesize",
 )
+@click.option(
+    "--voxel-dimensions",
+    type=ListParam(
+        schema={
+            "type": "array",
+            "items": {
+                "type": "integer",
+                "minimum": 1,
+            },
+        }
+    ),
+    help="The voxel dimensions used to build the dummy atlas in the 'preferred_regions' workflow",
+)
 @output_options
-@atlas_options(required=False)
 @clustering_parameters_option
 @create_graph_options
 @post_process_options
@@ -52,7 +62,6 @@ from axon_synthesis.validation.mimic import mimic_axons
 def mimic(global_config: GlobalConfig, *_args, **kwargs):
     """The command to synthesize mimicking axons."""
     global_config.to_config(kwargs)
-    atlas_kwargs_to_config(kwargs)
     create_graph_kwargs_to_config(kwargs)
     post_process_kwargs_to_config(kwargs)
     outputs_kwargs_to_config(kwargs)

@@ -18,6 +18,7 @@ try:
 except ImportError:
     mpi_enabled = False
 
+
 import dask.dataframe as dd
 import networkx as nx
 import numpy as np
@@ -25,6 +26,9 @@ import pandas as pd
 from attrs import define
 from attrs import field
 from attrs import validators
+from bluepyparallel import evaluate
+from bluepyparallel import init_parallel_factory
+from dask.distributed import LocalCluster
 from morph_tool.converter import convert
 from morph_tool.utils import is_morphology
 from morphio.mut import Morphology as MorphIoMorphology
@@ -589,3 +593,56 @@ def create_dask_dataframe(data: pd.DataFrame, npartitions: int, group_col="morph
         ] + [data.index.max()]
         ddf = ddf.repartition(divisions=new_divisions)
     return ddf
+
+
+def parallel_evaluator(
+    data,
+    func,
+    parallel_config: ParallelConfig | None,
+    new_columns: list,
+    *,
+    func_args=None,
+    func_kwargs=None,
+    startup_func=None,
+    shuffle_rows: bool = True,
+    progress_bar: bool = False,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
+):
+    """Create a local cluster and process the given function on the given DataFrame."""
+    if logger is None:
+        logger = LOGGER
+    if parallel_config is None:
+        parallel_config = ParallelConfig()
+    with disable_distributed_loggers():
+        if parallel_config.nb_processes >= 1:
+            LOGGER.info("Start parallel computation using %s workers", parallel_config.nb_processes)
+            cluster = LocalCluster(n_workers=parallel_config.nb_processes, timeout="60s")
+            if startup_func is not None:
+                cluster.get_client().run(startup_func)
+            parallel_factory = init_parallel_factory(
+                "dask_dataframe",
+                address=cluster,
+            )
+        else:
+            LOGGER.info("Start computation")
+            cluster = None
+            parallel_factory = init_parallel_factory(None)
+
+        # Extract terminals of each morphology
+        results = evaluate(
+            data,
+            func,
+            new_columns,
+            parallel_factory=parallel_factory,
+            func_args=func_args,
+            func_kwargs=func_kwargs,
+            shuffle_rows=shuffle_rows,
+            progress_bar=progress_bar,
+        )
+
+        # Close the Dask cluster if opened
+        if cluster is not None:
+            parallel_factory.shutdown()
+            cluster.close()
+
+    return results

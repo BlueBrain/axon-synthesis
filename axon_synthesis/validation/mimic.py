@@ -1,5 +1,6 @@
 """Validation workflow that mimics inputs morphologies."""
 import logging
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -11,8 +12,6 @@ from neurom.core import Morphology
 from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
 
-from axon_synthesis.atlas import AtlasConfig
-from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.constants import AXON_GRAFTING_POINT_HDF_GROUP
 from axon_synthesis.constants import COMMON_ANCESTOR_COORDS_COLS
 from axon_synthesis.constants import COORDS_COLS
@@ -30,6 +29,8 @@ from axon_synthesis.synthesis.outputs import OutputConfig
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import disable_loggers
+from axon_synthesis.utils import parallel_evaluator
+from axon_synthesis.utils import setup_logger
 from axon_synthesis.validation.atlas_utils import morph_atlas
 from axon_synthesis.validation.utils import copy_morph_to_tmp_dir
 
@@ -73,6 +74,7 @@ def create_cell_collection(
     cells_df[COORDS_COLS] = centers
     cells_df["orientation"] = [np.eye(3)] * len(cells_df)
     cells_df = cells_df.sort_values("morphology", ignore_index=True)
+    cells_df.loc[:, "seed"] = cells_df.index.to_list()
     cells_df.index += 1
     cells = CellCollection.from_dataframe(cells_df)
     if output_path is not None:
@@ -159,52 +161,100 @@ def update_cells(cells_df, projection_probabilities):
 
 
 def mimic_preferred_regions_workflow(
+    morph,
+    voxel_dimensions,
     synthesis_config,
-    atlas_config,
     create_graph_config,
     post_process_config,
     output_config,
     rng,
-    parallel_config,
 ):
     """Synthesize axons using morphology preferred regions."""
-    # Load the cell collection
+    atlas_tmp_dir, atlas_tmp = morph_atlas(
+        morph,
+        voxel_dimensions=voxel_dimensions,
+        preferred_regions_axon_id=0,  # TODO: Handle multiple axons case
+    )
+    create_graph_config_tmp = evolve(
+        create_graph_config,
+        favored_regions=["dft"],
+    )
+    synthesize_axons(
+        synthesis_config,
+        atlas_config=atlas_tmp,
+        create_graph_config=create_graph_config_tmp,
+        post_process_config=post_process_config,
+        output_config=output_config,
+        rng=rng,
+    )
+    atlas_tmp_dir.cleanup()
+
+
+def run_workflows(
+    data,
+    workflows,
+    synthesis_config,
+    create_graph_config,
+    post_process_config,
+    output_config,
+    rng,
+    *,
+    voxel_dimensions=None,
+):
+    """Run all the workflows on each morphology."""
+    morph_name = data["morphology"]
+
+    # Prepare specific inputs for the current morphology
+    tmp_dir, _filename = copy_morph_to_tmp_dir(data["raw_file"])
+    synthesis_config_tmp = evolve(
+        synthesis_config,
+        morphology_dir=tmp_dir.name,
+        morphology_data_file=Path(tmp_dir.name) / "circuit.h5",
+    )
+
+    # Create a circuit containing only the current morphology
     cells_df = CellCollection.load(synthesis_config.morphology_data_file).as_dataframe()
-    atlas_config = evolve(atlas_config, load_region_map=True)
-    atlas = AtlasHelper(atlas_config)
+    cell_row = cells_df.loc[cells_df["morphology"] == morph_name].reset_index(drop=True)
+    cell_row.index += 1
+    CellCollection.from_dataframe(cell_row).save(synthesis_config_tmp.morphology_data_file)
 
     # Synthesize each morphology
-    parallel_config_tmp = evolve(parallel_config, nb_processes=0)
-    for name, morph in cells_df["raw_file"].to_dict().items():
-        tmp_dir, _filename = copy_morph_to_tmp_dir(morph)
-        atlas_tmp_dir, atlas_tmp = morph_atlas(
-            morph,
-            voxel_dimensions=atlas.brain_regions.voxel_dimensions,
-            preferred_regions_axon_id=0,
+    for workflow in workflows:
+        output_config_tmp = evolve(
+            output_config,
+            path=output_config.path.with_name(
+                output_config.path.name + f"_{workflow}_{morph_name}"
+            ),
         )
-        synthesis_config_tmp = evolve(
-            synthesis_config,
-            morphology_dir=tmp_dir.name,
-            morphology_data_file=Path(tmp_dir.name) / "circuit.h5",
-        )
-        create_graph_config_tmp = evolve(
-            create_graph_config,
-            favored_regions=["dft"],
-        )
-        cell_row = cells_df.loc[[name]].reset_index(drop=True)
-        cell_row.index += 1
-        CellCollection.from_dataframe(cell_row).save(synthesis_config_tmp.morphology_data_file)
-        synthesize_axons(
-            synthesis_config_tmp,
-            atlas_config=atlas_tmp,
-            create_graph_config=create_graph_config_tmp,
-            post_process_config=post_process_config,
-            output_config=output_config,
-            rng=rng,
-            parallel_config=parallel_config_tmp,
-        )
-        tmp_dir.cleanup()
-        atlas_tmp_dir.cleanup()
+        if workflow == "basic":
+            LOGGER.info("Starting 'basic' workflow for %s", morph_name)
+            synthesize_axons(
+                synthesis_config_tmp,
+                create_graph_config=create_graph_config,
+                post_process_config=post_process_config,
+                output_config=output_config_tmp,
+                rng=rng,
+            )
+        elif workflow == "preferred_regions":
+            LOGGER.info("Starting 'preferred regions' workflow for %s", morph_name)
+            if voxel_dimensions is None:
+                msg = "A 'voxel_dimensions' value is required for this workflow"
+                raise ValueError(msg)
+
+            mimic_preferred_regions_workflow(
+                data["morph_file"],
+                voxel_dimensions,
+                synthesis_config_tmp,
+                create_graph_config=create_graph_config,
+                post_process_config=post_process_config,
+                output_config=output_config_tmp,
+                rng=rng,
+            )
+
+    # Cleanup tmp files
+    tmp_dir.cleanup()
+
+    return {}
 
 
 def export_cells_df(cells_df, path):
@@ -218,11 +268,11 @@ def mimic_axons(
     morphology_dir: FileType,
     clustering_parameters: dict,
     *,
-    atlas_config: AtlasConfig | None = None,
     create_graph_config: CreateGraphConfig | None = None,
     post_process_config: PostProcessConfig | None = None,
     output_config: OutputConfig | None = None,
     workflows: list[str] | None = None,
+    voxel_dimensions: int | None = None,
     rng: SeedType = None,
     debug: bool = False,
     parallel_config: ParallelConfig | None = None,
@@ -313,33 +363,20 @@ def mimic_axons(
     if workflows is None:
         workflows = ["basic"]
 
-    if "basic" in workflows:
-        LOGGER.info("Starting 'basic' workflow")
-        synthesize_axons(
-            synthesis_config,
-            # atlas_config=atlas_config,
-            create_graph_config=create_graph_config,
-            post_process_config=post_process_config,
-            output_config=output_config,
-            rng=rng,
-            parallel_config=parallel_config,
-        )
-
-    if "preferred_regions" in workflows:
-        LOGGER.info("Starting 'preferred regions' workflow")
-        if atlas_config is None:
-            msg = "An atlas configuration is required for this workflow"
-            raise ValueError(msg)
-        output_config.path = output_config.path.with_name(
-            output_config.path.name + "_preferred_regions"
-        )
-
-        mimic_preferred_regions_workflow(
-            synthesis_config,
-            atlas_config=atlas_config,
-            create_graph_config=create_graph_config,
-            post_process_config=post_process_config,
-            output_config=output_config,
-            rng=rng,
-            parallel_config=parallel_config,
-        )
+    parallel_evaluator(
+        cells_df,
+        run_workflows,
+        parallel_config,
+        [],
+        func_kwargs={
+            "workflows": workflows,
+            "synthesis_config": synthesis_config,
+            "create_graph_config": create_graph_config,
+            "post_process_config": post_process_config,
+            "output_config": output_config,
+            "rng": rng,
+            "voxel_dimensions": voxel_dimensions,
+        },
+        progress_bar=False,
+        startup_func=partial(setup_logger, level=logging.getLevelName(LOGGER.getEffectiveLevel())),
+    )

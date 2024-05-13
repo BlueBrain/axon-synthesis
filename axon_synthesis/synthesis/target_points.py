@@ -230,6 +230,10 @@ def get_target_points(
     counter["counter"] = 1
     target_points["terminal_id"] = counter.groupby(["morphology", "axon_id"])["counter"].cumsum()
 
+    other_columns = []
+    if "seed" in target_points.columns:
+        other_columns.append("seed")
+
     # Remove useless columns
     target_points = target_points[
         [
@@ -246,6 +250,7 @@ def get_target_points(
             "target_population_id",
             "target_brain_region_id",
             *TARGET_COORDS_COLS,
+            *other_columns,
         ]
     ].rename(
         columns={

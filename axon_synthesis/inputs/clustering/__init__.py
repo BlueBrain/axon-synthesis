@@ -5,15 +5,13 @@ import os
 import pickle
 from collections import defaultdict
 from copy import deepcopy
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import ClassVar
 
 import pandas as pd
 from attrs import evolve
-from bluepyparallel import evaluate
-from bluepyparallel import init_parallel_factory
-from dask.distributed import LocalCluster
 
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import FILE_SELECTION
@@ -44,11 +42,11 @@ from axon_synthesis.typing import Self
 from axon_synthesis.utils import COORDS_COLS
 from axon_synthesis.utils import MorphNameAdapter
 from axon_synthesis.utils import ParallelConfig
-from axon_synthesis.utils import disable_distributed_loggers
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import get_morphology_paths
 from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import neurite_to_graph
+from axon_synthesis.utils import parallel_evaluator
 from axon_synthesis.utils import setup_logger
 from axon_synthesis.utils import temp_dir
 from axon_synthesis.white_matter_recipe import WhiteMatterRecipe
@@ -819,52 +817,29 @@ def cluster_morphologies(
         nb_processes=min(len(morphologies), parallel_config.nb_processes, os.cpu_count() or 0),
     )
 
-    with disable_distributed_loggers():
-        if parallel_config_tmp.nb_processes > 1:
-            LOGGER.info(
-                "Start parallel computation using %s workers", parallel_config_tmp.nb_processes
-            )
-            cluster = LocalCluster(n_workers=parallel_config_tmp.nb_processes, timeout="60s")
-            cluster.get_client().run(
-                setup_logger, level=logging.getLevelName(LOGGER.getEffectiveLevel())
-            )
-            parallel_factory = init_parallel_factory(
-                "dask_dataframe",
-                address=cluster,  # serializers=["pickle"], deserializers=["pickle"]
-            )
-        else:
-            LOGGER.info("Start computation")
-            cluster = None
-            parallel_factory = init_parallel_factory(None)
-
-        # Extract terminals of each morphology
-        results = evaluate(
-            morphologies,
-            _wrapper,
-            [
-                ["trunk_props", None],
-                ["cluster_props", None],
-                ["terminal_points", None],
-                ["morph_paths", None],
-            ],
-            parallel_factory=parallel_factory,
-            func_kwargs={
-                "clustering": clustering,
-                "atlas": atlas,
-                "wmr": wmr,
-                "projection_pop_numbers": projection_pop_numbers,
-                "bouton_density": bouton_density,
-                "debug": debug,
-                "rng": rng,
-                "parallel_config": parallel_config_tmp,
-            },
-            progress_bar=False,
-        )
-
-        # Close the Dask cluster if opened
-        if cluster is not None:
-            parallel_factory.shutdown()
-            cluster.close()
+    results = parallel_evaluator(
+        morphologies,
+        _wrapper,
+        parallel_config_tmp,
+        [
+            ["trunk_props", None],
+            ["cluster_props", None],
+            ["terminal_points", None],
+            ["morph_paths", None],
+        ],
+        func_kwargs={
+            "clustering": clustering,
+            "atlas": atlas,
+            "wmr": wmr,
+            "projection_pop_numbers": projection_pop_numbers,
+            "bouton_density": bouton_density,
+            "debug": debug,
+            "rng": rng,
+            "parallel_config": parallel_config_tmp,
+        },
+        progress_bar=False,
+        startup_func=partial(setup_logger, level=logging.getLevelName(LOGGER.getEffectiveLevel())),
+    )
 
     trunk_props = results["trunk_props"].dropna().explode().dropna().tolist()
     cluster_props = results["cluster_props"].dropna().explode().dropna().tolist()
