@@ -53,6 +53,11 @@ from axon_synthesis.validation.mimic import mimic_axons
     ),
     help="The voxel dimensions used to build the dummy atlas in the 'preferred_regions' workflow",
 )
+@click.option(
+    "--keep-tmp-atlas/--no-keep-tmp-atlas",
+    default=False,
+    help=("If set to True, the temporary atlas is not removed at the end of the process"),
+)
 @output_options
 @clustering_parameters_option
 @create_graph_options

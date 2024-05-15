@@ -168,12 +168,15 @@ def mimic_preferred_regions_workflow(
     post_process_config,
     output_config,
     rng,
+    *,
+    keep_tmp_atlas=False,
 ):
     """Synthesize axons using morphology preferred regions."""
     atlas_tmp_dir, atlas_tmp = morph_atlas(
         morph,
         voxel_dimensions=voxel_dimensions,
         preferred_regions_axon_id=0,  # TODO: Handle multiple axons case
+        export=keep_tmp_atlas,
     )
     create_graph_config_tmp = evolve(
         create_graph_config,
@@ -187,7 +190,8 @@ def mimic_preferred_regions_workflow(
         output_config=output_config,
         rng=rng,
     )
-    atlas_tmp_dir.cleanup()
+    if not keep_tmp_atlas:
+        atlas_tmp_dir.cleanup()
 
 
 def run_workflows(
@@ -200,6 +204,7 @@ def run_workflows(
     rng,
     *,
     voxel_dimensions=None,
+    keep_tmp_atlas=False,
 ):
     """Run all the workflows on each morphology."""
     morph_name = data["morphology"]
@@ -249,6 +254,7 @@ def run_workflows(
                 post_process_config=post_process_config,
                 output_config=output_config_tmp,
                 rng=rng,
+                keep_tmp_atlas=keep_tmp_atlas,
             )
 
     # Cleanup tmp files
@@ -264,7 +270,7 @@ def export_cells_df(cells_df, path):
     cells_df.to_feather(path)
 
 
-def mimic_axons(
+def mimic_axons(  # noqa: PLR0913
     morphology_dir: FileType,
     clustering_parameters: dict,
     *,
@@ -276,6 +282,7 @@ def mimic_axons(
     rng: SeedType = None,
     debug: bool = False,
     parallel_config: ParallelConfig | None = None,
+    keep_tmp_atlas: bool = False,
 ):
     """Synthesize mimicking axons."""
     output_config = (
@@ -376,6 +383,7 @@ def mimic_axons(
             "output_config": output_config,
             "rng": rng,
             "voxel_dimensions": voxel_dimensions,
+            "keep_tmp_atlas": keep_tmp_atlas,
         },
         progress_bar=False,
         startup_func=partial(setup_logger, level=logging.getLevelName(LOGGER.getEffectiveLevel())),

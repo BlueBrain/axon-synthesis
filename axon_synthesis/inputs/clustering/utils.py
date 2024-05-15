@@ -357,6 +357,8 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
             target_projection_number, volume, target_projection_name = target_tmp[
                 ["pop_neuron_numbers", "atlas_region_volume_target", "target_projection_name"]
             ].to_numpy()[0]
+            fraction = None  # TODO: Get proper values
+            strength = None  # TODO: Get proper values
         else:
             target_projection_number = None
             target_projection_name = DEFAULT_POPULATION

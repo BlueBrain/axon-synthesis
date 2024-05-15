@@ -41,8 +41,8 @@ def _empty_hierarchy() -> OrderedDict:
 
 def empty_atlas(shape, voxel_dimensions, offset, layer_thicknesses=None):
     """Create an empty Atlas."""
-    tmp_dir = temp_dir()
-    brain_regions = VoxelData(np.zeros(shape), voxel_dimensions, offset)
+    tmp_dir = temp_dir(delete=False)
+    brain_regions = VoxelData(np.zeros(shape, dtype=np.int32), voxel_dimensions, offset)
 
     if layer_thicknesses is None:
         y_extent = brain_regions.bbox[1, 1] - brain_regions.bbox[0, 1]
@@ -61,10 +61,10 @@ def update_source_target_regions(brain_regions, hierarchy, source_pt, target_pts
     """Create brain regions for the given source and targets."""
     hierarchy_df = hierarchy.as_dataframe()
 
-    new_ind = hierarchy_df.index.max() + 1
     root = hierarchy_df.loc[hierarchy_df["parent_id"] == -1]
     root_idx = root.index[0]
 
+    new_ind = max(1, hierarchy_df.index.max() + 1)
     hierarchy_df.loc[new_ind, ["acronym", "name", "parent_id", "children_count"]] = [
         "s",
         f"source_region{suffix}",
@@ -91,10 +91,9 @@ def dummy_preferred_regions(brain_regions, hierarchy, morph, axon_id=0):
     """Create preferred regions as brain regions for the given morphology."""
     hierarchy_df = hierarchy.as_dataframe()
 
-    new_ind = hierarchy_df.index.max() + 1
     root = hierarchy_df.loc[hierarchy_df["parent_id"] == -1]
-    new_ind = hierarchy_df.index.max() + 1
 
+    new_ind = max(1, hierarchy_df.index.max() + 1)
     hierarchy_df.loc[new_ind, ["acronym", "name", "parent_id", "children_count"]] = [
         "dft",
         "dummy_preferred_regions",
@@ -108,7 +107,6 @@ def dummy_preferred_regions(brain_regions, hierarchy, morph, axon_id=0):
     heat_map = segment_intersection_lengths(
         edges, brain_regions.bbox, brain_regions.voxel_dimensions
     )
-
     brain_regions.raw[np.nonzero(heat_map.raw != 0)] = new_ind
 
     return brain_regions, RegionMap.from_dataframe(hierarchy_df)
@@ -137,7 +135,7 @@ def morph_atlas(
         )
         atlas = AtlasHelper(atlas_config)
     else:
-        atlas_dir = temp_dir()
+        atlas_dir = temp_dir(delete=False)
         atlas_path = Path(atlas_dir.name)
         atlas_config = evolve(atlas.config, path=atlas_path, load_region_map=True)
         atlas = atlas.copy()

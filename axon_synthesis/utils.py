@@ -137,9 +137,19 @@ def setup_logger(level: str = "info", prefix: str = "", suffix: str = ""):
             )
 
 
+class TemporaryDirectory(tempfile.TemporaryDirectory):
+    """Backport of delete parameter for TemporaryDirectory."""
+
+    def __init__(self, *args, delete=True, **kwargs):
+        """Constructor of TemporaryDirectory."""
+        super().__init__(*args, **kwargs)
+        if not delete:
+            self._finalizer.detach()  # type: ignore[attr-defined]
+
+
 def temp_dir(*args, **kwargs):
     """Create a temporary directory."""
-    return tempfile.TemporaryDirectory(*args, **kwargs)
+    return TemporaryDirectory(*args, **kwargs)
 
 
 def fill_diag(mat, val=1):
@@ -626,6 +636,7 @@ def parallel_evaluator(
         else:
             LOGGER.info("Start computation")
             cluster = None
+            shuffle_rows = False
             parallel_factory = init_parallel_factory(None)
 
         # Extract terminals of each morphology

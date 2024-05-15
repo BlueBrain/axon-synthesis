@@ -330,7 +330,7 @@ def outputs_kwargs_to_config(config) -> None:
     """Extract the atlas arguments from given config to create an AtlasConfig object."""
     kwargs = {"path": config.pop("output_dir")}
 
-    for k in fields_dict(OutputConfig):
+    for k in fields_dict(OutputConfig):  # pylint: disable=not-an-iterable
         name = "outputs_enable_" + k
         if config.pop(name, False):
             kwargs[k] = True
@@ -424,7 +424,7 @@ def synthesis_options(func):
 def synthesis_kwargs_to_config(config) -> None:
     """Extract the synthesis arguments from given config to create an SynthesisConfig object."""
     kwargs = {}
-    for k in fields_dict(SynthesisConfig):
+    for k in fields_dict(SynthesisConfig):  # pylint: disable=not-an-iterable
         name = k
         value = config.pop(name, None)
         if value is not None:

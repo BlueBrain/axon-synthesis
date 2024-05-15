@@ -72,26 +72,30 @@ class AtlasHelper:
     def __init__(
         self: Self,
         config: AtlasConfig,
+        logger=None,
     ):
         """Create a new BasePathBuilder object.
 
         Args:
             config: The configuration used to load the atlas.
+            logger: An optional logger.
         """
+        if logger is None:
+            logger = LOGGER
         self.config = config
 
         # Get atlas data
-        LOGGER.info("Loading atlas from: %s", self.config.path)
+        logger.info("Loading atlas from: %s", self.config.path)
         atlas = Atlas.open(str(self.config.path.resolve()))
 
-        LOGGER.debug(
+        logger.debug(
             "Loading brain regions from the atlas using: %s", self.config.region_filename.name
         )
         self.brain_regions = atlas.load_data(self.config.region_filename.stem)
         self.orientations = atlas.load_data("orientation", cls=OrientationField)
 
         if self.config.load_region_map:
-            LOGGER.debug("Loading region map from the atlas")
+            logger.debug("Loading region map from the atlas")
             self.region_map = atlas.load_region_map()
             self._build_region_map_df_level()
         else:
@@ -104,7 +108,7 @@ class AtlasHelper:
 
         # if config.atlas_flatmap_filename is None:
         #     # Create the flatmap of the atlas
-        #     LOGGER.debug("Building flatmap")
+        #     logger.debug("Building flatmap")
         #     one_layer_flatmap = np.mgrid[
         #         : brain_regions.raw.shape[2],
         #         : brain_regions.raw.shape[0],
@@ -118,7 +122,7 @@ class AtlasHelper:
         #     flatmap = atlas.load_data(config.atlas_flatmap_filename)
 
         # if self.debug_flatmap:
-        #     LOGGER.debug(f"Saving flatmap to: {self.output()['flatmap'].path}")
+        #     logger.debug(f"Saving flatmap to: {self.output()['flatmap'].path}")
         #     flatmap.save_nrrd(self.output()["flatmap"].path, encoding="raw")
 
         # TODO: Compute the depth for specific layers of each region (like in region-grower)

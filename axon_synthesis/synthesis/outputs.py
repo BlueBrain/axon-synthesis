@@ -56,7 +56,7 @@ class Outputs(BasePathBuilder):
         super().__init__(config.path, exists=exists, create=create)
         self.config = config
 
-        for name in asdict(self.config):
+        for name in asdict(self.config):  # pylint: disable=not-an-iterable
             if name == "path":
                 continue
             if getattr(self.config, name, False):

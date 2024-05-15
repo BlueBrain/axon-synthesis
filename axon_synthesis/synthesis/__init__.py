@@ -558,7 +558,7 @@ def synthesize_axons(
     # Load all inputs
     if atlas_config is not None and isinstance(atlas_config, AtlasConfig):
         atlas_config.load_region_map = True
-    inputs = Inputs.load(config.input_dir, atlas_config=atlas_config, **asdict(config))
+    inputs = Inputs.load(config.input_dir, atlas_config=atlas_config, **asdict(config))  # pylint: disable=not-a-mapping
 
     # Load the cell collection
     cells_df = CellCollection.load(config.morphology_data_file).as_dataframe()
