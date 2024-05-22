@@ -10,7 +10,7 @@ morph-tool
 morphio
 networkx
 NeuroM>3.2,<4
-NeuroTS>=3.5
+NeuroTS>=3.6
 numpy
 pandas
 pcst_fast
