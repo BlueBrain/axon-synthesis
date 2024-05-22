@@ -56,6 +56,7 @@ from axon_synthesis.utils import MorphNameAdapter
 from axon_synthesis.utils import ParallelConfig
 from axon_synthesis.utils import create_dask_dataframe
 from axon_synthesis.utils import disable_distributed_loggers
+from axon_synthesis.utils import export_morph_edges
 from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import permanently_disable_distributed_loggers
 from axon_synthesis.utils import save_morphology
@@ -466,6 +467,19 @@ def synthesize_one_morph_axons(
                 morph_terminals,
                 outputs.FINAL_FIGURES / f"{morph_name}.html",
                 initial_morph,
+                logger=morph_custom_logger,
+            )
+
+        # Export the final morph as edges
+        if outputs.MORPHOLOGIES_EDGES is not None:
+            export_morph_edges(
+                initial_morph,
+                outputs.MORPHOLOGIES_EDGES / f"{morph_name}_initial.csv",
+                logger=morph_custom_logger,
+            )
+            export_morph_edges(
+                morph,
+                outputs.MORPHOLOGIES_EDGES / f"{morph_name}_final.csv",
                 logger=morph_custom_logger,
             )
         res = {

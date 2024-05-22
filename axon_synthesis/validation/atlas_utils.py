@@ -15,6 +15,7 @@ from voxcell import VoxelData
 
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.atlas import AtlasHelper
+from axon_synthesis.utils import CleanableDirectory
 from axon_synthesis.utils import compute_bbox
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import neurite_to_pts
@@ -39,9 +40,9 @@ def _empty_hierarchy() -> OrderedDict:
     )
 
 
-def empty_atlas(shape, voxel_dimensions, offset, layer_thicknesses=None):
+def empty_atlas(shape, voxel_dimensions, offset, layer_thicknesses=None, tmp_dir=None):
     """Create an empty Atlas."""
-    tmp_dir = temp_dir(delete=False)
+    tmp_dir = temp_dir(delete=False) if tmp_dir is None else CleanableDirectory(tmp_dir)
     brain_regions = VoxelData(np.zeros(shape, dtype=np.int32), voxel_dimensions, offset)
 
     if layer_thicknesses is None:
@@ -120,6 +121,7 @@ def morph_atlas(
     target_neurite_types=None,
     *,
     export=False,
+    tmp_dir=None,
 ):
     """Create an empty Atlas based on the dimensions of the given morphology."""
     morph = Morphology(morph)
@@ -128,14 +130,14 @@ def morph_atlas(
         extent = bbox[1] - bbox[0]
         shape = (np.clip(extent // voxel_dimensions, 1, np.inf) + 3).astype(int)
         offset = bbox[0]
-        atlas_dir = empty_atlas(shape, voxel_dimensions, offset)
+        atlas_dir = empty_atlas(shape, voxel_dimensions, offset, tmp_dir=tmp_dir)
         atlas_path = Path(atlas_dir.name)
         atlas_config = AtlasConfig(
             atlas_path, "brain_regions", layer_names=list(range(1, 7)), load_region_map=True
         )
         atlas = AtlasHelper(atlas_config)
     else:
-        atlas_dir = temp_dir(delete=False)
+        atlas_dir = temp_dir(delete=False) if tmp_dir is None else CleanableDirectory(tmp_dir)
         atlas_path = Path(atlas_dir.name)
         atlas_config = evolve(atlas.config, path=atlas_path, load_region_map=True)
         atlas = atlas.copy()

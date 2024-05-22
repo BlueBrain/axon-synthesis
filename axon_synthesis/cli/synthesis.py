@@ -280,6 +280,11 @@ def output_options(func):
         help="If enabled, the morphologies with new axons are exported",
     )
     @optgroup.option(
+        "--outputs-enable-morphologies-edges/--outputs-disable-morphologies-edges",
+        default=None,
+        help="If enabled, the morphologies with new axons are exported as edges",
+    )
+    @optgroup.option(
         "--outputs-enable-postprocess-trunk-figures/--outputs-disable-postprocess-trunk-figures",
         default=None,
         help="If enabled, the post-process trunk figures are exported",

@@ -21,6 +21,7 @@ class OutputConfig:
         main_trunk_figures: Enable export of the main trunk figures.
         main_trunk_morphologies: Enable export of the main trunk morphologies.
         morphologies: Enable export of the final morphologies.
+        morphologies_edges: Enable export of the final morphologies as edges.
         postprocess_trunk_figures: Enable export of the postprocess trunk figures.
         postprocess_trunk_morphologies: Enable export of the postprocess trunk morphologies.
         steiner_tree_solution_figures: Enable export of the steiner tree solution figures.
@@ -38,6 +39,7 @@ class OutputConfig:
     main_trunk_figures: bool = False
     main_trunk_morphologies: bool = False
     morphologies: bool = True
+    morphologies_edges: bool = True
     postprocess_trunk_figures: bool = False
     postprocess_trunk_morphologies: bool = False
     steiner_tree_solution_figures: bool = False
@@ -72,6 +74,7 @@ class Outputs(BasePathBuilder):
         "MAIN_TRUNK_FIGURES": "MainTrunkFigures",
         "MAIN_TRUNK_MORPHOLOGIES": "MainTrunkMorphologies",
         "MORPHOLOGIES": "Morphologies",
+        "MORPHOLOGIES_EDGES": "MorphologiesEdges",
         "POSTPROCESS_TRUNK_FIGURES": "PostProcessTrunkFigures",
         "POSTPROCESS_TRUNK_MORPHOLOGIES": "PostProcessTrunkMorphologies",
         "STEINER_TREE_SOLUTION_FIGURES": "SteinerTreeSolutionFigures",
@@ -105,6 +108,7 @@ class Outputs(BasePathBuilder):
         "MAIN_TRUNK_FIGURES",
         "MAIN_TRUNK_MORPHOLOGIES",
         "MORPHOLOGIES",
+        "MORPHOLOGIES_EDGES",
         "POSTPROCESS_TRUNK_FIGURES",
         "POSTPROCESS_TRUNK_MORPHOLOGIES",
         "STEINER_TREE_SOLUTION_FIGURES",

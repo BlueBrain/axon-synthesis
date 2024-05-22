@@ -177,6 +177,7 @@ def mimic_preferred_regions_workflow(
         voxel_dimensions=voxel_dimensions,
         preferred_regions_axon_id=0,  # TODO: Handle multiple axons case
         export=keep_tmp_atlas,
+        tmp_dir=output_config.path / "dummy_atlas",
     )
     create_graph_config_tmp = evolve(
         create_graph_config,
