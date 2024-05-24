@@ -1,3 +1,3 @@
 morph_file,config_name,axon_id,morph_path
-morphologies/repair_release/asc/172992.asc,big_spheres,0,inputs/Clustering/clustered_morphologies/172992_big_spheres_0.asc
-morphologies/repair_release/asc/172993.asc,big_spheres,0,inputs/Clustering/clustered_morphologies/172993_big_spheres_0.asc
+inputs/converted_morphologies/172992.h5,big_spheres,0,inputs/Clustering/clustered_morphologies/172992_big_spheres_0.asc
+inputs/converted_morphologies/172993.h5,big_spheres,0,inputs/Clustering/clustered_morphologies/172993_big_spheres_0.asc

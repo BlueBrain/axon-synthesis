@@ -1,5 +1,6 @@
 """Some utils for the AxonSynthesis package."""
 import collections.abc
+import hashlib
 import inspect
 import json
 import logging
@@ -686,3 +687,8 @@ def parallel_evaluator(
             cluster.close()
 
     return results
+
+
+def seed_from_name(name):
+    """Build a seed from the name hash."""
+    return int(hashlib.sha256(name.encode("ascii")).hexdigest(), 16) % (2**32 - 1)

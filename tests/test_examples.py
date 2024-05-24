@@ -77,6 +77,7 @@ def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_worker
                         out_dir_pattern: [
                             "clustering",
                             "path",
+                            "morphology_path",
                             "WMR",
                         ],
                     },
@@ -86,16 +87,40 @@ def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_worker
                 "format_data_kwargs": {
                     "replace_pattern": {
                         out_dir_pattern: [
+                            "morph_file",
                             "morph_path",
+                        ],
+                    },
+                }
+            },
+            "inputs/Clustering/clustered_terminals.csv": {
+                "format_data_kwargs": {
+                    "replace_pattern": {
+                        out_dir_pattern: [
+                            "morph_file",
                         ],
                     },
                 }
             },
             "inputs/Clustering/trunk_properties.json": {
                 "tolerance": 1e-4,
+                "format_data_kwargs": {
+                    "replace_pattern": {
+                        out_dir_pattern: [
+                            "[*].morph_file",
+                        ],
+                    },
+                },
             },
             "inputs/Clustering/tuft_properties.json": {
                 "tolerance": 1e-4,
+                "format_data_kwargs": {
+                    "replace_pattern": {
+                        out_dir_pattern: [
+                            "[*].morph_file",
+                        ],
+                    },
+                },
             },
             "inputs/projection_probabilities.csv": {
                 "format_data_kwargs": {

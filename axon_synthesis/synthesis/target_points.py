@@ -258,12 +258,26 @@ def get_target_points(
         },
     )
 
-    target_points = (
-        target_points.groupby(["morphology", "axon_id"])
-        .apply(lambda group: drop_close_points(group, duplicate_precision), include_groups=False)
-        .reset_index(drop=False)
-        .drop(columns=["level_2"])
+    # #################################################### #
+    deduplicated = target_points.groupby(["morphology", "axon_id"], group_keys=True).apply(
+        lambda group: drop_close_points(group, duplicate_precision)
     )
+    target_points = deduplicated.reset_index(
+        drop=all(col in deduplicated.columns for col in ["morphology", "axon_id"])
+    )
+    if "level_2" in target_points.columns:
+        target_points = target_points.drop(columns=["level_2"])
+
+    # The above part is only to make it compatible with Pandas < 2.2
+    # For newer versions it will be possible to use the following:
+
+    # target_points = (
+    #     target_points.groupby(["morphology", "axon_id"])
+    #     .apply(lambda group: drop_close_points(group, duplicate_precision))
+    #     .reset_index(drop=False)
+    #     .drop(columns=["level_2"])
+    # )
+    # #################################################### #
 
     # Export the target points
     if output_path is not None:

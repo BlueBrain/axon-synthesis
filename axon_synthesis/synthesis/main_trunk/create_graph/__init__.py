@@ -213,7 +213,7 @@ def one_graph(
         all_pts = np.concatenate(
             [
                 all_pts,
-                config.pick_favored_region_random_points(),
+                config.pick_favored_region_random_points(rng=rng),
             ]
         )
 

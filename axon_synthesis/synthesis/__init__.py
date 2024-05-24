@@ -334,7 +334,6 @@ def synthesize_one_morph_axons(
         logger = LOGGER
     morph_name = morph_terminals.name
     morph_custom_logger = MorphNameAdapter(logger, extra={"morph_name": morph_name})
-    morph_custom_logger.debug("Starting synthesis")
     try:
         check_target(morph_terminals)
 
@@ -362,7 +361,9 @@ def synthesize_one_morph_axons(
                 logger, extra={"morph_name": morph_name, "axon_id": axon_id}
             )
 
-            rng = np.random.default_rng(axon_terminals["seed"].to_numpy()[0])
+            seed = axon_terminals["seed"].to_numpy()[0]
+            morph_custom_logger.debug("Starting synthesis of axon %s (seed=%s)", axon_id, seed)
+            rng = np.random.default_rng(seed)
 
             axon_paths = one_axon_paths(
                 outputs,
@@ -503,9 +504,16 @@ def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs
         df["target_orientation"] = np.repeat([np.eye(3)], len(df), axis=0).tolist()
         if inputs.atlas is not None:
             mask = ~df["target_population_id"].isna()
-            target_orientations = inputs.atlas.orientations.lookup(
-                df.loc[mask, TARGET_COORDS_COLS].to_numpy()
-            )
+            try:
+                target_orientations = inputs.atlas.orientations.lookup(
+                    df.loc[mask, TARGET_COORDS_COLS].to_numpy()
+                )
+            except Exception as exc:
+                msg = (
+                    "Could not get orientations of the target points from the atlas (see complete "
+                    "backtrace for details)"
+                )
+                raise RuntimeError(msg) from exc
             missing_orientations = np.isnan(target_orientations).any(axis=(1, 2))
             if missing_orientations.any():
                 target_orientations[missing_orientations] = np.repeat(

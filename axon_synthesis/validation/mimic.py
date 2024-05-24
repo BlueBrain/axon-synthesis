@@ -8,10 +8,10 @@ import pandas as pd
 from attrs import evolve
 from morph_tool.converter import convert
 from morph_tool.utils import is_morphology
-from neurom.core import Morphology
 from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
 
+from axon_synthesis.constants import ATLAS_COORDS_COLS
 from axon_synthesis.constants import AXON_GRAFTING_POINT_HDF_GROUP
 from axon_synthesis.constants import COMMON_ANCESTOR_COORDS_COLS
 from axon_synthesis.constants import COORDS_COLS
@@ -29,7 +29,9 @@ from axon_synthesis.synthesis.outputs import OutputConfig
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import disable_loggers
+from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import parallel_evaluator
+from axon_synthesis.utils import seed_from_name
 from axon_synthesis.utils import setup_logger
 from axon_synthesis.validation.atlas_utils import morph_atlas
 from axon_synthesis.validation.utils import copy_morph_to_tmp_dir
@@ -45,14 +47,15 @@ def create_cell_collection(
     raw_morph_files = [i for i in morphology_dir.iterdir() if is_morphology(i)]
 
     centers = np.zeros((len(raw_morph_files), 3), dtype=float)
+    registered_centers = np.zeros((len(raw_morph_files), 3), dtype=float)
     if convert_to is not None:
         convert_to = Path(convert_to)
         convert_to.mkdir(parents=True, exist_ok=True)
         morph_files = []
         for num, file in enumerate(raw_morph_files):
             converted_file = (convert_to / file.stem).with_suffix(".h5")
-            morph = Morphology(file)
-            centers[num] = morph.soma.center
+            morph = load_morphology(file)
+            registered_centers[num] = morph.soma.center
             morph = morph.transform(Translation(-morph.soma.center))
             with disable_loggers("morph_tool.converter"):
                 convert(morph, converted_file, nrn_order=True)
@@ -72,9 +75,10 @@ def create_cell_collection(
     cells_df["mtype"] = DEFAULT_POPULATION
     cells_df["region"] = DEFAULT_POPULATION
     cells_df[COORDS_COLS] = centers
+    cells_df[ATLAS_COORDS_COLS] = registered_centers
     cells_df["orientation"] = [np.eye(3)] * len(cells_df)
     cells_df = cells_df.sort_values("morphology", ignore_index=True)
-    cells_df.loc[:, "seed"] = cells_df.index.to_list()
+    cells_df.loc[:, "seed"] = cells_df["morphology"].apply(seed_from_name)
     cells_df.index += 1
     cells = CellCollection.from_dataframe(cells_df)
     if output_path is not None:
@@ -268,7 +272,7 @@ def export_cells_df(cells_df, path):
     """Export cells DF for future debugging."""
     cells_df = cells_df.copy(deep=False)
     cells_df["orientation"] = cells_df["orientation"].apply(np.ndarray.tolist)
-    cells_df.to_feather(path)
+    cells_df.reset_index().to_feather(path)
 
 
 def mimic_axons(  # noqa: PLR0913
@@ -296,10 +300,17 @@ def mimic_axons(  # noqa: PLR0913
         msg = "The 'clustering_parameters' JSON object should contain exactly 1 entry."
         raise ValueError(msg)
 
+    # Convert the morphologies to h5 and create a CellCollection
+    morphology_data_file = input_dir / "circuit.h5"
+    converted_morphologies_dir = input_dir / "converted_morphologies"
+    cells = create_cell_collection(morphology_dir, morphology_data_file, converted_morphologies_dir)
+    cells_df = cells.as_dataframe()
+
     # Create raw inputs if they don't exist
-    if not input_dir.exists():
+    inputs = Inputs(input_dir, converted_morphologies_dir)
+    if not inputs.CLUSTERING_DIRNAME.exists():
         inputs = create_inputs(
-            morphology_dir,
+            converted_morphologies_dir,
             input_dir,
             clustering_parameters,
             rng=rng,
@@ -307,20 +318,14 @@ def mimic_axons(  # noqa: PLR0913
             parallel_config=parallel_config,
         )
     else:
-        inputs = Inputs(input_dir, morphology_dir)
         inputs.load_clustering_data()
 
     # Modify the inputs for the mimic workflow
 
-    # Convert the morphologies to h5 and create a CellCollection
-    morphology_data_file = inputs.path / "circuit.h5"
-    converted_morphologies_dir = inputs.path / "converted_morphologies"
-    cells = create_cell_collection(morphology_dir, morphology_data_file, converted_morphologies_dir)
-    cells_df = cells.as_dataframe()
-
     # Build and export the probabilities
     inputs.population_probabilities, inputs.projection_probabilities = create_probabilities(
-        cells_df, inputs.clustering_data.tuft_properties
+        cells_df,
+        inputs.clustering_data.tuft_properties,  # type: ignore[union-attr]
     )
     inputs.export_probabilities()
 
@@ -328,17 +333,17 @@ def mimic_axons(  # noqa: PLR0913
     update_cells(cells_df, inputs.projection_probabilities)
 
     # Update tuft properties
-    tuft_properties = inputs.clustering_data.tuft_properties.merge(
-        inputs.projection_probabilities[
+    tuft_properties = inputs.clustering_data.tuft_properties.merge(  # type: ignore[union-attr]
+        inputs.projection_probabilities[  # type: ignore[index]
             ["morphology", "axon_id", "tuft_id", "target_population_id"]
         ],
         on=["morphology", "axon_id", "tuft_id"],
         how="left",
     )
-    inputs.clustering_data.tuft_properties["population_id"] = tuft_properties[
+    inputs.clustering_data.tuft_properties["population_id"] = tuft_properties[  # type: ignore[union-attr, index]
         "target_population_id"
     ].to_numpy()
-    inputs.clustering_data.save()
+    inputs.clustering_data.save()  # type: ignore[union-attr]
 
     # Set the source properties
     cells_df["st_level"] = 0

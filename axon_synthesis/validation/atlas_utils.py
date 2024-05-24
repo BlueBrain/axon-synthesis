@@ -18,6 +18,7 @@ from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.utils import CleanableDirectory
 from axon_synthesis.utils import compute_bbox
 from axon_synthesis.utils import get_axons
+from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import neurite_to_pts
 from axon_synthesis.utils import temp_dir
 from axon_synthesis.validation.utils import segment_intersection_lengths
@@ -124,7 +125,7 @@ def morph_atlas(
     tmp_dir=None,
 ):
     """Create an empty Atlas based on the dimensions of the given morphology."""
-    morph = Morphology(morph)
+    morph = load_morphology(morph, recenter=True)
     if atlas is None:
         bbox = compute_bbox(morph.points[:, COLS.XYZ], absolute_buffer=1)
         extent = bbox[1] - bbox[0]

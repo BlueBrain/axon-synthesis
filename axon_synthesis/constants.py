@@ -19,6 +19,7 @@ class CoordsCols(list):
 
 # Point coordinates
 COORDS_COLS = CoordsCols("x", "y", "z")
+ATLAS_COORDS_COLS = CoordsCols("atlas_x", "atlas_y", "atlas_z")
 COMMON_ANCESTOR_COORDS_COLS = CoordsCols(
     "common_ancestor_x", "common_ancestor_y", "common_ancestor_z"
 )

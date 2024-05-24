@@ -500,7 +500,7 @@ def cluster_one_morph(
     morph_name = str(terminals.loc[0, "morph_file"])
     morph_custom_logger = MorphNameAdapter(LOGGER, extra={"morph_name": morph_name})
 
-    morph_custom_logger.debug("%s: %s points", morph_name, len(terminals))
+    morph_custom_logger.debug("%s: points", len(terminals))
 
     # Load the morphology
     morph = load_morphology(morph_name)
