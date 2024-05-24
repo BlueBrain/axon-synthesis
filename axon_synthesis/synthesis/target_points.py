@@ -106,7 +106,7 @@ def drop_close_points(
     return all_points_df
 
 
-def get_target_points(
+def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
     source_points,
     target_probabilities,
     duplicate_precision: float | None = None,
@@ -116,6 +116,7 @@ def get_target_points(
     rng: SeedType | None = None,
     max_tries: int = 10,
     output_path: FileType | None = None,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
     """Find the target points for all given source points."""
     rng = np.random.default_rng(rng)
@@ -190,6 +191,7 @@ def get_target_points(
         )["random_number_tmp"].isna()
 
         mask_size = no_target_mask.sum()
+        n_tries = n_tries + 1
 
     if mask_size > 0:
         LOGGER.warning(
@@ -283,6 +285,9 @@ def get_target_points(
     if output_path is not None:
         with ignore_warnings(pd.errors.PerformanceWarning):
             target_points.to_hdf(output_path, key="target_points")
+
+    if logger is not None:
+        logger.debug("Found %s target point(s)", len(target_points))
 
     return target_points.sort_values(["morphology", "axon_id", "terminal_id"]).reset_index(
         drop=True

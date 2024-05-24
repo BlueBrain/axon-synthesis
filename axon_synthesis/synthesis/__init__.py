@@ -607,6 +607,7 @@ def synthesize_axons(
         axon_grafting_points,
         rng=rng,
         rebuild_existing_axons=config.rebuild_existing_axons,
+        logger=LOGGER,
     )
 
     # Find targets for all axons
@@ -618,6 +619,7 @@ def synthesize_axons(
         brain_regions_masks=inputs.brain_regions_mask_file,
         rng=rng,
         output_path=outputs.TARGET_POINTS,
+        logger=LOGGER,
     )
     if config.rebuild_existing_axons:
         # If the existing axons are rebuilt all the new axons will be grafted to the soma

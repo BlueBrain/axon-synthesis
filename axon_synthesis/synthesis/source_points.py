@@ -17,8 +17,6 @@ from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import load_morphology
 
-logger = logging.getLogger(__name__)
-
 _MAX_DISPLAYED = 100
 
 
@@ -207,6 +205,7 @@ def set_source_points(
     *,
     rng: SeedType = None,
     rebuild_existing_axons: bool = False,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
     """Extract source points from a cell collection."""
     if "morph_file" not in cells_df.columns:
@@ -281,4 +280,8 @@ def set_source_points(
         )
 
     # Choose population
-    return map_population(cells_df, atlas, population_probabilities, rng=rng)
+    source_points = map_population(cells_df, atlas, population_probabilities, rng=rng)
+
+    if logger is not None:
+        logger.debug("Found %s source point(s)", len(source_points))
+    return source_points
