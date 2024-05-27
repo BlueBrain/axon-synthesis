@@ -341,13 +341,15 @@ def synthesize_one_morph_axons(
 
         # Translate the morphology to its position in the atlas
         morph = morph.transform(
-            Translation(morph_terminals[COORDS_COLS].to_numpy()[0] - morph.soma.center)
+            Translation(morph_terminals[COORDS_COLS].iloc[0].to_numpy() - morph.soma.center)
         )
 
         morph.name = morph_name
 
         initial_morph = (
-            Morphology(morph, name=morph.name) if outputs.FINAL_FIGURES is not None else None
+            Morphology(morph, name=morph.name)
+            if outputs.FINAL_FIGURES is not None or outputs.MORPHOLOGIES_EDGES is not None
+            else None
         )
 
         if rebuild_existing_axons:

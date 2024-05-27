@@ -1,5 +1,6 @@
 """Validation workflow that mimics inputs morphologies."""
 import logging
+import re
 from functools import partial
 from pathlib import Path
 
@@ -85,6 +86,11 @@ def create_cell_collection(
         cells.save(output_path)
     LOGGER.info("Found %s morphologies in %s", len(cells_df), morphology_dir)
     return cells
+
+
+def workflow_col_name(name):
+    """Create a column name based on a workflow name."""
+    return f"synthesized_{name}_path"
 
 
 def create_probabilities(cells_df, tuft_properties):
@@ -187,7 +193,7 @@ def mimic_preferred_regions_workflow(
         create_graph_config,
         favored_regions=["dft"],
     )
-    synthesize_axons(
+    res = synthesize_axons(
         synthesis_config,
         atlas_config=atlas_tmp,
         create_graph_config=create_graph_config_tmp,
@@ -197,6 +203,7 @@ def mimic_preferred_regions_workflow(
     )
     if not keep_tmp_atlas:
         atlas_tmp_dir.cleanup()
+    return res
 
 
 def run_workflows(
@@ -228,6 +235,8 @@ def run_workflows(
     cell_row.index += 1
     CellCollection.from_dataframe(cell_row).save(synthesis_config_tmp.morphology_data_file)
 
+    synthesized_paths = {}
+
     # Synthesize each morphology
     for workflow in workflows:
         output_config_tmp = evolve(
@@ -238,7 +247,7 @@ def run_workflows(
         )
         if workflow == "basic":
             LOGGER.info("Starting 'basic' workflow for %s", morph_name)
-            synthesize_axons(
+            res = synthesize_axons(
                 synthesis_config_tmp,
                 create_graph_config=create_graph_config,
                 post_process_config=post_process_config,
@@ -251,7 +260,7 @@ def run_workflows(
                 msg = "A 'voxel_dimensions' value is required for this workflow"
                 raise ValueError(msg)
 
-            mimic_preferred_regions_workflow(
+            res = mimic_preferred_regions_workflow(
                 data["morph_file"],
                 voxel_dimensions,
                 synthesis_config_tmp,
@@ -261,11 +270,15 @@ def run_workflows(
                 rng=rng,
                 keep_tmp_atlas=keep_tmp_atlas,
             )
+        else:
+            msg = f"The workflow {workflow} is not known"
+            raise ValueError(msg)
+        synthesized_paths[workflow] = res["file_path"].iloc[0]
 
     # Cleanup tmp files
     tmp_dir.cleanup()
 
-    return {}
+    return {workflow_col_name(k): v for k, v in synthesized_paths.items()}
 
 
 def export_cells_df(cells_df, path):
@@ -376,11 +389,13 @@ def mimic_axons(  # noqa: PLR0913
     if workflows is None:
         workflows = ["basic"]
 
-    parallel_evaluator(
+    workflow_cols = [workflow_col_name(workflow) for workflow in workflows]
+
+    results = parallel_evaluator(
         cells_df,
         run_workflows,
         parallel_config,
-        [],
+        [[col, None] for col in workflow_cols],
         func_kwargs={
             "workflows": workflows,
             "synthesis_config": synthesis_config,
@@ -394,3 +409,20 @@ def mimic_axons(  # noqa: PLR0913
         progress_bar=False,
         startup_func=partial(setup_logger, level=logging.getLevelName(LOGGER.getEffectiveLevel())),
     )
+
+    failed = results[workflow_cols].isna().any(axis=1)
+    if failed.any():
+        for col in workflow_cols:
+            workflow = re.match("synthesized_(.*)_path", col).group(1)  # type: ignore[union-attr]
+            LOGGER.error(
+                "The following morphologies could not be synthesized for the workflow %s (see the "
+                "logs for details): %s",
+                workflow,
+                sorted(results.loc[results[col].isna(), "morphology"].tolist()),
+            )
+    LOGGER.info(
+        "Synthesized %s morphologies on %s",
+        (~failed).sum(),
+        len(results),
+    )
+    return results

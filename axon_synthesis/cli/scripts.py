@@ -33,7 +33,7 @@ from axon_synthesis.utils import create_random_morphologies
 @click.option(
     "--output-cell-collection",
     type=click.Path(dir_okay=False),
-    help="The directory where the morphologies will be exported",
+    help="The path to the output cell collection",
 )
 @click.option(
     "--morphology-prefix",

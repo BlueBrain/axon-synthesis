@@ -386,9 +386,12 @@ def export_morph_edges(morph, output_path, logger=None):
         _nodes, edges = neurite_to_pts(i, keep_section_segments=True, edges_with_coords=True)
         edges.loc[:, "neurite_type"] = i.type
         all_edges.append(edges)
-    edges_df = pd.concat(all_edges, ignore_index=True)
-    edges_df.to_csv(output_path, index=False)
-    logger.debug("Exported morphology edges to '%s'", str(output_path))
+    if all_edges:
+        edges_df = pd.concat(all_edges, ignore_index=True)
+        edges_df.to_csv(output_path, index=False)
+        logger.debug("Exported morphology edges to '%s'", str(output_path))
+    else:
+        logger.debug("No edge to export to '%s'", str(output_path))
 
 
 @contextmanager

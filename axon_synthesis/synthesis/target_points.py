@@ -55,7 +55,8 @@ def compute_coords(
             )
             raise RuntimeError(msg)
         if atlas is not None:
-            target_points[TARGET_COORDS_COLS] += atlas.brain_regions.indices_to_positions(
+            # Convert indices into coordinates
+            target_points.loc[:, TARGET_COORDS_COLS] = atlas.brain_regions.indices_to_positions(
                 target_points[TARGET_COORDS_COLS].to_numpy()  # noqa: RUF005
                 + [0.5, 0.5, 0.5]
             ) + atlas.get_random_voxel_shifts(len(target_points), rng=rng)
@@ -120,6 +121,8 @@ def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
 ):
     """Find the target points for all given source points."""
     rng = np.random.default_rng(rng)
+    if logger is None:
+        logger = LOGGER
 
     # Create default populations if missing
     if "population_id" not in source_points.columns:
@@ -142,19 +145,31 @@ def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
         cells_region_parents = source_points.copy(deep=False)
         cells_region_parents["st_level"] = 0
 
+    # Remove useless columns before merge to reduce RAM usage
+    cells_region_parents = cells_region_parents[
+        ["morphology", "axon_id", "source_brain_region_id", "population_id", "st_level"]
+    ]
+    target_probabilities = target_probabilities[
+        ["source_population_id", "target_brain_region_id", "target_population_id", "probability"]
+        + (
+            TARGET_COORDS_COLS
+            if not set(TARGET_COORDS_COLS).difference(target_probabilities.columns)
+            else []
+        )
+    ]
+
     # Get the probabilities
     probs = cells_region_parents.merge(
         target_probabilities.rename(columns={"probability": "target_probability"}),
         left_on=["population_id"],
         right_on=["source_population_id"],
         how="left",
-        suffixes=("", "_probs"),
     )
 
     # Report missing probabilities
     missing_probs = probs.loc[probs["target_probability"].isna()]
     if len(missing_probs) > 0:
-        LOGGER.warning(
+        logger.warning(
             "The following morphologies have no associated target probabilities: %s",
             missing_probs["morphology"].drop_duplicates().to_list(),
         )
@@ -194,7 +209,7 @@ def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
         n_tries = n_tries + 1
 
     if mask_size > 0:
-        LOGGER.warning(
+        logger.warning(
             "Could not find any target for the following morphologies: %s",
             ", ".join(
                 [
@@ -286,8 +301,7 @@ def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
         with ignore_warnings(pd.errors.PerformanceWarning):
             target_points.to_hdf(output_path, key="target_points")
 
-    if logger is not None:
-        logger.debug("Found %s target point(s)", len(target_points))
+    logger.debug("Found %s target point(s)", len(target_points))
 
     return target_points.sort_values(["morphology", "axon_id", "terminal_id"]).reset_index(
         drop=True

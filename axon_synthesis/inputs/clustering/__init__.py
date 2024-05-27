@@ -747,8 +747,6 @@ class ClusteringResult:
 # This might be useful to optimize Dask communication
 # @dask_serialize.register(ClusteringResult)
 # def serialize(res: ClusteringResult) -> tuple[dict, list[bytes]]:
-#     import pdb
-#     pdb.set_trace()
 #     header = {}
 #     tmpdir = res.save()
 #     LOGGER.critical("Saved to %s", tmpdir.name)
@@ -757,8 +755,6 @@ class ClusteringResult:
 
 # @dask_deserialize.register(ClusteringResult)
 # def deserialize(header: dict, frames: list[bytes]) -> ClusteringResult:
-#     import pdb
-#     pdb.set_trace()
 #     LOGGER.critical("Load from %s", frames[0].decode())
 #     return ClusteringResult.load(frames[0].decode())
 
