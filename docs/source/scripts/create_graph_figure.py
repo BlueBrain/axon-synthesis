@@ -1,5 +1,6 @@
 """This script creates the figure associated to the graph creation."""
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -186,6 +187,7 @@ def plot(nodes, edges, figure_path, solution_edges=None):
             },
         }
     )
+    Path(figure_path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(figure_path + ".html")
     fig.write_image(figure_path + ".png", scale=2)
     fig.write_image(figure_path + ".svg", scale=2)

@@ -2,6 +2,7 @@
 import logging
 from collections.abc import Sequence
 from itertools import chain
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -505,6 +506,7 @@ def plot(morph, initial_morph, figure_path):
     fig.update_layout(title=morph_name)
 
     # Export figure
+    Path(figure_path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(figure_path)
 
     # Update the HTML file to synchronize the cameras between the two plots

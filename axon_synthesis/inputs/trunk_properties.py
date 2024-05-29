@@ -72,6 +72,7 @@ def segment_angles(neurite, reference=None):
 def compute_trunk_properties(
     trunk_morph: Morphology,
     morph_name: str,
+    morph_path: str,
     axon_id: int,
     config_name: str,
     atlas_region_id: int,
@@ -95,6 +96,7 @@ def compute_trunk_properties(
     )["axon"]
     return (
         morph_name,
+        morph_path,
         config_name,
         axon_id,
         atlas_region_id,

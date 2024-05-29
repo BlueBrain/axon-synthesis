@@ -1,6 +1,5 @@
 """Extract the terminal points of a morphology so that a Steiner Tree can be computed on them."""
 import logging
-from pathlib import Path
 
 import pandas as pd
 from bluepyparallel import evaluate
@@ -18,9 +17,10 @@ from axon_synthesis.utils import load_morphology
 LOGGER = logging.getLogger(__name__)
 
 
-def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float, float, float]]:
+def process_morph(
+    morph_path: FileType, morph_name: str
+) -> list[tuple[str, int, int, int, float, float, float]]:
     """Extract the terminal points from a morphology."""
-    morph_name = Path(morph_path).name
     morph_path_str = str(morph_path)
     morph = load_morphology(morph_path)
     pts = []
@@ -33,7 +33,14 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
     for axon_id, axon in enumerate(axons):
         # Add root point
         pts.append(
-            (morph_path_str, axon_id, 0, axon.root_node.id, *axon.root_node.points[0][:3].tolist()),
+            (
+                morph_name,
+                morph_path_str,
+                axon_id,
+                0,
+                axon.root_node.id,
+                *axon.root_node.points[0][:3].tolist(),
+            ),
         )
 
         # Add terminal points
@@ -42,6 +49,7 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
             if not section.children:
                 pts.append(
                     (
+                        morph_name,
                         morph_path_str,
                         axon_id,
                         terminal_id,
@@ -56,7 +64,7 @@ def process_morph(morph_path: FileType) -> list[tuple[str, int, int, int, float,
 
 def _wrapper(data: dict) -> dict:
     """Wrap process_morph() for parallel computation."""
-    return {"res": process_morph(data["morph_path"])}
+    return {"res": process_morph(data["morph_path"], data["morph_name"])}
 
 
 def process_morphologies(

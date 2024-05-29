@@ -234,16 +234,26 @@ def add_camera_sync(fig_path):
         f.write(tmp.replace("</body>", js + "</body>"))
 
 
-def get_morphology_paths(morph_dir):
-    """Get all morphology paths from a given directory."""
+def get_nested_morphology_paths(morph_dir, *, max_level=None):
+    """Get all morphology paths from a given directory and sub directories."""
     morph_dir = Path(morph_dir)
     morphology_paths = []
     for morph_path in morph_dir.iterdir():
-        if not is_morphology(morph_path):
-            continue
-        morphology_paths.append(morph_path)
+        if morph_path.is_dir() and (max_level is None or max_level > 0):
+            morphology_paths.extend(get_nested_morphology_paths(morph_path))
+        elif is_morphology(morph_path):
+            morphology_paths.append(morph_path)
+    return morphology_paths
 
-    return pd.DataFrame(morphology_paths, columns=["morph_path"])
+
+def get_morphology_paths(morph_dir, *, max_level=None):
+    """Get all morphology paths from a given directory."""
+    morphology_paths = get_nested_morphology_paths(morph_dir, max_level=max_level)
+    paths = pd.DataFrame(morphology_paths, columns=["morph_path"])
+    paths.loc[:, "morph_name"] = paths["morph_path"].apply(
+        lambda x: str(x.relative_to(morph_dir).with_suffix(""))
+    )
+    return paths
 
 
 def get_axons(morph, axon_ids=None):
@@ -388,6 +398,7 @@ def export_morph_edges(morph, output_path, logger=None):
         all_edges.append(edges)
     if all_edges:
         edges_df = pd.concat(all_edges, ignore_index=True)
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         edges_df.to_csv(output_path, index=False)
         logger.debug("Exported morphology edges to '%s'", str(output_path))
     else:
@@ -556,6 +567,8 @@ def save_morphology(
         msg = f"Export morphology to {morph_path}"
     logger = sublogger(logger, __name__)
     logger.debug(msg)
+    Path(morph_path).parent.mkdir(parents=True, exist_ok=True)
+
     convert(morph, morph_path)
     return morph_path
 

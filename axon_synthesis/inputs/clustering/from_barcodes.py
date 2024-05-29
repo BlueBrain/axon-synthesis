@@ -73,7 +73,8 @@ def compute_clusters(
     morph,
     axon,  # noqa: ARG001
     axon_id,  # noqa: ARG001
-    group_name,
+    group_name,  # noqa: ARG001
+    group_path,
     group,
     output_cols,  # noqa: ARG001
     *,
@@ -96,7 +97,7 @@ def compute_clusters(
     soma_center = morph.soma.center
     # axons = [i for i in neuron.neurites if i.type == NeuriteType.axon]
 
-    neuron = load_neuron_from_morphio(group_name)
+    neuron = load_neuron_from_morphio(group_path)
     origin = morph.soma.center
     nb_bins = 100
 

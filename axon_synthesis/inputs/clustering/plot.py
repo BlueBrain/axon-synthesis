@@ -113,6 +113,7 @@ def plot_clusters(morph, clustered_morph, group, group_name, cluster_df, output_
     fig.update_layout(title=group_name)
 
     # Export figure
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(str(output_path))
 
     add_camera_sync(str(output_path))

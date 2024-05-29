@@ -290,6 +290,7 @@ def compute_clusters(  # noqa: PLR0913
     axon,
     axon_id,
     group_name,
+    group_path,
     group,
     nb_workers,
     tuft_morphologies_path,
@@ -417,6 +418,7 @@ def compute_clusters(  # noqa: PLR0913
         new_terminal_points.append(
             [
                 group_name,
+                group_path,
                 config_name,
                 axon_id,
                 new_terminal_id if cluster_id != -1 else 0,
@@ -430,12 +432,10 @@ def compute_clusters(  # noqa: PLR0913
         plot(
             region_component_subgraphs,
             region_acronyms,
-            str(figure_path / f"{Path(group_name).with_suffix('').name}_region_clusters.html"),
+            str(figure_path / f"{group_name}_region_clusters.html"),
         )
 
-        tuft_brain_region_path = (
-            tuft_morphologies_path / f"{Path(group_name).with_suffix('').name}_{axon_id}.csv"
-        )
+        tuft_brain_region_path = tuft_morphologies_path / f"{group_name}_{axon_id}.csv"
         logger.debug("Export tuft brain regions to %s", tuft_brain_region_path)
         group_nodes["region_acronym"] = group_nodes["wm_brain_region"].map(region_acronyms)
         # group_nodes["tuft_morph_path"] = group_nodes.apply(
@@ -517,4 +517,5 @@ def plot(region_component_subgraphs, region_acronyms, filepath):
     fig.update_layout(title=Path(filepath).stem)
 
     # Export figure
+    Path(filepath).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(filepath)

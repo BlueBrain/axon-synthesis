@@ -70,6 +70,7 @@ def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None, l
     fig.update_layout(title=morph.name)
 
     # Export figure
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(output_path)
 
     if initial_morph is not None:
@@ -143,7 +144,9 @@ def build_and_graft_tufts(
             new_morph.soma.type = SomaType.SOMA_SINGLE_POINT
             with disable_loggers("morph_tool.converter"):
                 single_point_sphere_to_circular_contour(new_morph)
-            new_morph.write((output_dir / filename).with_suffix(".h5"))
+            output_path = (output_dir / filename).with_suffix(".h5")
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            new_morph.write(output_path)
 
         if figure_dir is not None:
             plot_tuft(

@@ -1,3 +1,5 @@
 population_id,brain_region_id,probability
 172992_0,172992_0,1
 172993_0,172993_0,1
+nested_folder_1/172993_nested_0,nested_folder_1/172993_nested_0,1
+nested_folder_1/nested_folder_1_1/172993_nested_nested_0,nested_folder_1/nested_folder_1_1/172993_nested_nested_0,1

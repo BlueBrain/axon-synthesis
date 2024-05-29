@@ -335,6 +335,7 @@ def one_graph(
 
     if output_path is not None:
         Path(output_path).unlink(missing_ok=True)
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         nodes_df.to_hdf(output_path, key="nodes")
         edges_df.to_hdf(output_path, key="edges", mode="a")
 

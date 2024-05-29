@@ -58,6 +58,11 @@ from axon_synthesis.validation.mimic import mimic_axons
     default=False,
     help=("If set to True, the temporary atlas is not removed at the end of the process"),
 )
+@click.option(
+    "--merge-results/--no-merge-results",
+    default=True,
+    help=("If set to True, the temporary atlas is not removed at the end of the process"),
+)
 @output_options
 @clustering_parameters_option
 @create_graph_options

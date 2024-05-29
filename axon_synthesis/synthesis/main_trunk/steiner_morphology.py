@@ -1,5 +1,6 @@
 """Create morphologies from the Steiner Tree solutions."""
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -52,6 +53,7 @@ def plot(morph, initial_morph, figure_path):
     fig.update_scenes(layout_props)
     fig.update_layout(title=morph_name)
 
+    Path(figure_path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(figure_path)
 
     # Update the HTML file to synchronize the cameras between the two plots

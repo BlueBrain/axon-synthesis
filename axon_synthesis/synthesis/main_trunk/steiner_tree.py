@@ -111,6 +111,7 @@ def plot_solution(nodes, edges, figure_path, logger=None):
     fig.update_layout(title=Path(figure_path).stem)
 
     # Export figure
+    Path(figure_path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(figure_path)
 
     if logger is not None:

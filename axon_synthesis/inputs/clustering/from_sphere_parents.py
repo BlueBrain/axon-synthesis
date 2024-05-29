@@ -50,11 +50,12 @@ def _check_cluster(a, b, nodes, terminal_nodes, pair_paths, cluster_ids, max_pat
             cluster_ids.loc[[term_a, term_b]] = cluster_ids.max() + 1
 
 
-def compute_clusters(
+def compute_clusters(  # noqa: PLR0913
     config,
     config_name,
     axon_id,
     group_name,
+    group_path,
     group,
     nodes,
     edges,
@@ -150,6 +151,7 @@ def compute_clusters(
             new_terminal_points.append(
                 [
                     group_name,
+                    group_path,
                     config_name,
                     axon_id,
                     new_terminal_id if not is_root else 0,

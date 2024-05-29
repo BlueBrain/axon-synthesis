@@ -1,4 +1,5 @@
 """Some plot utils for create graph."""
+from pathlib import Path
 
 import numpy as np
 import plotly.graph_objects as go
@@ -67,6 +68,7 @@ def plot_final_morph(morph, target_points, output_path, initial_morph=None, logg
     fig.update_layout(title=morph.name)
 
     # Export figure
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(output_path)
 
     if initial_morph is not None:
@@ -136,6 +138,7 @@ def plot_target_points(morph, source_point, target_points, output_path, logger=N
     fig.update_layout(title=morph.name)
 
     # Export figure
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(output_path)
 
     if logger is not None:

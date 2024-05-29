@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 from attrs import evolve
 from morph_tool.converter import convert
-from morph_tool.utils import is_morphology
 from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
 
@@ -30,6 +29,7 @@ from axon_synthesis.synthesis.outputs import OutputConfig
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import SeedType
 from axon_synthesis.utils import disable_loggers
+from axon_synthesis.utils import get_nested_morphology_paths
 from axon_synthesis.utils import load_morphology
 from axon_synthesis.utils import parallel_evaluator
 from axon_synthesis.utils import seed_from_name
@@ -45,7 +45,7 @@ def create_cell_collection(
 ) -> CellCollection:
     """Create a CellCollection object from a directory containing morphologies."""
     morphology_dir = Path(morphology_dir)
-    raw_morph_files = [i for i in morphology_dir.iterdir() if is_morphology(i)]
+    raw_morph_files = get_nested_morphology_paths(morphology_dir)
 
     centers = np.zeros((len(raw_morph_files), 3), dtype=float)
     registered_centers = np.zeros((len(raw_morph_files), 3), dtype=float)
@@ -54,7 +54,8 @@ def create_cell_collection(
         convert_to.mkdir(parents=True, exist_ok=True)
         morph_files = []
         for num, file in enumerate(raw_morph_files):
-            converted_file = (convert_to / file.stem).with_suffix(".h5")
+            converted_file = (convert_to / file.relative_to(morphology_dir)).with_suffix(".h5")
+            converted_file.parent.mkdir(parents=True, exist_ok=True)
             morph = load_morphology(file)
             registered_centers[num] = morph.soma.center
             morph = morph.transform(Translation(-morph.soma.center))
@@ -64,7 +65,7 @@ def create_cell_collection(
     else:
         morph_files = raw_morph_files
 
-    morph_names = [i.stem for i in raw_morph_files]
+    morph_names = [str(i.relative_to(morphology_dir).with_suffix("")) for i in raw_morph_files]
     raw_morph_files = [str(i) for i in raw_morph_files]
     morph_files = [str(i) for i in morph_files]
     if not morph_files:
@@ -241,9 +242,9 @@ def run_workflows(
     for workflow in workflows:
         output_config_tmp = evolve(
             output_config,
-            path=output_config.path.with_name(
-                output_config.path.name + f"_{workflow}_{morph_name}"
-            ),
+            path=output_config.path.parent
+            / Path(morph_name).parent
+            / (output_config.path.name + f"_{workflow}_{Path(morph_name).name}"),
         )
         if workflow == "basic":
             LOGGER.info("Starting 'basic' workflow for %s", morph_name)
@@ -288,6 +289,16 @@ def export_cells_df(cells_df, path):
     cells_df.reset_index().to_feather(path)
 
 
+def merge_result_folders(results, output_path):
+    """Create a new folder with simlinks to all result sub-folders."""
+    # import pdb
+    # pdb.set_trace()
+    # print(results)
+    LOGGER.info("Merging all results into %s", output_path)
+    LOGGER.warning("The merging feature is not implemented yet!")
+    return results
+
+
 def mimic_axons(  # noqa: PLR0913
     morphology_dir: FileType,
     clustering_parameters: dict,
@@ -301,6 +312,7 @@ def mimic_axons(  # noqa: PLR0913
     debug: bool = False,
     parallel_config: ParallelConfig | None = None,
     keep_tmp_atlas: bool = False,
+    merge_results: bool = True,
 ):
     """Synthesize mimicking axons."""
     output_config = (
@@ -425,4 +437,6 @@ def mimic_axons(  # noqa: PLR0913
         (~failed).sum(),
         len(results),
     )
+    if merge_results:
+        merge_result_folders(results, output_config.path)
     return results

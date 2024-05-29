@@ -43,7 +43,9 @@ def _empty_hierarchy() -> OrderedDict:
 
 def empty_atlas(shape, voxel_dimensions, offset, layer_thicknesses=None, tmp_dir=None):
     """Create an empty Atlas."""
-    tmp_dir = temp_dir(delete=False) if tmp_dir is None else CleanableDirectory(tmp_dir)
+    tmp_dir = (
+        temp_dir(delete=False) if tmp_dir is None else CleanableDirectory(tmp_dir, exist_ok=True)
+    )
     brain_regions = VoxelData(np.zeros(shape, dtype=np.int32), voxel_dimensions, offset)
 
     if layer_thicknesses is None:
@@ -138,7 +140,11 @@ def morph_atlas(
         )
         atlas = AtlasHelper(atlas_config)
     else:
-        atlas_dir = temp_dir(delete=False) if tmp_dir is None else CleanableDirectory(tmp_dir)
+        atlas_dir = (
+            temp_dir(delete=False)
+            if tmp_dir is None
+            else CleanableDirectory(tmp_dir, exist_ok=True)
+        )
         atlas_path = Path(atlas_dir.name)
         atlas_config = evolve(atlas.config, path=atlas_path, load_region_map=True)
         atlas = atlas.copy()

@@ -14,7 +14,9 @@ import axon_synthesis.cli
 
 def _ignore_files(_src, names) -> list[str]:
     """Filter some files."""
-    return [i for i in names if Path(i).name not in ["172992.asc", "172993.asc"]]
+    return [
+        i for i in names if Path(i).name not in ["172992.asc", "172993.asc"] and "nested" not in i
+    ]
 
 
 @pytest.mark.parametrize("nb_workers", [0, 1, 2])

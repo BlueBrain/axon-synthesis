@@ -54,6 +54,7 @@ def plot_triangulation(edges, source_point, target_points, figure_path, logger=N
     fig.update_layout(title=Path(figure_path).stem)
 
     # Export figure
+    Path(figure_path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(figure_path)
 
     if logger is not None:

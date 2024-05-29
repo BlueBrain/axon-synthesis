@@ -34,16 +34,16 @@ from axon_synthesis.utils import disable_loggers
 from axon_synthesis.utils import get_axons
 from axon_synthesis.utils import keep_only_neurites
 from axon_synthesis.utils import save_morphology
-
-logger = logging.getLogger(__name__)
+from axon_synthesis.utils import sublogger
 
 
 @disable_loggers("morph_tool.converter")
-def export_morph(root_path, morph_name, morph, morph_type, suffix=""):
+def export_morph(root_path, morph_name, morph, morph_type, suffix="", logger=None):
     """Export the given morphology to the given path."""
-    morph_path = str(root_path / f"{Path(morph_name).with_suffix('').name}{suffix}.asc")
+    morph_path = root_path / morph_name
+    morph_path = morph_path.with_stem(morph_path.stem + suffix).with_suffix(".asc")
     msg = f"Export {morph_type} morphology to {morph_path}"
-    save_morphology(morph, morph_path, msg)
+    save_morphology(morph, morph_path, msg, logger=logger)
     return morph_path
 
 
@@ -164,6 +164,7 @@ def clusters_basic_tuft(
     config_name,
     axon_id,
     group_name,
+    group_path,
     group,
     nodes,
     **_kwargs,
@@ -173,6 +174,7 @@ def clusters_basic_tuft(
     new_terminal_points = [
         [
             group_name,
+            group_path,
             config_name,
             axon_id,
             1,
@@ -227,6 +229,7 @@ def compute_common_section_properties(
 
 def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
     group,
+    group_path,
     group_name,
     morph,
     axon,
@@ -246,9 +249,11 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
     export_tuft_morph_dir: FileType | None = None,
     config_name: str | None = None,
     rng: SeedType = None,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
 ) -> set[int]:
     """Reduce clusters to one section from their common ancestors to their centers."""
     # pylint: disable=too-many-branches, too-many-statements
+    logger = sublogger(logger, __name__)
     if not config_name:
         config_name = ""
     kept_path: set[int] = set()
@@ -328,6 +333,7 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
             morph_paths["tufts"].append(
                 (
                     group_name,
+                    group_path,
                     config_name,
                     axon_id,
                     tuft_id,
@@ -337,6 +343,7 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
                         tuft_morph,
                         "tuft",
                         f"_{config_name}_{axon_id}_{tuft_id}",
+                        logger=logger,
                     ),
                 ),
             )
@@ -386,6 +393,7 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
         cluster_props.append(
             (
                 group_name,
+                group_path,
                 config_name,
                 axon_id,
                 tuft_id,
@@ -434,11 +442,11 @@ def create_clustered_morphology(
         suffix = ""
     clustered_morph = Morphology(
         morph,
-        name=f"Clustered {Path(group_name).with_suffix('').name}{suffix}",
+        name=f"Clustered {group_name}{suffix}",
     )
     trunk_morph = Morphology(
         clustered_morph,
-        name=f"Clustered trunk {Path(group_name).with_suffix('').name}{suffix}",
+        name=f"Clustered trunk {group_name}{suffix}",
     )
 
     axon = get_axons(morph, axon_id)

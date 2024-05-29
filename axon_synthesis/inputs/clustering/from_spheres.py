@@ -11,11 +11,12 @@ from axon_synthesis.utils import COORDS_COLS
 logger = logging.getLogger(__name__)
 
 
-def compute_clusters(config, config_name, axon_id, group_name, group, output_cols, **_kwargs):
+def compute_clusters(
+    config, config_name, axon_id, group_name, group_path, group, output_cols, **_kwargs
+):
     """The points must be inside the ball to be merged."""
     # pylint: disable=too-many-locals
     new_terminal_points = []
-    # group = group.loc[group["terminal_id"] != axon.root_node.id]
 
     # Get the pairs of terminals closer to the given distance
     tree = KDTree(group[COORDS_COLS].to_numpy())
@@ -100,10 +101,10 @@ def compute_clusters(config, config_name, axon_id, group_name, group, output_col
         cluster_center = actual_cluster[COORDS_COLS].mean().to_numpy()
 
         # Add the merged point
-        first_element = actual_cluster.iloc[0]
         new_terminal_points.append(
             [
-                first_element["morph_file"],
+                group_name,
+                group_path,
                 config_name,
                 axon_id,
                 real_cluster_id,
