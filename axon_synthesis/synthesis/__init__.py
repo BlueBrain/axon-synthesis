@@ -312,10 +312,17 @@ def _init_parallel(
     return client
 
 
-def check_target(terminals):
+def check_targets(terminals, morph_name):
     """Check that the given terminals have at least one target."""
-    if terminals["target_population_id"].isna().all():
-        msg = "Can not synthesize the morphology because no target point could be found"
+    missing_target = terminals.groupby("axon_id")["target_population_id"].apply(
+        lambda df: df.isna().all()
+    )
+    if missing_target.any():
+        axon_ids = [str(i) for i in missing_target.loc[missing_target].index.tolist()]
+        msg = (
+            f"Can not synthesize the morphology {morph_name} because no target "
+            f"point could be found for the axon(s): {', '.join(axon_ids)}"
+        )
         raise SynthesisError(msg)
 
 
@@ -335,9 +342,9 @@ def synthesize_one_morph_axons(
     morph_name = morph_terminals.name
     morph_custom_logger = MorphNameAdapter(logger, extra={"morph_name": morph_name})
     try:
-        check_target(morph_terminals)
+        check_targets(morph_terminals, morph_name)
 
-        morph = load_morphology(morph_terminals["morph_file"].to_numpy()[0])
+        morph = load_morphology(morph_terminals["morph_file"].iloc[0])
 
         # Translate the morphology to its position in the atlas
         morph = morph.transform(
@@ -531,7 +538,7 @@ def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs
 def _partition_wrapper(
     df: pd.DataFrame,
     input_path: FileType,
-    config: dict,
+    synthesis_config: dict,
     atlas_config: AtlasConfig | None,
     **func_kwargs,
 ) -> pd.DataFrame:
@@ -540,9 +547,9 @@ def _partition_wrapper(
     if atlas_config is not None:
         atlas_config.load_region_map = False
         inputs.load_atlas(atlas_config)
-    inputs.load_clustering_data(**config)
-    inputs.load_probabilities(**config)
-    inputs.load_tuft_params_and_distrs(**config)
+    inputs.load_clustering_data(**synthesis_config)
+    inputs.load_probabilities(**synthesis_config)
+    inputs.load_tuft_params_and_distrs(**synthesis_config)
 
     return synthesize_group_morph_axons(df.copy(deep=False), inputs=inputs, **func_kwargs)
 
