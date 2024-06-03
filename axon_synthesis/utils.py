@@ -569,7 +569,7 @@ def save_morphology(
     logger.debug(msg)
     Path(morph_path).parent.mkdir(parents=True, exist_ok=True)
 
-    convert(morph, morph_path)
+    convert(morph, morph_path, nrn_order=True)
     return morph_path
 
 

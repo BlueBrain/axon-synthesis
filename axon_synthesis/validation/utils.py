@@ -87,5 +87,5 @@ def copy_morph_to_tmp_dir(morph):
         ext = ".asc"
     filename = (Path(tmp_dir.name) / name).with_suffix(ext)
     with disable_loggers("morph_tool.converter"):
-        convert(morph, filename)
+        convert(morph, filename, nrn_order=True)
     return tmp_dir, filename
