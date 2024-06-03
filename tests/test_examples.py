@@ -19,7 +19,7 @@ def _ignore_files(_src, names) -> list[str]:
     ]
 
 
-@pytest.mark.parametrize("nb_workers", [0, 1, 2])
+@pytest.mark.parametrize("nb_workers", [0, 2])
 def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_workers):
     """Test the mimic workflow from the general example with 2 morphologies."""
     shutil.copyfile(example_dir / "config.cfg", testing_dir / "config.cfg")

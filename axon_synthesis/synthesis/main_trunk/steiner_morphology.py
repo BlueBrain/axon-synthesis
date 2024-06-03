@@ -48,7 +48,7 @@ def plot(morph, initial_morph, figure_path):
             cols=[2] * len(initial_fig),
         )
 
-    layout_props = build_layout_properties(morph.points, 0.1)
+    layout_props = build_layout_properties(np.vstack([morph.points, initial_morph.points]), 0.1)
 
     fig.update_scenes(layout_props)
     fig.update_layout(title=morph_name)

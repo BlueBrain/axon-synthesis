@@ -433,9 +433,10 @@ def mimic_axons(  # noqa: PLR0913
                 sorted(results.loc[results[col].isna(), "morphology"].tolist()),
             )
     LOGGER.info(
-        "Synthesized %s morphologies on %s",
+        "Synthesized %s morphologies on %s for the following workflows: %s",
         (~failed).sum(),
         len(results),
+        ", ".join(workflows),
     )
     if merge_results:
         merge_result_folders(results, output_config.path)

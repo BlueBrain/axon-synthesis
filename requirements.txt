@@ -16,6 +16,7 @@ pandas>=1.5
 pcst_fast
 plotly
 plotly-helper
+pyarrow
 scipy
 seaborn
 tables

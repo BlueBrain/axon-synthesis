@@ -385,14 +385,10 @@ def export_clusters(
             "config_name",
             "axon_id",
             "atlas_region_id",
-            "raw_segment_lengths",
             "mean_segment_lengths",
             "std_segment_lengths",
-            "raw_segment_meander_angles",
             "mean_segment_meander_angles",
             "std_segment_meander_angles",
-            "raw_segment_angles",
-            "raw_segment_path_lengths",
         ],
     ).sort_values(["morphology", "config_name", "axon_id"])
 

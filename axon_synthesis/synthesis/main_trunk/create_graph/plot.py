@@ -16,11 +16,19 @@ def plot_triangulation(edges, source_point, target_points, figure_path, logger=N
 
     fig = go.Figure()
 
+    colors = segments["weight"] / segments["length"]
+
     edges_trace = go.Scatter3d(
         x=segments[[FROM_COORDS_COLS.X, TO_COORDS_COLS.X, "cutter"]].to_numpy().flatten().tolist(),
         y=segments[[FROM_COORDS_COLS.Y, TO_COORDS_COLS.Y, "cutter"]].to_numpy().flatten().tolist(),
         z=segments[[FROM_COORDS_COLS.Z, TO_COORDS_COLS.Z, "cutter"]].to_numpy().flatten().tolist(),
-        line={"width": 0.5, "color": "grey"},
+        line={
+            "width": 0.75,
+            "color": colors,
+            "colorscale": "bluered",
+            "cmin": colors.min(),
+            "cmax": colors.max(),
+        },
         mode="lines",
         name="Steiner graph",
     )
@@ -51,7 +59,7 @@ def plot_triangulation(edges, source_point, target_points, figure_path, logger=N
     layout_props = build_layout_properties(pts, 0.1)
 
     fig.update_scenes(layout_props)
-    fig.update_layout(title=Path(figure_path).stem)
+    fig.update_layout(title=Path(figure_path).stem, coloraxis_showscale=True)
 
     # Export figure
     Path(figure_path).parent.mkdir(parents=True, exist_ok=True)

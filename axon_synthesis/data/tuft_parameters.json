@@ -16,8 +16,7 @@
                 ]
             }
         },
-        "radius": 0.3,
-        "randomness": 0.24,
+        "randomness": 0.4,
         "step_size": {
             "norm": {
                 "mean": 1.0,

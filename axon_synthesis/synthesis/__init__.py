@@ -531,6 +531,7 @@ def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs
 def _partition_wrapper(
     df: pd.DataFrame,
     input_path: FileType,
+    config: dict,
     atlas_config: AtlasConfig | None,
     **func_kwargs,
 ) -> pd.DataFrame:
@@ -539,11 +540,9 @@ def _partition_wrapper(
     if atlas_config is not None:
         atlas_config.load_region_map = False
         inputs.load_atlas(atlas_config)
-    inputs.load_clustering_data()
-    inputs.load_probabilities()
-    inputs.load_tuft_params_and_distrs()
-
-    func_kwargs["logger"] = LOGGER
+    inputs.load_clustering_data(**config)
+    inputs.load_probabilities(**config)
+    inputs.load_tuft_params_and_distrs(**config)
 
     return synthesize_group_morph_axons(df.copy(deep=False), inputs=inputs, **func_kwargs)
 
@@ -668,6 +667,7 @@ def synthesize_axons(
             _partition_wrapper,
             meta=meta,
             input_path=inputs.path,
+            synthesis_config=asdict(config),
             atlas_config=inputs.atlas.config if inputs.atlas is not None else None,
             **func_kwargs,
         )

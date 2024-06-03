@@ -62,7 +62,7 @@ def plot_final_morph(morph, target_points, output_path, initial_morph=None, logg
     )
     fig.add_trace(node_trace, row=1, col=1)
 
-    layout_props = build_layout_properties(morph.points, 0.1)
+    layout_props = build_layout_properties(np.vstack([morph.points, initial_morph.points]), 0.1)
 
     fig.update_scenes(layout_props)
     fig.update_layout(title=morph.name)

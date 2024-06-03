@@ -87,10 +87,8 @@ def compute_trunk_properties(
         long_range_trunk,
         {
             "neurite": {
-                "segment_lengths": {"modes": ["raw", "mean", "std"]},
-                "segment_meander_angles": {"modes": ["raw", "mean", "std"]},
-                "segment_angles": {"modes": ["raw"]},
-                "segment_path_lengths": {"modes": ["raw"]},
+                "segment_lengths": {"modes": ["mean", "std"]},
+                "segment_meander_angles": {"modes": ["mean", "std"]},
             },
         },
     )["axon"]
@@ -100,12 +98,8 @@ def compute_trunk_properties(
         config_name,
         axon_id,
         atlas_region_id,
-        np.array(trunk_stats["raw_segment_lengths"]).tolist(),
         trunk_stats["mean_segment_lengths"],
         trunk_stats["std_segment_lengths"],
-        np.array(trunk_stats["raw_segment_meander_angles"]).tolist(),
         trunk_stats["mean_segment_meander_angles"],
         trunk_stats["std_segment_meander_angles"],
-        np.array(trunk_stats["raw_segment_angles"]).tolist(),
-        np.array(trunk_stats["raw_segment_path_lengths"]).tolist(),
     )
