@@ -419,6 +419,12 @@ def synthesis_options(func):
         required=False,
         help="Path to the file containing the tuft parameters given to NeuroTS.",
     )
+    @optgroup.option(
+        "--target-max-tries",
+        type=click.IntRange(min=1),
+        required=False,
+        help="The max number of tries for picking target points.",
+    )
     @functools.wraps(func)
     def wrapper_synthesis_options(*args, **kwargs) -> Callable:
         return func(*args, **kwargs)

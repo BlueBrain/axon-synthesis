@@ -299,19 +299,21 @@ def compute_projection_intensities_differences(
     return matching_data
 
 
-def abs_diff_stats(data):
+def all_diff_stats(data):
     """Compute basic stats of the absolute difference."""
     diff = VoxelData.load_nrrd(data.loc["file_path_diff"])
     ref = VoxelData.load_nrrd(data.loc["file_path_ref"])
+    comp = VoxelData.load_nrrd(data.loc["file_path_comp"])
 
-    mask = np.where(ref.raw != np.nan)
-
-    diff_masked = diff.raw[mask]
-    ref_masked = ref.raw[mask]
+    diff_masked = diff.raw
+    ref_masked = ref.raw
+    comp_masked = comp.raw
+    total = np.abs(ref_masked).sum() + np.abs(comp_masked).sum()
+    total_square = np.square(ref_masked).sum() + np.square(comp_masked).sum()
 
     return {
-        "L1": np.abs(diff_masked).sum() / np.abs(ref_masked).sum(),
-        "L2": np.sqrt(np.square(diff_masked).sum() / np.square(ref_masked).sum()),
+        "L1": np.abs(diff_masked).sum() / total,
+        "L2": np.sqrt(np.square(diff_masked).sum() / total_square),
         "sum": np.abs(diff_masked).sum(),
         "mean": np.abs(diff_masked).mean(),
         "min": np.abs(diff_masked).min(),
@@ -323,18 +325,25 @@ def abs_diff_stats(data):
 def diff_stats(diff_dir: FileType):
     """Compute simple statistics of projection intensity differences."""
     data = pd.read_hdf(Path(diff_dir) / "metadata.h5", key="projection_intensity_differences")
-    stats = data.apply(abs_diff_stats, axis=1).apply(pd.Series)
+    stats = data.apply(all_diff_stats, axis=1).apply(pd.Series)
     return data.join(stats)
 
 
 def plot_diff_stats(
-    data, output_path: FileType, *, stat_type="L1", log_x=True, log_y=False, show=False
+    data,
+    *,
+    output_path: FileType | None = None,
+    stat_type="L1",
+    log_x=True,
+    log_y=False,
+    show=False,
 ):
     """Plot the projection intensity differences for the given data."""
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-
     data = data.copy(deep=False)
     data["voxel_size"] = data["voxel_dimensions"].apply(lambda row: row[0])
     data["axon"] = data.apply(lambda row: row["morphology"] + "_" + str(row["axon_id"]), axis=1)
     fig = px.line(data, x="voxel_size", y=stat_type, color="axon", log_x=log_x, log_y=log_y)
-    fig.write_html(output_path, auto_open=show)
+    if output_path is not None:
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.write_html(output_path, auto_open=show)
+    return fig

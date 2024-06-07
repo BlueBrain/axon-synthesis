@@ -215,7 +215,7 @@ class AtlasHelper:
                         self_and_descendants_atlas_ids,
                     )
                 f.create_dataset(
-                    str(current_id), data=coords, compression="gzip", compression_opts=9
+                    str(current_id), data=coords, compression="gzip", compression_opts=1
                 )
 
         LOGGER.info("Masks exported to %s", output_path)

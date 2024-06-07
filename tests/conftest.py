@@ -115,65 +115,6 @@ def wmr_path(out_dir):
     return wmr_filepath
 
 
-# def _set_luigi_cfg(testing_dir, atlas_path, morphology_path, wmr_path, luigi_cfg_file):
-#     """Create a luigi configuration file with the proper paths."""
-#     # Load the config
-#     cfg = ConfigParser()
-#     cfg.read(luigi_cfg_file)
-
-#     # Set the paths
-#     cfg["Config"]["atlas_path"] = str(atlas_path)
-#     cfg["CreateDatasetForRepair"]["morph_dir"] = str(morphology_path)
-
-#     # Export the config into the luigi.cfg file
-#     luigi_cfg_path = testing_dir / "luigi.cfg"
-#     with open(luigi_cfg_path, "w") as configfile:
-#         cfg.write(configfile)
-
-#     # Set current config in luigi
-#     luigi_config = luigi.configuration.get_config()
-#     luigi_config.read(luigi_cfg_path)
-
-#     # Copy the logging config file used by luigi
-#     shutil.copyfile(DATA / "logging.conf", testing_dir / "logging.conf")
-
-#     return luigi_config, luigi_cfg_path
-
-
-# @pytest.fixture()
-# def luigi_cfg(testing_dir, atlas_path, morphology_path, wmr_path):
-#     """Create a luigi configuration file with the proper paths."""
-#     luigi_config, luigi_cfg_path = _set_luigi_cfg(
-#         testing_dir,
-#         atlas_path,
-#         morphology_path,
-#         wmr_path,
-#         DATA / "luigi.cfg",
-#     )
-
-#     yield luigi_cfg_path
-
-#     # Reset luigi config
-#     luigi_config.clear()
-
-
-# @pytest.fixture()
-# def luigi_mimic_cfg(testing_dir, atlas_path, morphology_path, wmr_path):
-#     """Create a luigi configuration file with the proper paths."""
-#     luigi_config, luigi_cfg_path = _set_luigi_cfg(
-#         testing_dir,
-#         atlas_path,
-#         morphology_path,
-#         wmr_path,
-#         DATA / "luigi_mimic.cfg",
-#     )
-
-#     yield luigi_cfg_path
-
-#     # Reset luigi config
-#     luigi_config.clear()
-
-
 @pytest.fixture()
 def _tuft_inputs(testing_dir) -> None:
     """Copy inputs for tuft generation in the testing directory."""

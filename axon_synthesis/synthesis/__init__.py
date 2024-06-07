@@ -13,6 +13,7 @@ from attrs import converters
 from attrs import define
 from attrs import evolve
 from attrs import field
+from attrs import validators
 from neurom import NeuriteType
 from neurom.core import Morphology
 from neurom.geom.transform import Translation
@@ -109,6 +110,8 @@ class SynthesisConfig:
     )
     tuft_parameters_file: FileType | None = field(default=None, converter=converters.optional(Path))
     rebuild_existing_axons: bool = field(default=False)
+
+    target_max_tries: int = field(default=10, validator=validators.gt(0))
 
 
 def load_axon_grafting_points(
@@ -626,6 +629,7 @@ def synthesize_axons(
         atlas=inputs.atlas,
         brain_regions_masks=inputs.brain_regions_mask_file,
         rng=rng,
+        max_tries=config.target_max_tries,
         output_path=outputs.TARGET_POINTS,
         logger=LOGGER,
     )

@@ -629,6 +629,8 @@ def post_process_trunk(
     for i in sections_to_smooth:
         pts = np.concatenate([i[0].points] + [sec.points[1:] for sec in i[1:]])
         diams = np.concatenate([i[0].diameters] + [sec.diameters[1:] for sec in i[1:]])
+        min_diam_not_zero = np.min(diams, initial=1, where=diams != 0)
+        diams = np.clip(diams, a_min=min_diam_not_zero, a_max=np.inf)
 
         if not i[0].is_root:
             try:

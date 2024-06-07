@@ -238,7 +238,7 @@ def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
         ],
         on=["morphology", "axon_id", "source_brain_region_id"],
         how="left",
-    )
+    ).dropna(subset=["target_population_id"])
 
     compute_coords(target_points, brain_regions_masks, atlas=atlas, rng=rng)
 

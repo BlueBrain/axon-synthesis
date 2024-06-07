@@ -28,6 +28,9 @@ include-package-data = true
 dependencies = {file = ["requirements.txt"]}
 
 [project.optional-dependencies]
+examples = [
+    "morphology-workflows",
+]
 docs = [
     "docutils<0.21",
     "m2r2",
