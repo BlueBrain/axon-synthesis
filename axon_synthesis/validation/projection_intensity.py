@@ -193,6 +193,14 @@ def compute_projection_intensities(
     return results
 
 
+def resize_volume(volume, target_bbox):
+    """Zero padding to align the volume to the target grid."""
+    min_pads = np.round(np.abs(volume.bbox[0] - target_bbox[0]) / volume.voxel_dimensions)
+    max_pads = np.round(np.abs(volume.bbox[1] - target_bbox[1]) / volume.voxel_dimensions)
+    volume.raw = np.pad(volume.raw, np.vstack([min_pads, max_pads]).T.astype(int), "constant")
+    volume.offset -= min_pads * volume.voxel_dimensions
+
+
 def projection_intensities_diff(data):
     """Compare two projection intensities."""
     ref_file = data.loc["file_path_ref"]
@@ -212,16 +220,13 @@ def projection_intensities_diff(data):
             f"{list(comp_data.voxel_dimensions)} in compared file"
         )
         raise ValueError(msg)
+
     if not np.isclose(ref_data.offset, comp_data.offset).all() or ref_data.shape != comp_data.shape:
         LOGGER.debug("Resize data to overlap properly for %s", data.loc["morphology"])
         target_bbox = compute_bbox(np.vstack([ref_data.bbox, comp_data.bbox]))
 
         for i in [ref_data, comp_data]:
-            # Zero padding to align the grids
-            min_pads = np.round(np.abs(i.bbox[0] - target_bbox[0]) / voxel_dimensions)
-            max_pads = np.round(np.abs(i.bbox[1] - target_bbox[1]) / voxel_dimensions)
-            i.raw = np.pad(i.raw, np.vstack([min_pads, max_pads]).T.astype(int), "constant")
-            i.offset -= min_pads * voxel_dimensions
+            resize_volume(i, target_bbox)
 
     diff = ref_data.with_data(ref_data.raw - comp_data.raw)
 
@@ -305,9 +310,12 @@ def all_diff_stats(data):
     ref = VoxelData.load_nrrd(data.loc["file_path_ref"])
     comp = VoxelData.load_nrrd(data.loc["file_path_comp"])
 
-    diff_masked = diff.raw
-    ref_masked = ref.raw
-    comp_masked = comp.raw
+    # mask = np.where(ref.raw != np.nan)
+
+    diff_masked = diff.raw  # [mask]
+    ref_masked = ref.raw  # [mask]
+    comp_masked = comp.raw  # [mask]
+
     total = np.abs(ref_masked).sum() + np.abs(comp_masked).sum()
     total_square = np.square(ref_masked).sum() + np.square(comp_masked).sum()
 

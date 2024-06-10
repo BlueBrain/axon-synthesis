@@ -99,6 +99,7 @@ class Clustering(BasePathBuilder):
         "CLUSTERED_MORPHOLOGIES_DIRNAME": "clustered_morphologies",
         "CLUSTERED_MORPHOLOGIES_PATHS_FILENAME": "clustered_morphologies_paths.csv",
         "CLUSTERED_TERMINALS_FILENAME": "clustered_terminals.csv",
+        "TERMINALS_DIRNAME": "clustered_terminals",
         "TRUNK_MORPHOLOGIES_DIRNAME": "trunk_morphologies",
         "TRUNK_MORPHOLOGIES_PATHS_FILENAME": "trunk_morphologies_paths.csv",
         "TRUNK_PROPS_FILENAME": "trunk_properties.json",
@@ -112,6 +113,7 @@ class Clustering(BasePathBuilder):
         "CLUSTERED_MORPHOLOGIES_DIRNAME",
         "CLUSTERED_MORPHOLOGIES_PATHS_FILENAME",
         "FIGURE_DIRNAME",
+        "TERMINALS_DIRNAME",
         "TRUNK_MORPHOLOGIES_DIRNAME",
         "TRUNK_MORPHOLOGIES_PATHS_FILENAME",
         "TUFT_MORPHOLOGIES_DIRNAME",
@@ -473,16 +475,16 @@ def cluster_one_morph(
     parallel_config: ParallelConfig | None = None,
 ):
     """Run clustering on one morphology."""
-    if parallel_config is None:
-        parallel_config = ParallelConfig()
+    parallel_config = ParallelConfig() if parallel_config is None else parallel_config
 
-    if morph_name is None:
-        morph_name = Path(morph_path).name
+    morph_name = Path(morph_path).name if morph_name is None else morph_name
     morph_path = str(morph_path)
+
+    morph_custom_logger = MorphNameAdapter(LOGGER, extra={"morph_name": morph_name})
 
     pts = extract_terminals.process_morph(morph_path, morph_name)
     if len(pts) == 0:
-        LOGGER.warning("The morphology %s has no axon point", morph_path)
+        morph_custom_logger.warning("The morphology has no axon point")
         return ClusteringResult([], [], [], {})
     terminals = pd.DataFrame(
         pts,
@@ -492,13 +494,10 @@ def cluster_one_morph(
 
     brain_regions = atlas.brain_regions if atlas is not None else None
 
-    all_terminal_points: list[tuple]
-    cluster_props: list[tuple]
-    trunk_props: list[tuple]
-    all_terminal_points, cluster_props, trunk_props = [], [], []
+    all_terminal_points: list[tuple] = []
+    cluster_props: list[tuple] = []
+    trunk_props: list[tuple] = []
     morph_paths: MutableMapping[str, list] = defaultdict(list)
-
-    morph_custom_logger = MorphNameAdapter(LOGGER, extra={"morph_name": morph_name})
 
     morph_custom_logger.debug("%s points", len(terminals))
 
@@ -682,6 +681,14 @@ def cluster_one_morph(
                     cluster_df,
                     clustering.FIGURE_DIRNAME
                     / f"{Path(str(morph_name)).with_suffix('').name}{suffix}.html",
+                )
+                axon_group.to_csv(
+                    clustering.TERMINALS_DIRNAME
+                    / f"terminals_{Path(str(morph_name)).with_suffix('').name}{suffix}.csv"
+                )
+                cluster_df.to_csv(
+                    clustering.TERMINALS_DIRNAME
+                    / f"clusters_{Path(str(morph_name)).with_suffix('').name}{suffix}.csv"
                 )
 
     return ClusteringResult(trunk_props, cluster_props, all_terminal_points, morph_paths)
