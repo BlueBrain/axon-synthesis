@@ -398,7 +398,6 @@ def synthesize_one_morph_axons(
                 axon_terminals[SOURCE_COORDS_COLS].to_numpy()[0],
                 axon_terminals,
                 create_graph_config,
-                bbox=inputs.atlas.brain_regions.bbox if inputs.atlas is not None else None,
                 depths=inputs.atlas.depths if inputs.atlas is not None else None,
                 rng=rng,
                 output_path=axon_paths.GRAPH_CREATION_DATA,

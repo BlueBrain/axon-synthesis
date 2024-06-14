@@ -34,6 +34,7 @@ from axon_synthesis.synthesis.main_trunk.create_graph.utils import drop_outside_
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import RegionIdsType
 from axon_synthesis.typing import SeedType
+from axon_synthesis.utils import compute_bbox
 from axon_synthesis.utils import sublogger
 
 
@@ -101,7 +102,6 @@ class CreateGraphConfig:
         default=None, validator=validators.optional(validators.ge(0))
     )
     favored_region_tree: KDTree | None = field(default=None)
-    favored_region_random_points: list[float] | None = field(default=None)
 
     # Terminal penalty
     use_terminal_penalty: bool = field(default=False)
@@ -160,7 +160,6 @@ class CreateGraphConfig:
             self.favored_region_tree = KDTree(favored_region_points)
         else:
             self.favored_region_tree = None
-            self.favored_region_random_points = None
 
     def region_tree_from_file(self, file):
         """Get the favored region tree from a file."""
@@ -172,7 +171,6 @@ def one_graph(
     source_coords: np.ndarray,
     target_points: pd.DataFrame,
     config: CreateGraphConfig,
-    bbox: np.ndarray | None = None,
     depths: VoxelData | None = None,
     *,
     output_path: FileType | None = None,
@@ -229,6 +227,13 @@ def one_graph(
     # Add the bounding box points to ensure a minimum number of points
     all_pts = add_bounding_box_pts(all_pts)
 
+    # Get bbox of points before adding Voronoi points that can go very far
+    current_bbox = compute_bbox(all_pts[:, :3], 0.1)
+    if depths is not None:
+        # Clip the bbox the keep it inside the atlas
+        current_bbox[0] = np.clip(current_bbox[0], a_min=depths.bbox[0], a_max=np.inf)
+        current_bbox[1] = np.clip(current_bbox[1], a_min=-np.inf, a_max=depths.bbox[1])
+
     # Add Voronoï points
     all_pts = add_voronoi_points(all_pts, config.voronoi_steps)
 
@@ -251,8 +256,7 @@ def one_graph(
     # Remove outside points
     nodes_df = drop_outside_points(
         nodes_df,
-        pts,
-        bbox=bbox,
+        bbox=current_bbox,
     )
 
     # Add some intermediate points to ensure there are enough points to build a graph
@@ -346,6 +350,9 @@ def one_graph(
             pts[1:, :3],  # The first one is the source
             figure_path,
             logger=logger,
+            attractors=config.favored_region_tree.data
+            if config.favored_region_tree is not None
+            else None,
         )
 
     # pylint: disable=unsupported-assignment-operation
