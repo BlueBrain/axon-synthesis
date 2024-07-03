@@ -60,6 +60,7 @@ mypy = [
     "types-jsonschema",
     "types-networkx",
     "types-PyYAML",
+    "types-seaborn",
 ]
 
 [project.urls]
@@ -189,6 +190,7 @@ module = [
     "bluepyparallel.*",
     "configobj.*",
     "dask_mpi.*",
+    "diff_pdf_visually.*",
     "dir_content_diff.*",
     "dir_content_diff_plugins.*",
     "h5py.*",
