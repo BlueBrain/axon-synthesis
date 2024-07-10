@@ -15,6 +15,7 @@ from axon_synthesis.constants import TO_COORDS_COLS
 from axon_synthesis.typing import FileType
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import build_layout_properties
+from axon_synthesis.utils import get_morph_pts
 from axon_synthesis.utils import save_morphology
 from axon_synthesis.utils import sublogger
 
@@ -48,7 +49,9 @@ def plot(morph, initial_morph, figure_path):
             cols=[2] * len(initial_fig),
         )
 
-    layout_props = build_layout_properties(np.vstack([morph.points, initial_morph.points]), 0.1)
+    layout_props = build_layout_properties(
+        np.vstack([morph.points, get_morph_pts(initial_morph)]), 0.1
+    )
 
     fig.update_scenes(layout_props)
     fig.update_layout(title=morph_name)

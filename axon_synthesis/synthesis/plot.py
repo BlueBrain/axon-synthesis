@@ -9,6 +9,7 @@ from plotly_helper.neuron_viewer import NeuronBuilder
 from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.utils import add_camera_sync
 from axon_synthesis.utils import build_layout_properties
+from axon_synthesis.utils import get_morph_pts
 
 
 def plot_final_morph(morph, target_points, output_path, initial_morph=None, logger=None):
@@ -62,7 +63,9 @@ def plot_final_morph(morph, target_points, output_path, initial_morph=None, logg
     )
     fig.add_trace(node_trace, row=1, col=1)
 
-    layout_props = build_layout_properties(np.vstack([morph.points, initial_morph.points]), 0.1)
+    layout_props = build_layout_properties(
+        np.vstack([morph.points, get_morph_pts(initial_morph)]), 0.1
+    )
 
     fig.update_scenes(layout_props)
     fig.update_layout(title=morph.name)

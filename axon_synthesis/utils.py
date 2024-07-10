@@ -708,3 +708,11 @@ def parallel_evaluator(
 def seed_from_name(name):
     """Build a seed from the name hash."""
     return int(hashlib.sha256(name.encode("ascii")).hexdigest(), 16) % (2**32 - 1)
+
+
+def get_morph_pts(morph):
+    """Return the points of a morphology and handle empty morphologies."""
+    try:
+        return morph.points
+    except ValueError:
+        return np.empty((0, 4), dtype=float)

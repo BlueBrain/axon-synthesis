@@ -414,6 +414,7 @@ def export_clusters(
             "size",
             "orientation",
             "mean_tuft_length",
+            "atlas_region_id",
             "population_id",
             "barcode",
         ],

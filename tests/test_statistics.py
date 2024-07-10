@@ -8,7 +8,7 @@ from axon_synthesis.validation.statistics import plot_score_matrix
 
 
 def test_plot_score_matrix(data_dir, tmp_path):
-    """Test the polt_score_matrix function."""
+    """Test the plot_score_matrix function."""
 
     def get_morphs(input_dir) -> list:
         return [(i.name, [i]) for i in sorted(iter_morphology_files(input_dir))]

@@ -85,7 +85,7 @@ class AtlasHelper:
         self.config = config
 
         # Get atlas data
-        logger.info("Loading atlas from: %s", self.config.path)
+        logger.info("Loading atlas with the following config: %s", self.config)
         atlas = Atlas.open(str(self.config.path.resolve()))
 
         logger.debug(

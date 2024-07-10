@@ -406,6 +406,7 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 len(cluster),
                 tuft_orientation.tolist(),
                 mean_tuft_length,
+                target_atlas_region_id,
                 target_projection_name,
                 np.array(tuft_barcode).tolist(),
             ),
