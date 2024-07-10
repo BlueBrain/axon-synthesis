@@ -685,7 +685,7 @@ class WhiteMatterRecipe(BasePathBuilder):
             right_index=True,
             how="left",
         )
-        wm_projection_targets.fillna({"target_layer_profile_norm_factor": 1})
+        wm_projection_targets.fillna({"target_layer_profile_norm_factor": 1}, inplace=True)
         wm_projection_targets["target_layer_profile_region_prob"] = (
             wm_projection_targets["target_layer_profile_prob"]
             / wm_projection_targets["target_layer_profile_norm_factor"]

@@ -222,7 +222,7 @@ def plot_score_matrix(
         cbar_ratio = 0.4 / fig_width
 
         # Create the figure and the subplots
-        fig, ((a0, a2), (a1, a3)) = plt.subplots(
+        fig, ((a0, a2), (a1, a3)) = plt.subplots(  # type: ignore[misc]
             2,
             2,
             gridspec_kw={
