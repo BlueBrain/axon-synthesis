@@ -357,18 +357,19 @@ def add_depth_penalty(
     return (1 + amplitude * (1 - np.exp(-relative_delta / sigma))).to_numpy()
 
 
-def add_favored_reward(
+def add_preferred_reward(
     edges_df,
     from_coord_cols,
     to_coord_cols,
-    favored_region_tree,
+    preferred_region_tree,
     sigma,
     amplitude,
 ):
-    """Add rewards to edges depending on their distance to the favored points."""
-    from_distances, _ = favored_region_tree.query(edges_df[from_coord_cols].to_numpy())
-    to_distances, _ = favored_region_tree.query(edges_df[to_coord_cols].to_numpy())
+    """Add rewards to edges depending on their distance to the preferred points."""
+    from_distances, _ = preferred_region_tree.query(edges_df[from_coord_cols].to_numpy())
+    to_distances, _ = preferred_region_tree.query(edges_df[to_coord_cols].to_numpy())
 
     # TODO: For now we just take the mean of the distance between the start point to the closest
-    # favored point and between the end point to the closest favored point, which is not accurate.
+    # preferred point and between the end point to the closest preferred point, which is not
+    # accurate.
     return 1 + amplitude * (1 - np.exp(-0.5 * (from_distances + to_distances) / sigma))

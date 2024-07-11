@@ -90,24 +90,24 @@ def create_graph_options(func):
         help="The amplitude of the depth penalty",
     )
     @optgroup.option(
-        "--create-graph-favored-regions",
+        "--create-graph-preferred-regions",
         type=ListParam(),
-        help="The list of brain regions in which edge weights are divided by the favoring factor",
+        help="The list of brain regions in which edge weights are divided by the preferring factor",
     )
     @optgroup.option(
-        "--create-graph-favored-region-min-random-point-distance",
+        "--create-graph-preferred-region-min-random-point-distance",
         type=click.FloatRange(min=0, min_open=True),
-        help="The min distance used to pick random points in favored regions",
+        help="The min distance used to pick random points in preferred regions",
     )
     @optgroup.option(
-        "--create-graph-favoring-sigma",
+        "--create-graph-preferring-sigma",
         type=click.FloatRange(min=0, min_open=True),
-        help="The sigma used to favor the given regions",
+        help="The sigma used to compute the preferring factor for the given regions",
     )
     @optgroup.option(
-        "--create-graph-favoring-amplitude",
+        "--create-graph-preferring-amplitude",
         type=click.FloatRange(min=0, min_open=True),
-        help="The amplitude used to favor the given regions",
+        help="The amplitude used to compute the preferring factor for the given regions",
     )
     @optgroup.option(
         "--create-graph-use-terminal-penalty/--create-graph-no-use-terminal-penalty",
@@ -138,12 +138,12 @@ def create_graph_kwargs_to_config(config) -> None:
         ),
         "depth_penalty_sigma": config.pop("create_graph_depth_penalty_sigma", None),
         "depth_penalty_amplitude": config.pop("create_graph_depth_penalty_amplitude", None),
-        "favored_regions": config.pop("create_graph_favored_regions", None),
-        "favored_region_min_random_point_distance": config.pop(
-            "create_graph_favored_region_min_random_point_distance", None
+        "preferred_regions": config.pop("create_graph_preferred_regions", None),
+        "preferred_region_min_random_point_distance": config.pop(
+            "create_graph_preferred_region_min_random_point_distance", None
         ),
-        "favoring_sigma": config.pop("create_graph_favoring_sigma", None),
-        "favoring_amplitude": config.pop("create_graph_favoring_amplitude", None),
+        "preferring_sigma": config.pop("create_graph_preferring_sigma", None),
+        "preferring_amplitude": config.pop("create_graph_preferring_amplitude", None),
         "use_depth_penalty": config.pop("create_graph_use_depth_penalty", None),
         "use_orientation_penalty": config.pop("create_graph_use_orientation_penalty", None),
         "use_terminal_penalty": config.pop("create_graph_use_terminal_penalty", None),

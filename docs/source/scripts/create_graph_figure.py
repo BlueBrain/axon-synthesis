@@ -376,11 +376,11 @@ print("Solution total length:", edges.loc[edges["is_solution"], "length"].sum())
 
 # Case with preferred region
 points_preferred_regions = [[0, 100, 0]]
-config.favored_region_tree = KDTree(points_preferred_regions)
+config.preferred_region_tree = KDTree(points_preferred_regions)
 preferred_regions_config = evolve(
     config,
-    favoring_sigma=100,
-    favoring_amplitude=10,
+    preferring_sigma=100,
+    preferring_amplitude=10,
     use_orientation_penalty=False,
     use_depth_penalty=False,
     use_terminal_penalty=False,

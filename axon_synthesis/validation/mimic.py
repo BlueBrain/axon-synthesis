@@ -192,7 +192,7 @@ def mimic_preferred_regions_workflow(
     )
     create_graph_config_tmp = evolve(
         create_graph_config,
-        favored_regions=["dft"],
+        preferred_regions=["dft"],
     )
     res = synthesize_axons(
         synthesis_config,

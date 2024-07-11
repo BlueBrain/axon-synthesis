@@ -22,9 +22,9 @@ from axon_synthesis.constants import NodeProvider
 from axon_synthesis.synthesis.main_trunk.create_graph.plot import plot_triangulation
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_bounding_box_pts
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_depth_penalty
-from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_favored_reward
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_intermediate_points
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_orientation_penalty
+from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_preferred_reward
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_random_points
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_terminal_penalty
 from axon_synthesis.synthesis.main_trunk.create_graph.utils import add_voronoi_points
@@ -57,11 +57,14 @@ class CreateGraphConfig:
             parallel to the iso-depth curves.
         depth_penalty_sigma: The sigma used for depth penalty.
         depth_penalty_amplitude: The amplitude of the depth penalty.
-        favored_regions: The list of brain regions in which edge weights are divided by the
-            favoring factor.
-        favoring_sigma: The sigma used to favor the given regions.
-        favoring_amplitude: The amplitude used to favor the given regions.
-        favored_region_tree: The KDTree object containing the favored region points.
+        preferred_regions: The list of brain regions in which edge weights are divided by the
+            preferring factor.
+        preferred_region_min_random_point_distance: The min distance used to pick random points in
+            preferred regions.
+        preferring_sigma: The sigma used to compute the preferring factor for the given regions.
+        preferring_amplitude: The amplitude used to compute the preferring factor for the given
+            regions.
+        preferred_region_tree: The KDTree object containing the preferred region points.
         use_terminal_penalty: If set to True, a penalty is added to edges that are connected to a
             terminal.
     """
@@ -92,38 +95,38 @@ class CreateGraphConfig:
     depth_penalty_sigma: float = field(default=0.25, validator=validators.gt(0))
     depth_penalty_amplitude: float = field(default=10, validator=validators.gt(0))
 
-    # Favored regions
-    favored_regions: RegionIdsType | None = field(
+    # preferred regions
+    preferred_regions: RegionIdsType | None = field(
         default=None,
     )
-    favoring_sigma: float = field(default=100, validator=validators.gt(0))
-    favoring_amplitude: float = field(default=1, validator=validators.gt(0))
-    favored_region_min_random_point_distance: float | None = field(
+    preferred_region_min_random_point_distance: float | None = field(
         default=None, validator=validators.optional(validators.ge(0))
     )
-    favored_region_tree: KDTree | None = field(default=None)
+    preferring_sigma: float = field(default=100, validator=validators.gt(0))
+    preferring_amplitude: float = field(default=1, validator=validators.gt(0))
+    preferred_region_tree: KDTree | None = field(default=None)
 
     # Terminal penalty
     use_terminal_penalty: bool = field(default=False)
 
-    def pick_favored_region_random_points(self, rng=None, max_tries: int = 10):
-        """Create random points in favored regions with min distance between them."""
-        if self.favored_region_tree is None:
+    def pick_preferred_region_random_points(self, rng=None, max_tries: int = 10):
+        """Create random points in preferred regions with min distance between them."""
+        if self.preferred_region_tree is None:
             msg = (
-                "The 'favored_region_tree' must be computed before picking favored region random "
-                "points"
+                "The 'preferred_region_tree' must be computed before picking random points inside "
+                "the preferred region"
             )
             raise RuntimeError(msg)
         rng = np.random.default_rng(rng)
         n_fails = 0
         new_pts: list[np.ndarray] = []
         min_dist = (
-            self.favored_region_min_random_point_distance
-            if self.favored_region_min_random_point_distance is not None
+            self.preferred_region_min_random_point_distance
+            if self.preferred_region_min_random_point_distance is not None
             else self.min_random_point_distance
         )
         while n_fails < max_tries:
-            xyz = rng.choice(self.favored_region_tree.data)
+            xyz = rng.choice(self.preferred_region_tree.data)
             if (
                 len(new_pts) == 0
                 or np.linalg.norm(
@@ -141,11 +144,11 @@ class CreateGraphConfig:
             # Ensure at least one point is added (the closest point from the barycenter of the
             # given points)
             new_pts.append(
-                self.favored_region_tree.data[
+                self.preferred_region_tree.data[
                     np.argmin(
                         np.linalg.norm(
-                            self.favored_region_tree.data
-                            - self.favored_region_tree.data.mean(axis=0),
+                            self.preferred_region_tree.data
+                            - self.preferred_region_tree.data.mean(axis=0),
                             axis=1,
                         )
                     )
@@ -154,17 +157,17 @@ class CreateGraphConfig:
         return np.hstack([new_pts, np.ones((len(new_pts), 1)) * NodeProvider.random])
 
     def compute_region_tree(self, atlas: AtlasHelper, *, force: bool = False):
-        """Compute the favored region tree using the given Atlas."""
-        if self.favored_regions is not None and (self.favored_region_tree is None or force):
-            favored_region_points, _missing_ids = atlas.get_region_points(self.favored_regions)
-            self.favored_region_tree = KDTree(favored_region_points)
+        """Compute the preferred region tree using the given Atlas."""
+        if self.preferred_regions is not None and (self.preferred_region_tree is None or force):
+            preferred_region_points, _missing_ids = atlas.get_region_points(self.preferred_regions)
+            self.preferred_region_tree = KDTree(preferred_region_points)
         else:
-            self.favored_region_tree = None
+            self.preferred_region_tree = None
 
     def region_tree_from_file(self, file):
-        """Get the favored region tree from a file."""
+        """Get the preferred region tree from a file."""
         data = np.load(file, allow_pickle=False)
-        self.favored_region_tree = KDTree(data)
+        self.preferred_region_tree = KDTree(data)
 
 
 def one_graph(
@@ -206,12 +209,12 @@ def one_graph(
         config.intermediate_number,
     )
 
-    # Add random points from the favored regions
-    if config.favored_region_tree is not None:
+    # Add random points from the preferred regions
+    if config.preferred_region_tree is not None:
         all_pts = np.concatenate(
             [
                 all_pts,
-                config.pick_favored_region_random_points(rng=rng),
+                config.pick_preferred_region_random_points(rng=rng),
             ]
         )
 
@@ -308,15 +311,15 @@ def one_graph(
             config.depth_penalty_amplitude,
         )
 
-    # Reduce the lengths of edges that are close to the favored regions
-    if config.favored_region_tree is not None:
-        penalties *= add_favored_reward(
+    # Reduce the lengths of edges that are close to the preferred regions
+    if config.preferred_region_tree is not None:
+        penalties *= add_preferred_reward(
             edges_df,
             FROM_COORDS_COLS,
             TO_COORDS_COLS,
-            config.favored_region_tree,
-            config.favoring_sigma,
-            config.favoring_amplitude,
+            config.preferred_region_tree,
+            config.preferring_sigma,
+            config.preferring_amplitude,
         )
 
     # TODO: increase weights of more impossible edges?
@@ -350,8 +353,8 @@ def one_graph(
             pts[1:, :3],  # The first one is the source
             figure_path,
             logger=logger,
-            attractors=config.favored_region_tree.data
-            if config.favored_region_tree is not None
+            attractors=config.preferred_region_tree.data
+            if config.preferred_region_tree is not None
             else None,
         )
 
