@@ -393,7 +393,13 @@ def synthesis_options(func):
         "--projection-probabilities-file",
         type=click.Path(exists=True, dir_okay=False),
         required=False,
-        help="Path to the file containing the projection probabilities",
+        help="Path to the file containing the projection probabilities.",
+    )
+    @optgroup.option(
+        "--population-tuft-number-file",
+        type=click.Path(exists=True, dir_okay=False),
+        required=False,
+        help="Path to the file containing the tuft number distribution for each target population.",
     )
     @optgroup.option(
         "--trunk-properties-file",

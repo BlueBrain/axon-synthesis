@@ -36,13 +36,19 @@ def compute_coords(
                 .index
             )
             target_points.loc[:, TARGET_COORDS_COLS] = np.nan
-            target_points.loc[mask_tmp, TARGET_COORDS_COLS] = (
-                target_points.groupby("target_brain_region_id")
-                .apply(
-                    lambda group: rng.choice(  # type: ignore[arg-type, return-value]
+
+            def get_coords(group: pd.DataFrame) -> np.ndarray:
+                try:
+                    return rng.choice(  # type: ignore[arg-type, return-value]
                         brain_regions_masks[str(int(group.name))][:], size=len(group)
                     )
-                )
+                except Exception as e:
+                    logging.warning("Error %s for target_brain_region_id %s", repr(e), group.name)
+                    return np.repeat(np.nan, len(group))
+
+            target_points.loc[mask_tmp, TARGET_COORDS_COLS] = (
+                target_points.groupby("target_brain_region_id")
+                .apply(get_coords)  # type: ignore[arg-type]
                 .explode()
                 .sort_index()
                 .apply(pd.Series)
@@ -107,9 +113,55 @@ def drop_close_points(
     return all_points_df
 
 
-def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
+def pick_target_populations(probs, rng, logger=None, max_tries=10):
+    """Pick target populations for each source point."""
+    probs["random_number"] = pd.Series(-1, index=probs.index.to_numpy(), dtype=float)
+    no_target_mask = probs["random_number"] < 0
+    n_tries = 0
+    mask_size = no_target_mask.sum()
+    selected_mask = pd.Series(data=True, index=probs.index, dtype=bool)
+    while n_tries < max_tries and mask_size > 0:
+        # Select the populations according to the associated probabilities
+        probs.loc[no_target_mask, "random_number"] = rng.uniform(size=mask_size)
+        selected_mask = probs["random_number"] <= probs["target_probability"]
+
+        # TODO: Here we implicitly suppose that we want to select at least 1 target per axon, but
+        # maybe we want a customizable minimum number of targets?
+
+        # Check which axons don't have any selected target
+        no_target_mask = probs.merge(
+            probs.loc[selected_mask, ["morphology", "axon_id", "random_number"]].drop_duplicates(
+                subset=["morphology", "axon_id"]
+            ),
+            on=["morphology", "axon_id"],
+            how="left",
+            suffixes=("", "_tmp"),
+        )["random_number_tmp"].isna()
+
+        mask_size = no_target_mask.sum()
+        n_tries = n_tries + 1
+
+    if mask_size > 0 and logger is not None:
+        logger.warning(
+            "Could not find any target for the following morphologies: %s",
+            ", ".join(
+                [
+                    f"{i[0]} (axon ID={i[1]})"
+                    for i in probs.loc[no_target_mask, ["morphology", "axon_id"]]
+                    .drop_duplicates()
+                    .to_numpy()
+                    .tolist()
+                ]
+            ),
+        )
+
+    return selected_mask
+
+
+def get_target_points(  # noqa: PLR0915
     source_points,
     target_probabilities,
+    tufts_dist_df: pd.DataFrame | None = None,
     duplicate_precision: float | None = None,
     *,
     atlas: AtlasHelper | None = None,
@@ -182,45 +234,27 @@ def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
     ].reset_index(drop=True)
 
     # Ensure that at least one region is selected for each morphology
-    probs["random_number"] = pd.Series(-1, index=probs.index.to_numpy(), dtype=float)
-    no_target_mask = probs["random_number"] < 0
-    n_tries = 0
-    mask_size = no_target_mask.sum()
-    selected_mask = pd.Series(data=True, index=probs.index, dtype=bool)
-    while n_tries < max_tries and mask_size > 0:
-        # Select the populations according to the associated probabilities
-        probs.loc[no_target_mask, "random_number"] = rng.uniform(size=mask_size)
-        selected_mask = probs["random_number"] <= probs["target_probability"]
+    selected_mask = pick_target_populations(probs, rng, logger, max_tries)
 
-        # TODO: Here we implicitly suppose that we want to select at least 1 target per axon, but
-        # maybe we want a customizable minimum number of targets?
+    def draw_tuft_number(row) -> int:
+        try:
+            return max(
+                1,
+                int(
+                    rng.normal(
+                        tufts_dist_df.loc[row["target_population_id"], "mean_tuft_number"],  # type: ignore[union-attr]
+                        tufts_dist_df.loc[row["target_population_id"], "std_tuft_number"],  # type: ignore[union-attr]
+                    )
+                ),
+            )
+        except (KeyError, AttributeError):
+            return 1
 
-        # Check which axons don't have any selected target
-        no_target_mask = probs.merge(
-            probs.loc[selected_mask, ["morphology", "axon_id", "random_number"]].drop_duplicates(
-                subset=["morphology", "axon_id"]
-            ),
-            on=["morphology", "axon_id"],
-            how="left",
-            suffixes=("", "_tmp"),
-        )["random_number_tmp"].isna()
+    # Set the number of tufts to grow for each target population
+    probs["num_tufts_to_grow"] = 0
+    probs.loc[selected_mask, "num_tufts_to_grow"] = probs.apply(draw_tuft_number, axis=1)
 
-        mask_size = no_target_mask.sum()
-        n_tries = n_tries + 1
-
-    if mask_size > 0:
-        logger.warning(
-            "Could not find any target for the following morphologies: %s",
-            ", ".join(
-                [
-                    f"{i[0]} (axon ID={i[1]})"
-                    for i in probs.loc[no_target_mask, ["morphology", "axon_id"]]
-                    .drop_duplicates()
-                    .to_numpy()
-                    .tolist()
-                ]
-            ),
-        )
+    logging.info("Total number of target points: %d", probs["num_tufts_to_grow"].sum())
 
     probs_cols = [
         "morphology",
@@ -228,6 +262,7 @@ def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
         "source_brain_region_id",
         "target_population_id",
         "target_brain_region_id",
+        "num_tufts_to_grow",
     ]
     if not set(TARGET_COORDS_COLS).difference(probs.columns):
         probs_cols.extend(TARGET_COORDS_COLS)
@@ -239,6 +274,12 @@ def get_target_points(  # noqa: PLR0915 ; pylint: disable=too-many-statements
         on=["morphology", "axon_id", "source_brain_region_id"],
         how="left",
     ).dropna(subset=["target_population_id"])
+
+    # Duplicate row according to the number of tuft in each population
+    repeated_index = np.repeat(target_points.index, target_points["num_tufts_to_grow"].astype(int))
+
+    # Reindex the DataFrame with the new repeated index
+    target_points = target_points.loc[repeated_index].reset_index(drop=True)
 
     compute_coords(target_points, brain_regions_masks, atlas=atlas, rng=rng)
 

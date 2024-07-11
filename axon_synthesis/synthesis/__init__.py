@@ -77,10 +77,14 @@ class SynthesisConfig:
     Attributes:
         morphology_dir: Path to the directory containing the input morphologies.
         morphology_data_file: Path to the MVD3 or SONATA file containing the morphology data.
-        input_dir: Path to the directory containing the inputs.
         axon_grafting_points_file: Path to the HDF5 file containing the section IDs where the axons
             should be grafted in the input morphologies (axons are grafted to the soma if not
             provided).
+        input_dir: Path to the directory containing the inputs.
+        population_probabilities_file: Path to the file containing the population probabilities.
+        projection_probabilities_file: Path to the file containing the projection probabilities.
+        population_tuft_number_file: Path to the file containing the distribution of number of tufts
+            per pathway.
         trunk_properties_file: Path to the file containing the trunk properties.
         tuft_properties_file: Path to the file containing the tuft properties.
         tuft_distributions_file: Path to the file containing the distributions used for tuft
@@ -99,6 +103,9 @@ class SynthesisConfig:
         default=None, converter=converters.optional(Path)
     )
     projection_probabilities_file: FileType | None = field(
+        default=None, converter=converters.optional(Path)
+    )
+    population_tuft_number_file: FileType | None = field(
         default=None, converter=converters.optional(Path)
     )
     trunk_properties_file: FileType | None = field(
@@ -624,6 +631,7 @@ def synthesize_axons(
     target_points = get_target_points(
         source_points,
         inputs.projection_probabilities,
+        inputs.tuft_number,
         create_graph_config.duplicate_precision,
         atlas=inputs.atlas,
         brain_regions_masks=inputs.brain_regions_mask_file,

@@ -39,6 +39,7 @@ class Inputs(BasePathBuilder):
         "METADATA_FILENAME": "metadata.json",
         "POPULATION_NEURON_NUMBERS_FILENAME": "neuron_density.csv",
         "POPULATION_PROBABILITIES_FILENAME": "population_probabilities.csv",
+        "POPULATION_TUFT_NUMBER_FILENAME": "tufts_numbers_distribution.json",
         "PROJECTION_PROBABILITIES_FILENAME": "projection_probabilities.csv",
         "TUFT_DISTRIBUTIONS_FILENAME": "tuft_distributions.json",
         "TUFT_PARAMETERS_FILENAME": "tuft_parameters.json",
@@ -83,6 +84,7 @@ class Inputs(BasePathBuilder):
         self.projection_probabilities: pd.DataFrame | None = None
         self.tuft_distributions: dict | None = None
         self.tuft_parameters: dict | None = None
+        self.tuft_number: pd.DataFrame | None = None
         self.wmr: WhiteMatterRecipe | None = None
 
         if self.METADATA_FILENAME.exists():
@@ -303,6 +305,22 @@ class Inputs(BasePathBuilder):
                 },
             }
         )
+
+        self.update_from_dict(
+            "population_tuft_number_file", "POPULATION_TUFT_NUMBER_FILENAME", kwargs
+        )
+        if self.POPULATION_TUFT_NUMBER_FILENAME.exists():
+            with self.POPULATION_TUFT_NUMBER_FILENAME.open(mode="r", encoding="utf-8") as f:
+                number = pd.DataFrame(json.load(f)).set_index("target_population_id")
+            if (number["mean_tuft_number"] <= 0).any():
+                LOGGER.error(
+                    (
+                        "The number of tuft must be greater than 0 for all populations but it's "
+                        "not the case for the following ones: %s"
+                    ),
+                    number.loc[number["mean_tuft_number"] < 0].index.tolist(),
+                )
+            self.tuft_number = number
 
     def load_tuft_params_and_distrs(self, **kwargs):
         """Load and validate the parameters and distributions used to generate the tufts."""
