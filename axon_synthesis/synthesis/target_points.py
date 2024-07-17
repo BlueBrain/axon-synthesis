@@ -1,4 +1,5 @@
 """Find the target points of the input morphologies."""
+import itertools
 import logging
 from typing import Any
 
@@ -68,18 +69,18 @@ def compute_coords(
             ) + atlas.get_random_voxel_shifts(len(target_points), rng=rng)
 
 
-def drop_close_points(
+def select_close_points_in_group(
     all_points_df: pd.DataFrame, duplicate_precision: float | None
-) -> pd.DataFrame:
-    """Drop points that are closer to a given distance."""
-    if duplicate_precision is None:
-        return all_points_df
+) -> dict:
+    """Select points that are closer to a given distance."""
+    if len(all_points_df) <= 1:
+        return {}
 
     tree = KDTree(all_points_df[TARGET_COORDS_COLS])
     close_pts = tree.query_pairs(duplicate_precision)
 
     if not close_pts:
-        return all_points_df
+        return {}
 
     # Find labels of duplicated points
     to_update: dict[Any, Any] = {}
@@ -93,22 +94,43 @@ def drop_close_points(
         else:
             to_update[label_a] = {label_b}
 
+    return to_update
+
+
+def drop_close_points(
+    all_points_df: pd.DataFrame, duplicate_precision: float | None
+) -> pd.DataFrame:
+    """Drop points that are closer to a given distance."""
+    if duplicate_precision is None or len(all_points_df) <= 1:
+        return all_points_df
+
+    all_groups = all_points_df.groupby(["morphology", "axon_id"], group_keys=True)
+    deduplicated = all_groups[TARGET_COORDS_COLS].apply(
+        lambda group: select_close_points_in_group(group, duplicate_precision)
+    )
+
     # Format the labels
-    skip = set()
-    items = list(to_update.items())
-    for num, (i, j) in enumerate(items):
-        if i in skip:
-            continue
-        for ii, jj in items[num + 1 :]:
-            if i in jj or ii in j:
-                j.update(jj)
-                skip.add(ii)
-                skip.update(jj)
-    new_to_update = [i for i in items if i[0] not in skip]
+    def format_labels(to_update) -> list:
+        skip = set()
+        items = list(to_update.items())
+        for num, (i, j) in enumerate(items):
+            if i in skip:
+                continue
+            for ii, jj in items[num + 1 :]:
+                if i in jj or ii in j:
+                    j.update(jj)
+                    skip.add(ii)
+                    skip.update(jj)
+        return [i for i in items if i[0] not in skip]
+
+    to_update = list(itertools.chain.from_iterable(deduplicated.apply(format_labels)))
 
     # Update the terminal IDs
-    for ref, changed in new_to_update:
+    for ref, changed in to_update:
         all_points_df.loc[list(changed), "terminal_id"] = all_points_df.loc[ref, "terminal_id"]
+
+    if "level_2" in all_points_df.columns:
+        all_points_df = all_points_df.drop(columns=["level_2"])
 
     return all_points_df
 
@@ -158,7 +180,7 @@ def pick_target_populations(probs, rng, logger=None, max_tries=10):
     return selected_mask
 
 
-def get_target_points(  # noqa: PLR0915
+def get_target_points(
     source_points,
     target_probabilities,
     tufts_dist_df: pd.DataFrame | None = None,
@@ -316,31 +338,13 @@ def get_target_points(  # noqa: PLR0915
         },
     )
 
-    # #################################################### #
-    deduplicated = target_points.groupby(["morphology", "axon_id"], group_keys=True).apply(
-        lambda group: drop_close_points(group, duplicate_precision)
-    )
-    target_points = deduplicated.reset_index(
-        drop=all(col in deduplicated.columns for col in ["morphology", "axon_id"])
-    )
-    if "level_2" in target_points.columns:
-        target_points = target_points.drop(columns=["level_2"])
-
-    # The above part is only to make it compatible with Pandas < 2.2
-    # For newer versions it will be possible to use the following:
-
-    # target_points = (
-    #     target_points.groupby(["morphology", "axon_id"])
-    #     .apply(lambda group: drop_close_points(group, duplicate_precision))
-    #     .reset_index(drop=False)
-    #     .drop(columns=["level_2"])
-    # )
-    # #################################################### #
+    target_points = drop_close_points(target_points, duplicate_precision)
 
     # Export the target points
     if output_path is not None:
         with ignore_warnings(pd.errors.PerformanceWarning):
             target_points.to_hdf(output_path, key="target_points")
+        logger.debug("Target points exported to %s", output_path)
 
     logger.debug("Found %s target point(s)", len(target_points))
 
