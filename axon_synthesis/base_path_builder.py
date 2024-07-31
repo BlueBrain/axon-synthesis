@@ -7,7 +7,7 @@ from typing import ClassVar
 
 from axon_synthesis.typing import FileType
 
-FILE_SELECTION = IntEnum("LoadingType", ["ALL", "REQUIRED_ONLY", "OPTIONAL_ONLY", "NONE"])
+FILE_SELECTION = IntEnum("FILE_SELECTION", ["ALL", "REQUIRED_ONLY", "OPTIONAL_ONLY", "NONE"])
 
 
 class BasePathBuilder:

@@ -67,6 +67,14 @@ def compute_coords(
                 target_points[TARGET_COORDS_COLS].to_numpy()  # noqa: RUF005
                 + [0.5, 0.5, 0.5]
             ) + atlas.get_random_voxel_shifts(len(target_points), rng=rng)
+            # place the targets in the correct hemisphere, if hemisphere is given
+            if "target_hemisphere" in target_points.columns:
+                target_points[TARGET_COORDS_COLS] = target_points.apply(  # type: ignore[call-overload]
+                    lambda row: atlas.place_point_in_hemisphere(
+                        row[TARGET_COORDS_COLS], row["target_hemisphere"]
+                    ),
+                    axis=1,
+                )[TARGET_COORDS_COLS]
 
 
 def select_close_points_in_group(
@@ -230,8 +238,8 @@ def get_target_points(
             if not set(TARGET_COORDS_COLS).difference(target_probabilities.columns)
             else []
         )
+        + (["target_hemisphere"] if "target_hemisphere" in target_probabilities.columns else [])
     ]
-
     # Get the probabilities
     probs = cells_region_parents.merge(
         target_probabilities.rename(columns={"probability": "target_probability"}),
@@ -239,7 +247,6 @@ def get_target_points(
         right_on=["source_population_id"],
         how="left",
     )
-
     # Report missing probabilities
     missing_probs = probs.loc[probs["target_probability"].isna()]
     if len(missing_probs) > 0:
@@ -276,8 +283,6 @@ def get_target_points(
     probs["num_tufts_to_grow"] = 0
     probs.loc[selected_mask, "num_tufts_to_grow"] = probs.apply(draw_tuft_number, axis=1)
 
-    logging.info("Total number of target points: %d", probs["num_tufts_to_grow"].sum())
-
     probs_cols = [
         "morphology",
         "axon_id",
@@ -286,6 +291,8 @@ def get_target_points(
         "target_brain_region_id",
         "num_tufts_to_grow",
     ]
+    if "target_hemisphere" in probs.columns:
+        probs_cols.append("target_hemisphere")
     if not set(TARGET_COORDS_COLS).difference(probs.columns):
         probs_cols.extend(TARGET_COORDS_COLS)
     target_points = source_points.merge(
@@ -304,7 +311,6 @@ def get_target_points(
     target_points = target_points.loc[repeated_index].reset_index(drop=True)
 
     compute_coords(target_points, brain_regions_masks, atlas=atlas, rng=rng)
-
     # Build terminal IDs inside groups
     counter = target_points[["morphology", "axon_id"]].copy(deep=False)
     counter["counter"] = 1
@@ -346,7 +352,7 @@ def get_target_points(
             target_points.to_hdf(output_path, key="target_points")
         logger.debug("Target points exported to %s", output_path)
 
-    logger.debug("Found %s target point(s)", len(target_points))
+    logger.info("Found %s target point(s)", len(target_points))
 
     return target_points.sort_values(["morphology", "axon_id", "terminal_id"]).reset_index(
         drop=True

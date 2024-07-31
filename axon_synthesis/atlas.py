@@ -19,6 +19,7 @@ from voxcell.nexus.voxelbrain import Atlas
 from voxcell.voxel_data import ValueToIndexVoxels
 
 from axon_synthesis.typing import ArrayLike
+from axon_synthesis.typing import CoordsType
 from axon_synthesis.typing import FileType
 from axon_synthesis.typing import LayerNamesType
 from axon_synthesis.typing import RegionIdsType
@@ -409,3 +410,47 @@ class AtlasHelper:
             .sort_values(["id", "st_level"], ascending=[True, False])
             .reset_index(drop=True)
         )
+
+    def get_hemisphere(self, coord: CoordsType, h_axis: int = 2) -> str:
+        """Return the hemisphere of the given coordinate.
+
+        Args:
+            coord: The coordinate of the point.
+            h_axis: The axis along which to check the hemisphere.
+
+        Returns:
+            The hemisphere of the given coordinate, 'L' or 'R'.
+        """
+        hemisphere_frontier = (
+            self.brain_regions.bbox[1][h_axis] - self.brain_regions.bbox[0][h_axis]
+        ) * 0.5
+        if coord[h_axis] < hemisphere_frontier:
+            return "L"
+        return "R"
+
+    def place_point_in_hemisphere(
+        self, coord: CoordsType, hemisphere: str, h_axis: int = 2
+    ) -> CoordsType:
+        """Place the point in the given hemisphere.
+
+        If the point is already in the given hemisphere, nothing is done.
+        If the point is in the opposite hemisphere, an axial symmetry of axis h_axis is performed.
+
+        Args:
+            coord: The coordinate of the point.
+            hemisphere: The hemisphere where the point should be ('L' or 'R').
+            h_axis: The axis along which to check the hemisphere.
+
+        Returns:
+            The coordinate of the point in the given hemisphere.
+        """
+        coord_curr_hemisphere = self.get_hemisphere(coord, h_axis)
+        hemisphere_frontier = (
+            self.brain_regions.bbox[1][h_axis] - self.brain_regions.bbox[0][h_axis]
+        ) * 0.5
+        if coord_curr_hemisphere == "L" and hemisphere == "R":
+            coord[h_axis] += hemisphere_frontier
+        elif coord_curr_hemisphere == "R" and hemisphere == "L":
+            coord[h_axis] -= hemisphere_frontier
+        # else, the coord is in the correct hemisphere: nothing to do
+        return coord

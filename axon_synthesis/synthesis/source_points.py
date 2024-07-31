@@ -79,6 +79,15 @@ def map_population(
             == probs.groupby(["morphology", "source_brain_region_id"])["st_level"].transform("max")
         ]
 
+        # if probs has column 'hemisphere', select probabilities also on hemispheres
+        if "hemisphere" in probs.columns:
+            # rename 'hemisphere' to 'population_hemisphere' to not mistake with the cell
+            probs = probs.rename(columns={"hemisphere": "population_hemisphere"})
+            # add a column 'cell_hemisphere' for each cell
+            probs["cell_hemisphere"] = probs[COORDS_COLS].apply(atlas.get_hemisphere, axis=1)
+            # and drop the rows where the cell and the population are not in the same hemisphere
+            probs = probs.loc[probs["cell_hemisphere"] == probs["population_hemisphere"]]
+
         # Select the populations according to the associated probabilities
         selected = probs.groupby(["morphology", "source_brain_region_id"]).sample(
             weights=probs["population_probability"],
