@@ -470,6 +470,9 @@ def synthesize_one_morph_axons(
 
             # TODO: Diametrize the synthesized axon
 
+        # Remove unifurcations of the final morphology
+        morph.remove_unifurcations()
+
         # Export the final morph
         final_morph_path = outputs.MORPHOLOGIES / f"{morph_name}.h5"
         save_morphology(
