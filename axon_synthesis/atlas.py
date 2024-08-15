@@ -411,12 +411,13 @@ class AtlasHelper:
             .reset_index(drop=True)
         )
 
-    def get_hemisphere(self, coord: CoordsType, h_axis: int = 2) -> str:
+    def get_hemisphere(self, coord: CoordsType, h_axis: int = 2, h_origin: str = "L") -> str:
         """Return the hemisphere of the given coordinate.
 
         Args:
             coord: The coordinate of the point.
             h_axis: The axis along which to check the hemisphere.
+            h_origin: The origin of the hemisphere ('L' or 'R').
 
         Returns:
             The hemisphere of the given coordinate, 'L' or 'R'.
@@ -425,11 +426,12 @@ class AtlasHelper:
             self.brain_regions.bbox[1][h_axis] - self.brain_regions.bbox[0][h_axis]
         ) * 0.5
         if coord[h_axis] < hemisphere_frontier:
-            return "L"
-        return "R"
+            return h_origin
+        # else return the opposite hemisphere
+        return "R" if h_origin == "L" else "L"
 
     def place_point_in_hemisphere(
-        self, coord: CoordsType, hemisphere: str, h_axis: int = 2
+        self, coord: CoordsType, hemisphere: str, h_axis: int = 2, h_origin: str = "L"
     ) -> CoordsType:
         """Place the point in the given hemisphere.
 
@@ -440,17 +442,21 @@ class AtlasHelper:
             coord: The coordinate of the point.
             hemisphere: The hemisphere where the point should be ('L' or 'R').
             h_axis: The axis along which to check the hemisphere.
+            h_origin: The origin of the hemisphere ('L' or 'R').
 
         Returns:
             The coordinate of the point in the given hemisphere.
         """
-        coord_curr_hemisphere = self.get_hemisphere(coord, h_axis)
+        coord_curr_hemisphere = self.get_hemisphere(coord, h_axis, h_origin)
         hemisphere_frontier = (
             self.brain_regions.bbox[1][h_axis] - self.brain_regions.bbox[0][h_axis]
         ) * 0.5
-        if coord_curr_hemisphere == "L" and hemisphere == "R":
-            coord[h_axis] += hemisphere_frontier
-        elif coord_curr_hemisphere == "R" and hemisphere == "L":
-            coord[h_axis] -= hemisphere_frontier
+        if (
+            coord_curr_hemisphere == "L"
+            and hemisphere == "R"
+            or coord_curr_hemisphere == "R"
+            and hemisphere == "L"
+        ):
+            coord[h_axis] = 2 * hemisphere_frontier - coord[h_axis]
         # else, the coord is in the correct hemisphere: nothing to do
         return coord
