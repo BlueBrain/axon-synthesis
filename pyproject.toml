@@ -43,8 +43,7 @@ mpi = [
     "mpi4py>=3.1.1",
 ]
 test = [
-    "dir-content-diff>=1.8",
-    "dir-content-diff-plugins>=0.0.6",
+    "dir-content-diff>=1.9.1",
     "matplotlib>=3.5",
     "mock>=3",
     "pytest>=6",
@@ -192,7 +191,6 @@ module = [
     "dask_mpi.*",
     "diff_pdf_visually.*",
     "dir_content_diff.*",
-    "dir_content_diff_plugins.*",
     "h5py.*",
     "morph_tool.*",
     "morphio.*",

@@ -4,7 +4,7 @@ import logging
 import shutil
 from pathlib import Path
 
-import dir_content_diff.pandas
+import dir_content_diff.comparators.pandas
 import pytest
 from voxcell.nexus.voxelbrain import Atlas
 
@@ -16,7 +16,7 @@ from .data_factories import generate_small_O1
 logging.getLogger("matplotlib").disabled = True
 logging.getLogger("matplotlib.font_manager").disabled = True
 
-dir_content_diff.pandas.register()
+dir_content_diff.comparators.pandas.register()
 
 
 def pytest_addoption(parser):

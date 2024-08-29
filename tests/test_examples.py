@@ -2,12 +2,12 @@
 import shutil
 from pathlib import Path
 
-import dir_content_diff.pandas
 import pytest
 from dir_content_diff import assert_equal_trees
 from dir_content_diff import get_comparators
-from dir_content_diff_plugins.morphologies import MorphologyComparator
-from dir_content_diff_plugins.voxcell import CellCollectionComparator
+from dir_content_diff.comparators.morphio import MorphologyComparator
+from dir_content_diff.comparators.pandas import HdfComparator
+from dir_content_diff.comparators.voxcell import CellCollectionComparator
 
 import axon_synthesis.cli
 
@@ -125,12 +125,12 @@ def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_worker
             },
             "GraphCreationData data": {
                 "patterns": [r"synthesis_basic_\S*/GraphCreationData/\S*\.h5$"],
-                "comparator": dir_content_diff.pandas.HdfComparator(),
+                "comparator": HdfComparator(),
                 "load_kwargs": {"key": "nodes"},
             },
             "SteinerTreeSolutions data": {
                 "patterns": [r"synthesis_basic_\S*/SteinerTreeSolutions/\S*\.h5$"],
-                "comparator": dir_content_diff.pandas.HdfComparator(),
+                "comparator": HdfComparator(),
                 "load_kwargs": {"key": "solution_nodes"},
             },
             "inputs/metadata.json": {
@@ -195,7 +195,7 @@ def test_mimic_example(testing_dir, data_dir, example_dir, cli_runner, nb_worker
             },
             "Target points": {
                 "patterns": [r"synthesis_basic_\S*/target_points.h5"],
-                "comparator": dir_content_diff.pandas.HdfComparator(),
+                "comparator": HdfComparator(),
                 "format_data_kwargs": {
                     "replace_pattern": {
                         out_dir_pattern: [
