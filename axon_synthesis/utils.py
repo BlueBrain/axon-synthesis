@@ -37,6 +37,7 @@ from morphio.mut import Morphology as MorphIoMorphology
 from neurom import NeuriteType
 from neurom import load_morphology as neurom_load_morphology
 from neurom.core import Morphology
+from neurom.core.morphology import iter_neurites
 from neurom.core.soma import SomaType
 from neurom.geom.transform import Translation
 from voxcell.cell_collection import CellCollection
@@ -387,12 +388,12 @@ def neurite_to_graph_old(neurite, graph_cls=nx.DiGraph, **graph_kwargs):
     return nodes, edges, graph
 
 
-def export_morph_edges(morph, output_path, logger=None):
+def export_morph_edges(morph, output_path, neurite_filter=None, logger=None):
     """Export the morphology as DataFrame for later analysis."""
     if logger is None:
         logger = LOGGER
     all_edges = []
-    for i in morph.neurites:
+    for i in iter_neurites(morph, filt=neurite_filter):
         _nodes, edges = neurite_to_pts(i, keep_section_segments=True, edges_with_coords=True)
         edges.loc[:, "neurite_type"] = i.type
         all_edges.append(edges)
