@@ -41,7 +41,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 def create_cell_collection(
-    morphology_dir, output_path: FileType | None = None, convert_to: FileType | None = None
+    morphology_dir,
+    output_path: FileType | None = None,
+    convert_to: FileType | None = None,
+    *,
+    recenter: bool = True,
 ) -> CellCollection:
     """Create a CellCollection object from a directory containing morphologies."""
     morphology_dir = Path(morphology_dir)
@@ -58,7 +62,8 @@ def create_cell_collection(
             converted_file.parent.mkdir(parents=True, exist_ok=True)
             morph = load_morphology(file)
             registered_centers[num] = morph.soma.center
-            morph = morph.transform(Translation(-morph.soma.center))
+            if recenter:
+                morph = morph.transform(Translation(-morph.soma.center))
             with disable_loggers("morph_tool.converter"):
                 convert(morph, converted_file, nrn_order=True)
             morph_files.append(converted_file)
@@ -76,7 +81,10 @@ def create_cell_collection(
     )
     cells_df["mtype"] = DEFAULT_POPULATION
     cells_df["region"] = DEFAULT_POPULATION
-    cells_df[COORDS_COLS] = centers
+    if recenter:
+        cells_df[COORDS_COLS] = centers
+    else:
+        cells_df[COORDS_COLS] = registered_centers
     cells_df[ATLAS_COORDS_COLS] = registered_centers
     cells_df["orientation"] = [np.eye(3)] * len(cells_df)
     cells_df = cells_df.sort_values("morphology", ignore_index=True)

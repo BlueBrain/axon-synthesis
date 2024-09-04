@@ -352,7 +352,7 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
         # TODO: Fix the WMR stuff
         try:
             target_atlas_region_id = brain_regions.lookup(  # type: ignore[union-attr]
-                cluster_center
+                common_section.points[-1]
             )
         except:  # noqa: E722 ; pylint: disable=bare-except
             target_atlas_region_id = 0

@@ -47,7 +47,7 @@ class AtlasConfig:
     """
 
     path: Path = field(converter=Path)
-    region_filename: Path = field(converter=Path)
+    region_filename: Path = field(converter=Path, default=Path("brain_regions"))
     # flatmap_filename: Path = field(converter=Path)
     layer_names: LayerNamesType | None = field(default=None)
     load_region_map: bool = field(default=False)

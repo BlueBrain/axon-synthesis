@@ -109,6 +109,25 @@ class CreateGraphConfig:
     # Terminal penalty
     use_terminal_penalty: bool = field(default=False)
 
+    def __attrs_post_init__(self):
+        """Check consistency of new instances."""
+        if self.preferred_regions is not None and self.preferred_region_min_distance is None:
+            msg = (
+                "A preferred region list was given without any related distance, please provide "
+                "at least one of the following parameters: "
+                "'preferred_region_min_random_point_distance', 'min_random_point_distance'",
+            )
+            raise ValueError(msg)
+
+    @property
+    def preferred_region_min_distance(self):
+        """Get the min distance used to generate random points in the preferred regions."""
+        return (
+            self.preferred_region_min_random_point_distance
+            if self.preferred_region_min_random_point_distance is not None
+            else self.min_random_point_distance
+        )
+
     def pick_preferred_region_random_points(self, rng=None, max_tries: int = 10):
         """Create random points in preferred regions with min distance between them."""
         if self.preferred_region_tree is None:
@@ -120,11 +139,7 @@ class CreateGraphConfig:
         rng = np.random.default_rng(rng)
         n_fails = 0
         new_pts: list[np.ndarray] = []
-        min_dist = (
-            self.preferred_region_min_random_point_distance
-            if self.preferred_region_min_random_point_distance is not None
-            else self.min_random_point_distance
-        )
+        min_dist = self.preferred_region_min_distance
         while n_fails < max_tries:
             xyz = rng.choice(self.preferred_region_tree.data)
             if (
@@ -170,6 +185,52 @@ class CreateGraphConfig:
         self.preferred_region_tree = KDTree(data)
 
 
+def _add_points(source_coords, pts, config, depths, rng, logger) -> tuple:
+    """Add all points to the source and target points."""
+    # Add intermediate points
+    all_pts = add_intermediate_points(
+        pts,
+        source_coords,
+        config.min_intermediate_distance,
+        config.intermediate_number,
+    )
+
+    # Add random points from the preferred regions
+    if config.preferred_region_tree is not None:
+        preferred_region_pts = config.pick_preferred_region_random_points(rng=rng)
+        logger.info("Random points added in the preferred regions: %s", len(preferred_region_pts))
+        all_pts = np.concatenate(
+            [
+                all_pts,
+                preferred_region_pts,
+            ]
+        )
+
+    # Add random points from other regions
+    all_pts = add_random_points(
+        all_pts,
+        config.min_random_point_distance,
+        config.random_point_bbox_buffer,
+        rng,
+        logger=logger,
+    )
+
+    # Add the bounding box points to ensure a minimum number of points
+    all_pts = add_bounding_box_pts(all_pts)
+
+    # Get bbox of points before adding Voronoi points that can go very far
+    current_bbox = compute_bbox(all_pts[:, :3], 0.1)
+    if depths is not None:
+        # Clip the bbox the keep it inside the atlas
+        current_bbox[0] = np.clip(current_bbox[0], a_min=depths.bbox[0], a_max=np.inf)
+        current_bbox[1] = np.clip(current_bbox[1], a_min=-np.inf, a_max=depths.bbox[1])
+
+    # Add Voronoï points
+    all_pts = add_voronoi_points(all_pts, config.voronoi_steps)
+
+    return all_pts, current_bbox
+
+
 def one_graph(
     source_coords: np.ndarray,
     target_points: pd.DataFrame,
@@ -201,44 +262,8 @@ def one_graph(
         )
     )
 
-    # Add intermediate points
-    all_pts = add_intermediate_points(
-        pts,
-        source_coords,
-        config.min_intermediate_distance,
-        config.intermediate_number,
-    )
-
-    # Add random points from the preferred regions
-    if config.preferred_region_tree is not None:
-        all_pts = np.concatenate(
-            [
-                all_pts,
-                config.pick_preferred_region_random_points(rng=rng),
-            ]
-        )
-
-    # Add random points from other regions
-    all_pts = add_random_points(
-        all_pts,
-        config.min_random_point_distance,
-        config.random_point_bbox_buffer,
-        rng,
-        logger=logger,
-    )
-
-    # Add the bounding box points to ensure a minimum number of points
-    all_pts = add_bounding_box_pts(all_pts)
-
-    # Get bbox of points before adding Voronoi points that can go very far
-    current_bbox = compute_bbox(all_pts[:, :3], 0.1)
-    if depths is not None:
-        # Clip the bbox the keep it inside the atlas
-        current_bbox[0] = np.clip(current_bbox[0], a_min=depths.bbox[0], a_max=np.inf)
-        current_bbox[1] = np.clip(current_bbox[1], a_min=-np.inf, a_max=depths.bbox[1])
-
-    # Add Voronoï points
-    all_pts = add_voronoi_points(all_pts, config.voronoi_steps)
+    # Add other points
+    all_pts, current_bbox = _add_points(source_coords, pts, config, depths, rng, logger)
 
     # Gather points
     nodes_df = pd.DataFrame(all_pts, columns=[*COORDS_COLS, "NodeProvider"])
