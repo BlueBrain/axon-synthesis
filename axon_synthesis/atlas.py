@@ -1,4 +1,5 @@
 """Helpers for atlas."""
+
 import contextlib
 import copy
 import json
@@ -63,7 +64,7 @@ class AtlasConfig:
             data["path"],
             data["region_filename"],
             # data["flatmap_filename"],
-            data.get("layer_names", None),
+            data.get("layer_names"),
         )
 
 

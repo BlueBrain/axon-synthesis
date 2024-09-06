@@ -1,4 +1,5 @@
 """Main entry point of the Command Line Interface for the axon_synthesis package."""
+
 import logging
 import sys
 from pathlib import Path

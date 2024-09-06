@@ -1,4 +1,5 @@
 """Common entries of the Command Line Interface."""
+
 import functools
 from collections.abc import Callable
 

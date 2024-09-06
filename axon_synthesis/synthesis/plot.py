@@ -1,4 +1,5 @@
 """Some plot utils for create graph."""
+
 from pathlib import Path
 
 import numpy as np

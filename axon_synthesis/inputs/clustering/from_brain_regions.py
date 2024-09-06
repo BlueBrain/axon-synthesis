@@ -1,4 +1,5 @@
 """Clustering from brain regions."""
+
 import logging
 from pathlib import Path
 
@@ -413,8 +414,7 @@ def compute_clusters(  # noqa: PLR0913
 
     new_terminal_points = []
     # new_terminal_id = group["terminal_id"].max() + 1
-    new_terminal_id = 0
-    for cluster_id, i in group.groupby("tuft_id"):
+    for new_terminal_id, (cluster_id, i) in enumerate(group.groupby("tuft_id")):
         new_terminal_points.append(
             [
                 group_name,
@@ -426,7 +426,6 @@ def compute_clusters(  # noqa: PLR0913
                 *i[COORDS_COLS].mean().tolist(),
             ],
         )
-        new_terminal_id += 1
 
     if debug:
         plot(

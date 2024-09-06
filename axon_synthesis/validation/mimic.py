@@ -1,4 +1,5 @@
 """Validation workflow that mimics inputs morphologies."""
+
 import logging
 import re
 from functools import partial

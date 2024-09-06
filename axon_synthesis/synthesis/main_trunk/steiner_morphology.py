@@ -1,4 +1,5 @@
 """Create morphologies from the Steiner Tree solutions."""
+
 import logging
 from pathlib import Path
 

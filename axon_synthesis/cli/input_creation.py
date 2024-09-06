@@ -1,4 +1,5 @@
 """Entries of the Command Line Interface dedicated to the input creation."""
+
 from pathlib import Path
 
 import click

@@ -1,4 +1,5 @@
 """Update the properties of the tufts that will be generated later."""
+
 import logging
 
 import pandas as pd

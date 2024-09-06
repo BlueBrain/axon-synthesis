@@ -1,4 +1,5 @@
 """Configuration for the pytest test suite."""
+
 # pylint: disable=redefined-outer-name
 import logging
 import shutil
@@ -29,7 +30,7 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def interactive_plots(request):
     """The value given to the option for interactive plots."""
     return request.config.getoption("--interactive-plots")
@@ -41,32 +42,32 @@ def pytest_configure(config):
     plugin.mypy_argv.append("--check-untyped-defs")
 
 
-@pytest.fixture()
+@pytest.fixture
 def root_dir():
     """The root directory."""
     return Path(TEST_ROOT)
 
 
-@pytest.fixture()
+@pytest.fixture
 def data_dir():
     """The data directory."""
     return Path(DATA)
 
 
-@pytest.fixture()
+@pytest.fixture
 def example_dir():
     """The example directory."""
     return Path(EXAMPLES)
 
 
-@pytest.fixture()
+@pytest.fixture
 def testing_dir(tmpdir, monkeypatch):
     """The testing directory."""
     monkeypatch.chdir(tmpdir)
     return Path(tmpdir)
 
 
-@pytest.fixture()
+@pytest.fixture
 def out_dir(testing_dir):
     """The output directory."""
     path = testing_dir / "out"
@@ -82,13 +83,13 @@ def atlas_path(tmpdir_factory):
     return generate_small_O1(atlas_directory)
 
 
-@pytest.fixture()
+@pytest.fixture
 def atlas(atlas_path):
     """Load the small O1 atlas."""
     return Atlas.open(str(atlas_path))
 
 
-@pytest.fixture()
+@pytest.fixture
 def brain_regions(atlas):
     """Load the brain regions of the small O1 atlas."""
     return atlas.load_data("brain_regions")
@@ -103,7 +104,7 @@ def morphology_path(tmpdir_factory):
     return morph_directory
 
 
-@pytest.fixture()
+@pytest.fixture
 def wmr_path(out_dir):
     """Generate a white matter recipe file.
 
@@ -115,7 +116,7 @@ def wmr_path(out_dir):
     return wmr_filepath
 
 
-@pytest.fixture()
+@pytest.fixture
 def _tuft_inputs(testing_dir) -> None:
     """Copy inputs for tuft generation in the testing directory."""
     shutil.copyfile(DATA / "tuft_distributions.json", testing_dir / "tuft_distributions.json")

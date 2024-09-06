@@ -1,4 +1,5 @@
 """Test the examples."""
+
 import shutil
 from pathlib import Path
 

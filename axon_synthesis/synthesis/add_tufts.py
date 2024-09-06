@@ -1,4 +1,5 @@
 """Add tufts to Steiner solutions."""
+
 import logging
 from copy import deepcopy
 from pathlib import Path

@@ -1,4 +1,5 @@
 """Cluster the terminal points of a morphology to define a main truk and a set of tufts."""
+
 import json
 import logging
 import os

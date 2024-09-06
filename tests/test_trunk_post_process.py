@@ -1,4 +1,5 @@
 """Tests for the post-processing functions."""
+
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as npt

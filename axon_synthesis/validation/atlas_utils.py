@@ -1,4 +1,5 @@
 """Module to create custom atlases."""
+
 import json
 import logging
 from collections import OrderedDict

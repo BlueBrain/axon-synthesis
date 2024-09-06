@@ -1,4 +1,5 @@
 """Tests suite for the axon-synthesis package."""
+
 from contextlib import contextmanager
 from pathlib import Path
 

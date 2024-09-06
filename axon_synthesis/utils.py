@@ -1,4 +1,5 @@
 """Some utils for the AxonSynthesis package."""
+
 import collections.abc
 import hashlib
 import inspect

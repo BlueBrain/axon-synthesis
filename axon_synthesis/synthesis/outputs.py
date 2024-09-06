@@ -1,4 +1,5 @@
 """Define the class to store the synthesis outputs."""
+
 from pathlib import Path
 from typing import ClassVar
 

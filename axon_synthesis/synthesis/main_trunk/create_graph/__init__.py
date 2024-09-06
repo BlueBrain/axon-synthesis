@@ -2,6 +2,7 @@
 
 This is needed to easily compute a Steiner Tree (Euclidean Steiner Tree is complicated).
 """
+
 import logging
 from pathlib import Path
 

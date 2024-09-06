@@ -1,4 +1,5 @@
 """Module to define custom types used in axon-synthesis."""
+
 # pylint: disable=unused-import
 import os
 import sys

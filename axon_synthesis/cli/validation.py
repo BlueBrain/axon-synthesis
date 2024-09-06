@@ -1,4 +1,5 @@
 """Entries of the Command Line Interface dedicated to the validation."""
+
 import click
 
 from axon_synthesis.cli.common import parallel_kwargs_to_config

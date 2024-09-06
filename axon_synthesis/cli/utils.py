@@ -1,4 +1,5 @@
 """Some utils for the CLI of axon-synthesis."""
+
 import json
 from collections.abc import MutableMapping
 from copy import deepcopy

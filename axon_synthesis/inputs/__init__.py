@@ -1,4 +1,5 @@
 """Define the class to store the inputs."""
+
 import json
 import logging
 from importlib import resources

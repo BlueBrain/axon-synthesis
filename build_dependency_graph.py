@@ -1,4 +1,5 @@
 """This script creates a diagram of the axon-synthesis workflow."""
+
 from luigi_tools.util import get_dependency_graph
 from luigi_tools.util import graphviz_dependency_graph
 from luigi_tools.util import render_dependency_graph

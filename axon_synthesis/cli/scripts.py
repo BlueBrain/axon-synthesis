@@ -1,4 +1,5 @@
 """Entries of the Command Line Interface dedicated to the scripts."""
+
 import logging
 
 import click

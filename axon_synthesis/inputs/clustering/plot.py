@@ -1,4 +1,5 @@
 """Some plot utils for clustering."""
+
 from pathlib import Path
 
 import numpy as np

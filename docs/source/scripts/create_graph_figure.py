@@ -1,4 +1,5 @@
 """This script creates the figure associated to the graph creation."""
+
 import logging
 from pathlib import Path
 

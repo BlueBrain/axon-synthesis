@@ -2,6 +2,7 @@
 
 The solution is computed using the package pcst_fast: https://github.com/fraenkel-lab/pcst_fast
 """
+
 import logging
 from pathlib import Path
 

@@ -1,4 +1,5 @@
 """Generate atlas for tests."""
+
 # pylint: disable=missing-function-docstring
 import json
 import os

@@ -1,4 +1,5 @@
 """Create the source points from the atlas."""
+
 import logging
 from pathlib import Path
 

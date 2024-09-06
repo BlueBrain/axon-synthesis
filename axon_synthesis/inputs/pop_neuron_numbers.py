@@ -1,4 +1,5 @@
 """Create number of neurons in each population."""
+
 import logging
 from pathlib import Path
 

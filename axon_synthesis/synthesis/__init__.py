@@ -1,4 +1,5 @@
 """Base of the synthesis modules."""
+
 import json
 import logging
 import os

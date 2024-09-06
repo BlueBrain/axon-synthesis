@@ -1,4 +1,5 @@
 """Extract the terminal points of a morphology so that a Steiner Tree can be computed on them."""
+
 import logging
 
 import pandas as pd

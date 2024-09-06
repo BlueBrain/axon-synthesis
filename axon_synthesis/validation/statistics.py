@@ -1,4 +1,5 @@
 """Compute and plot some statistics."""
+
 import logging
 from pathlib import Path
 
@@ -311,7 +312,7 @@ def plot_score_matrix(
 
 
 # def to_stats(values):
-#     """Compute statistcs of the given list of values."""
+#     """Compute statistics of the given list of values."""
 #     if isinstance(values[0], list):
 #         values = np.array(list(chain.from_iterable(values)))
 #     else:

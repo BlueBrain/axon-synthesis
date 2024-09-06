@@ -1,4 +1,5 @@
 """Compute the long-range trunk properties after clustering."""
+
 import logging
 from functools import partial
 

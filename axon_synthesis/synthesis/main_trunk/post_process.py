@@ -1,4 +1,5 @@
 """Post-process the Steiner solutions."""
+
 import logging
 from collections.abc import Sequence
 from itertools import chain

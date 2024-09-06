@@ -1,4 +1,5 @@
 """Some utils for graph creation."""
+
 import logging
 
 import numpy as np

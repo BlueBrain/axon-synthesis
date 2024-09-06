@@ -1,4 +1,5 @@
 """Module to define a base class for relative paths storage and processing."""
+
 from copy import deepcopy
 from enum import IntEnum
 from pathlib import Path

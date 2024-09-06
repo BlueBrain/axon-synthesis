@@ -1,4 +1,5 @@
 """Store some constant values."""
+
 from enum import IntEnum
 
 

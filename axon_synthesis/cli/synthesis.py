@@ -1,4 +1,5 @@
 """Entries of the Command Line Interface dedicated to synthesis."""
+
 import functools
 from collections.abc import Callable
 

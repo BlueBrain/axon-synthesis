@@ -1,4 +1,5 @@
 """Package to create inputs."""
+
 import logging
 
 from axon_synthesis.atlas import AtlasConfig

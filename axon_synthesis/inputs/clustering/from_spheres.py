@@ -1,4 +1,5 @@
 """Clustering from spheres."""
+
 import logging
 
 import numpy as np

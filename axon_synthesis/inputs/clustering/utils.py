@@ -1,4 +1,5 @@
 """Some utils for clustering."""
+
 import logging
 from collections.abc import Iterator
 from collections.abc import Mapping

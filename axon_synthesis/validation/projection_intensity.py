@@ -1,4 +1,5 @@
 """Module with tools to compute the projection intensity."""
+
 import json
 import logging
 from pathlib import Path

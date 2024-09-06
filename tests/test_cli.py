@@ -1,4 +1,5 @@
 """Tests for the axon_synthesis.cli module."""
+
 from click import Context
 
 import axon_synthesis.cli
