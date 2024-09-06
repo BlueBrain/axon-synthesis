@@ -181,10 +181,10 @@ def compute_solution(
 
     logger.debug(
         "The solution contains %s among %s nodes and %s among %s edges",
-        len(nodes),
         len(in_solution_nodes),
-        len(edges),
+        len(nodes),
         len(in_solution_edges),
+        len(edges),
     )
 
     # Add node data to solution edges
