@@ -382,7 +382,7 @@ def synthesize_one_morph_axons(
             )
 
             seed = axon_terminals["seed"].to_numpy()[0]
-            morph_custom_logger.debug("Starting synthesis of axon %s (seed=%s)", axon_id, seed)
+            morph_custom_logger.info("Starting synthesis of axon %s (seed=%s)", axon_id, seed)
             rng = np.random.default_rng(seed)
 
             axon_paths = one_axon_paths(

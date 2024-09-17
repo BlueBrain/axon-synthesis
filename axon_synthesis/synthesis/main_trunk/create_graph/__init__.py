@@ -199,7 +199,7 @@ def _add_points(source_coords, pts, config, depths, rng, logger) -> tuple:
     # Add random points from the preferred regions
     if config.preferred_region_tree is not None:
         preferred_region_pts = config.pick_preferred_region_random_points(rng=rng)
-        logger.info("Random points added in the preferred regions: %s", len(preferred_region_pts))
+        logger.debug("Random points added in the preferred regions: %s", len(preferred_region_pts))
         all_pts = np.concatenate(
             [
                 all_pts,
@@ -312,11 +312,14 @@ def one_graph(
         TO_COORDS_COLS,
     )
 
+    logger.debug("%s edges created", len(edges_df))
+
     # Compute cumulative penalties
     penalties = np.ones(len(edges_df))
 
     # Increase the weight of edges whose angle with radial direction is close to pi/2
     if config.use_orientation_penalty:
+        logger.debug("Add orientation penalties to edge weights")
         penalties *= add_orientation_penalty(
             edges_df,
             FROM_COORDS_COLS,
@@ -328,6 +331,7 @@ def one_graph(
 
     # Increase the weight of edges which do not follow an iso-depth curve
     if config.use_depth_penalty and depths is not None:
+        logger.debug("Add depth penalties to edge weights")
         penalties *= add_depth_penalty(
             edges_df,
             FROM_COORDS_COLS,
@@ -339,6 +343,7 @@ def one_graph(
 
     # Reduce the lengths of edges that are close to the preferred regions
     if config.preferred_region_tree is not None:
+        logger.debug("Add preferred region rewards to edge weights")
         penalties *= add_preferred_reward(
             edges_df,
             FROM_COORDS_COLS,
@@ -362,11 +367,13 @@ def one_graph(
     # terminals of the tufts with Steiner Tree, we just generate long range trunk that
     # passes near the target points.
     if config.use_terminal_penalty:
+        logger.debug("Add terminal penalties to edge weights")
         add_terminal_penalty(edges_df, nodes_df)
 
-    logger.info("%s edges", len(edges_df))
+    logger.debug("All penalties added to edge weights")
 
     if output_path is not None:
+        logger.debug("Export nodes and edges to %s", output_path)
         Path(output_path).unlink(missing_ok=True)
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         nodes_df.to_hdf(output_path, key="nodes")

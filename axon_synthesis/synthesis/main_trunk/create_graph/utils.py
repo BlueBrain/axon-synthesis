@@ -128,7 +128,7 @@ def add_random_points(
 
         if new_pts:
             if logger is not None:
-                logger.info("Random points added: %s", len(new_pts))
+                logger.debug("Random points added: %s", len(new_pts))
             all_pts = np.concatenate(
                 [
                     all_pts,
@@ -164,7 +164,11 @@ def add_bounding_box_pts(all_pts):
     return new_all_pts[np.sort(np.unique(new_all_pts, axis=0, return_index=True)[1])]
 
 
-def add_voronoi_points(all_pts, voronoi_steps):
+def add_voronoi_points(
+    all_pts,
+    voronoi_steps: int,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
+):
     """Add Voronoi points between the given points."""
     if len(all_pts) < 5:
         return all_pts
@@ -177,10 +181,16 @@ def add_voronoi_points(all_pts, voronoi_steps):
             step_pts = vor.vertices
         new_pts = np.hstack([step_pts, np.ones((len(step_pts), 1)) * NodeProvider.Voronoi])
         all_pts = np.concatenate([all_pts, new_pts])  # pylint: disable=no-member
+    if logger is not None:
+        logger.debug("Added %s Voronoï points using %s steps", len(new_pts), voronoi_steps)
     return all_pts
 
 
-def drop_close_points(all_points_df, duplicate_precision):
+def drop_close_points(
+    all_points_df: pd.DataFrame,
+    duplicate_precision: float,
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
+):
     """Drop points that are closer to a given distance."""
     tree = KDTree(all_points_df[COORDS_COLS])
     close_pts = tree.query_pairs(duplicate_precision)
@@ -198,6 +208,10 @@ def drop_close_points(all_points_df, duplicate_precision):
             else:
                 to_drop.add(label_a)
 
+    if logger is not None:
+        logger.debug(
+            "Dropped %s close points using %s precision", len(to_drop), duplicate_precision
+        )
     return all_points_df.drop(list(to_drop))
 
 
