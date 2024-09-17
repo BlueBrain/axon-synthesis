@@ -97,11 +97,26 @@ Here are the possible penalties:
 Once the edges all have a weight, the Steiner Tree algorithm is computed in order to selected the
 edges that connect the source point to all the target points using the shortest possible paths.
 
-.. image:: scripts/graph_creation_solution.svg
+.. image:: scripts/graph_creation_solution.png
 
 The final step to build the main trunk is to perform a guided random walk that follows the edges
 selected by the Steiner Tree algorithm. The random walk is tinkered in a way that ensures that the
 final result of this step is a main trunk whose morphometrics are realistic.
+
+
+.. _preferred_regions:
+
+Considering preferred regions
+-----------------------------
+
+It is possible to make the main trunk prefer some regions during the Steiner Tree process. To do
+this, the preferred regions are modeled by attractor points positioned in space. These attractors
+are used to update the weights of the edges that are used by the Steiner Tree algorithm to compute
+the solution which minimizes the total weight of the edges selected in the solution. In this case,
+the edge weights will decrease as their distance to the attractor decreases, making them more
+likely to be selected by the Stein Tree algorithm.
+
+.. image:: scripts/graph_creation_solution_preferred_regions.png
 
 
 .. _synthesis_tufts:

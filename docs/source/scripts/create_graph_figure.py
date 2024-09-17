@@ -133,7 +133,7 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
                 x=solution_edges[["x_from", "x_to", "cutter"]].to_numpy().flatten().tolist(),
                 y=solution_edges[["y_from", "y_to", "cutter"]].to_numpy().flatten().tolist(),
                 line={
-                    "width": 3 if preferred_regions_pts is None else 6,
+                    "width": 6,
                     "color": "red",
                     "dash": "dash",
                 },
@@ -150,7 +150,7 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
                 y=edges[["y_from", "y_to", "cutter"]].to_numpy().flatten().tolist(),
                 line={"width": 1, "color": "black"},
                 mode="lines",
-                name="Steiner graph",
+                name="Steiner graph edges",
                 hoverinfo="text",
                 legendgroup=8,
             )
@@ -196,12 +196,12 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
         annotations.append(
             {
                 "text": "Linear density of edge weights",
-                "font_size": 16,
+                "font": {"size": 16, "family": "computer modern", "color": "black"},
                 "showarrow": False,
                 "xref": "paper",
                 "yref": "paper",
-                "x": 0.65,
-                "y": 1.27,
+                "x": 0.5,
+                "y": 1.23,
             },
         )
         fig.add_trace(
@@ -214,9 +214,12 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
                     "color": edges["normalized_density"],
                     "colorbar": {
                         "orientation": "h",
-                        "x": 0.65,
-                        "ticklen": 5,
-                        "tickfont": {"size": 16},
+                        "thickness": 15,
+                        "x": 0.5,
+                        "y": 1,
+                        "len": 0.75,
+                        "ticklen": 10,
+                        "tickfont": {"size": 16, "family": "computer modern", "color": "black"},
                     },
                     "colorscale": [
                         (0, "rgb(0, 0, 255)"),
@@ -289,10 +292,9 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
 
     fig.update_layout(
         {
-            "autosize": True,
-            "margin": {"l": 0, "r": 0, "t": 0, "b": 0},
-            # "paper_bgcolor": "rgba(0, 0, 0, 0)",
-            # "plot_bgcolor": "rgba(0, 0, 0, 0)",
+            "width": 600,
+            "height": 500,
+            "margin": {"l": 0, "r": 0, "t": 0, "b": 0, "autoexpand": True, "pad": 0},
             "paper_bgcolor": "rgba(255, 255, 255, 255)",
             "plot_bgcolor": "rgba(255, 255, 255, 255)",
             "xaxis": {
@@ -309,10 +311,11 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
             },
             "legend": {
                 "xanchor": "left",
-                "x": 0.9,
+                "x": 0.95,
                 "yanchor": "middle",
                 "y": 0.5,
                 "tracegroupgap": 20,
+                "font": {"size": 16, "family": "computer modern", "color": "black"},
             },
         },
         annotations=annotations,
@@ -322,6 +325,12 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
     fig.write_html(figure_path + ".html")
     fig.write_image(figure_path + ".png", scale=2)
     fig.write_image(figure_path + ".svg", scale=2)
+
+    if preferred_regions_pts is None:
+        fig.update_layout({"showlegend": False})
+        fig.write_html(figure_path + "_no_legend.html")
+        fig.write_image(figure_path + "_no_legend.png", scale=2)
+        fig.write_image(figure_path + "_no_legend.svg", scale=2)
 
 
 config = create_graph.CreateGraphConfig(
