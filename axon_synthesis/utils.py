@@ -21,6 +21,20 @@ try:
 except ImportError:
     mpi_enabled = False
 
+try:
+    from construct import Float32l as Float
+    from construct import GreedyRange
+    from tecio import TecDatasetAux
+    from tecio import TecHeader
+    from tecio import TecplotMarker
+    from tecio import ZoneType
+    from tecio import gen_data_struct
+    from tecio import gen_zone_struct
+
+    has_tecio = True
+except ImportError:
+    has_tecio = False
+
 
 import dask.dataframe as dd
 import networkx as nx
@@ -718,3 +732,62 @@ def get_morph_pts(morph):
         return morph.points
     except ValueError:
         return np.empty((0, 4), dtype=float)
+
+
+def export_to_tecplot(voxcell_data, filename, title="Default Title"):
+    """Export a 3D vector field to a Tecplot binary file."""
+    if not has_tecio:
+        msg = "The 'tecio' package must be installed to export a vector field into Tecplot format"
+        raise RuntimeError(msg)
+    shape = voxcell_data.shape
+    indices = np.moveaxis(np.mgrid[0 : shape[0], 0 : shape[1], 0 : shape[2]], 0, -1)
+    coords = indices * voxcell_data.voxel_dimensions + voxcell_data.offset
+    x = coords[:, :, :, 0].ravel().astype(np.float32)
+    y = coords[:, :, :, 1].ravel().astype(np.float32)
+    z = coords[:, :, :, 2].ravel().astype(np.float32)
+    ux = voxcell_data.raw[:, :, :, 0].ravel().astype(np.float32)
+    uy = voxcell_data.raw[:, :, :, 1].ravel().astype(np.float32)
+    uz = voxcell_data.raw[:, :, :, 2].ravel().astype(np.float32)
+    length = np.linalg.norm(voxcell_data.raw, axis=-1).ravel().astype(np.float32)
+    tec = {
+        "title": title,
+        "variables": ["X", "Y", "Z", "Ux", "Uy", "Uz", "length"],
+        "zones": [
+            {
+                "zone_type": ZoneType.ORDERED,
+                "ijk": [shape[2], shape[1], shape[0]],
+            },
+        ],
+        "dataset_aux": [],
+        "data": [
+            {
+                "min_max": [
+                    [x.min(), x.max()],
+                    [y.min(), y.max()],
+                    [z.min(), z.max()],
+                    [ux.min(), ux.max()],
+                    [uy.min(), uy.max()],
+                    [uz.min(), uz.max()],
+                    [length.min(), length.max()],
+                ],
+                "data": [
+                    x,
+                    y,
+                    z,
+                    ux,
+                    uy,
+                    uz,
+                    length,
+                ],
+            },
+        ],
+    }
+
+    with Path(filename).open(mode="wb") as f:
+        TecHeader.build_stream(tec, f)
+        GreedyRange(gen_zone_struct(7)).build_stream(tec["zones"], f)
+        GreedyRange(TecDatasetAux).build_stream(tec.get("dataset_aux", []), f)
+
+        f.write(Float.build(TecplotMarker.EOH))
+        for z, d in zip(tec["zones"], tec["data"]):
+            gen_data_struct(tec["variables"], z).build_stream(d, f)

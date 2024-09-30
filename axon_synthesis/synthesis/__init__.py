@@ -18,6 +18,7 @@ from attrs import validators
 from neurom import NeuriteType
 from neurom.core import Morphology
 from neurom.geom.transform import Translation
+from neurots.generate.tree import section_growers
 from voxcell.cell_collection import CellCollection
 
 try:
@@ -38,6 +39,7 @@ from axon_synthesis.constants import DEFAULT_OUTPUT_PATH
 from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.inputs import Inputs
 from axon_synthesis.synthesis.add_tufts import build_and_graft_tufts
+from axon_synthesis.synthesis.add_tufts import create_grower
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.synthesis.main_trunk.create_graph import one_graph
 from axon_synthesis.synthesis.main_trunk.post_process import PostProcessConfig
@@ -91,7 +93,12 @@ class SynthesisConfig:
         tuft_distributions_file: Path to the file containing the distributions used for tuft
             synthesis.
         tuft_parameters_file: Path to the file containing the parameters used for tuft synthesis.
+        tuft_boundary_max_distance: Maximum distance used for the calculation of the attenuation
+            component near the boundary.
+        tuft_boundary_scale_coeff: Coefficient used in the calculation of the attenuation
+            component near the boundary.
         rebuild_existing_axons: If set to True, all existing axons are removed before synthesis.
+        target_max_tries: The maximum number of tries for picking target points.
     """
 
     morphology_dir: FileType = field(converter=Path)
@@ -117,6 +124,8 @@ class SynthesisConfig:
         default=None, converter=converters.optional(Path)
     )
     tuft_parameters_file: FileType | None = field(default=None, converter=converters.optional(Path))
+    tuft_boundary_max_distance: float = field(default=200)
+    tuft_boundary_scale_coeff: float | None = field(default=None)
     rebuild_existing_axons: bool = field(default=False)
 
     target_max_tries: int = field(default=10, validator=validators.gt(0))
@@ -407,6 +416,9 @@ def synthesize_one_morph_axons(
                 axon_terminals,
                 create_graph_config,
                 depths=inputs.atlas.depths if inputs.atlas is not None else None,
+                forbidden_regions=inputs.atlas.forbidden_regions
+                if inputs.atlas is not None
+                else None,
                 rng=rng,
                 output_path=axon_paths.GRAPH_CREATION_DATA,
                 figure_path=axon_paths.GRAPH_CREATION_FIGURE,
@@ -520,11 +532,20 @@ def synthesize_one_morph_axons(
     return pd.Series(res, dtype=object)
 
 
-def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs) -> pd.DataFrame:
+def synthesize_group_morph_axons(
+    df: pd.DataFrame, inputs: Inputs, synthesis_config: SynthesisConfig, **func_kwargs
+) -> pd.DataFrame:
     """Synthesize all axons of each morphology."""
     if "target_orientation" not in df.columns:
         df["target_orientation"] = np.repeat([np.eye(3)], len(df), axis=0).tolist()
         if inputs.atlas is not None:
+            # Update the grower context
+            section_growers["path_distance+boundary"] = create_grower(
+                grower_boundary=inputs.atlas.boundary,
+                grower_d_max=synthesis_config.tuft_boundary_max_distance,
+                grower_scale_coeff=synthesis_config.tuft_boundary_scale_coeff,
+            )
+
             mask = ~df["target_population_id"].isna()
             try:
                 target_orientations = inputs.atlas.orientations.lookup(
@@ -551,7 +572,7 @@ def synthesize_group_morph_axons(df: pd.DataFrame, inputs: Inputs, **func_kwargs
 def _partition_wrapper(
     df: pd.DataFrame,
     input_path: FileType,
-    synthesis_config: dict,
+    synthesis_config: SynthesisConfig,
     atlas_config: AtlasConfig | None,
     **func_kwargs,
 ) -> pd.DataFrame:
@@ -560,11 +581,14 @@ def _partition_wrapper(
     if atlas_config is not None:
         atlas_config.load_region_map = False
         inputs.load_atlas(atlas_config)
-    inputs.load_clustering_data(**synthesis_config)
-    inputs.load_probabilities(**synthesis_config)
-    inputs.load_tuft_params_and_distrs(**synthesis_config)
+    synthesis_config_dict = asdict(synthesis_config)
+    inputs.load_clustering_data(**synthesis_config_dict)
+    inputs.load_probabilities(**synthesis_config_dict)
+    inputs.load_tuft_params_and_distrs(**synthesis_config_dict)
 
-    return synthesize_group_morph_axons(df.copy(deep=False), inputs=inputs, **func_kwargs)
+    return synthesize_group_morph_axons(
+        df.copy(deep=False), inputs=inputs, synthesis_config=synthesis_config, **func_kwargs
+    )
 
 
 def synthesize_axons(
@@ -670,7 +694,7 @@ def synthesize_axons(
 
     if parallel_config.nb_processes == 0:
         LOGGER.info("Start computation")
-        computed = synthesize_group_morph_axons(target_points, inputs=inputs, **func_kwargs)
+        computed = synthesize_group_morph_axons(target_points, inputs, config, **func_kwargs)
     else:
         LOGGER.info("Start parallel computation using %s workers", parallel_config.nb_processes)
         ddf = create_dask_dataframe(
@@ -689,7 +713,7 @@ def synthesize_axons(
             _partition_wrapper,
             meta=meta,
             input_path=inputs.path,
-            synthesis_config=asdict(config),
+            synthesis_config=config,
             atlas_config=inputs.atlas.config if inputs.atlas is not None else None,
             **func_kwargs,
         )

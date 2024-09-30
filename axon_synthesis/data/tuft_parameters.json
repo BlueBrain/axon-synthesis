@@ -2,7 +2,7 @@
     "axon": {
         "branching_method": "bio_oriented",
         "growth_method": "tmd",
-        "metric": "path_distances",
+        "metric": "path_distance+boundary",
         "modify": null,
         "orientation": {
             "mode": "use_predefined",

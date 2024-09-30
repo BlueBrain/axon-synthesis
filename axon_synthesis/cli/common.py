@@ -31,7 +31,6 @@ def atlas_options(*, required=False):
         @optgroup.option(
             "--atlas-region-filename",
             type=str,
-            required=required,
             help="Name of NRRD file containing the brain regions in the Atlas folder",
         )
         @optgroup.option(
@@ -41,6 +40,16 @@ def atlas_options(*, required=False):
                 "Names of the layers given as a JSON list (the atlas folder must contain a file "
                 "name '[PH]<layer_name>.nrrd' for each given layer)"
             ),
+        )
+        @optgroup.option(
+            "--atlas-outside-region-id",
+            type=int,
+            help="ID of the 'outside' brain region",
+        )
+        @optgroup.option(
+            "--atlas-enable-boundary/--atlas-disable-boundary",
+            default=None,
+            help="Enable or disable the boundary conditions",
         )
         @functools.wraps(func)
         def wrapper_atlas_options(*args, **kwargs) -> Callable:
@@ -55,8 +64,10 @@ def atlas_kwargs_to_config(config) -> None:
     """Extract the atlas arguments from given config to create an AtlasConfig object."""
     atlas_config = AtlasConfig(
         config.pop("atlas_path"),
-        config.pop("atlas_region_filename"),
+        config.pop("atlas_region_filename", None),
         config.pop("atlas_layer_names", None),
+        config.pop("atlas_outside_region_id", None),
+        config.pop("atlas_enable_boundary", None),
     )
     if config.pop("atlas_enable", False):
         config["atlas_config"] = atlas_config

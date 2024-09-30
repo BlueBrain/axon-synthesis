@@ -17,7 +17,9 @@ FORCE_2D = False
 """Force the Voronoï and Delaunay calculations to ignore the Z coordinate."""
 
 
-def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermediate_number):
+def add_intermediate_points(
+    pts: np.ndarray, ref_coords, min_intermediate_distance, intermediate_number
+):
     """Add intermediate points between source points and target points."""
     terms = pts[:, :3] - ref_coords
     term_dists = np.linalg.norm(terms, axis=1)
@@ -59,7 +61,7 @@ def add_intermediate_points(pts, ref_coords, min_intermediate_distance, intermed
 
 
 def generate_random_points(
-    bbox,
+    bbox: np.ndarray,
     min_random_point_distance: float,
     rng: SeedType,
     *,
@@ -103,7 +105,7 @@ def generate_random_points(
 
 
 def add_random_points(
-    all_pts,
+    all_pts: np.ndarray,
     min_random_point_distance: float | None,
     bbox_buffer: float,
     rng: SeedType,
@@ -150,7 +152,7 @@ def add_random_points(
     return all_pts
 
 
-def add_bounding_box_pts(all_pts):
+def add_bounding_box_pts(all_pts: np.ndarray):
     """Add points of the bbox."""
     all_xyz = all_pts[:, :3]
     bbox = np.array([all_xyz.min(axis=0), all_xyz.max(axis=0)])
@@ -165,8 +167,9 @@ def add_bounding_box_pts(all_pts):
 
 
 def add_voronoi_points(
-    all_pts,
+    all_pts: np.ndarray,
     voronoi_steps: int,
+    initial_bbox: np.ndarray | None = None,
     logger: logging.Logger | logging.LoggerAdapter | None = None,
 ):
     """Add Voronoi points between the given points."""
@@ -179,6 +182,10 @@ def add_voronoi_points(
         else:
             vor = Voronoi(all_pts[:, :3], qhull_options="QJ")
             step_pts = vor.vertices
+        if initial_bbox is not None:
+            step_pts = step_pts[
+                np.all((step_pts >= initial_bbox[0]) & (step_pts <= initial_bbox[1]), axis=1)
+            ]
         new_pts = np.hstack([step_pts, np.ones((len(step_pts), 1)) * NodeProvider.Voronoi])
         all_pts = np.concatenate([all_pts, new_pts])  # pylint: disable=no-member
     if logger is not None:

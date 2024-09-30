@@ -427,10 +427,25 @@ def synthesis_options(func):
         help="Path to the file containing the tuft parameters given to NeuroTS.",
     )
     @optgroup.option(
+        "--tuft-boundary-max-distance",
+        type=click.FloatRange(min=0),
+        required=False,
+        help=(
+            "Maximum distance used for the calculation of the attenuation component near the "
+            "boundary."
+        ),
+    )
+    @optgroup.option(
+        "--tuft-boundary-scale-coeff",
+        type=click.FloatRange(min=0),
+        required=False,
+        help="Coefficient used in the calculation of the attenuation component near the boundary.",
+    )
+    @optgroup.option(
         "--target-max-tries",
         type=click.IntRange(min=1),
         required=False,
-        help="The max number of tries for picking target points.",
+        help="The maximum number of tries for picking target points.",
     )
     @functools.wraps(func)
     def wrapper_synthesis_options(*args, **kwargs) -> Callable:

@@ -137,7 +137,11 @@ def morph_atlas(
         atlas_dir = empty_atlas(shape, voxel_dimensions, offset, tmp_dir=tmp_dir)
         atlas_path = Path(atlas_dir.name)
         atlas_config = AtlasConfig(
-            atlas_path, "brain_regions", layer_names=list(range(1, 7)), load_region_map=True
+            atlas_path,
+            "brain_regions",
+            layer_names=list(range(1, 7)),
+            load_region_map=True,
+            use_boundary=False,
         )
         atlas = AtlasHelper(atlas_config)
     else:
@@ -147,7 +151,9 @@ def morph_atlas(
             else CleanableDirectory(tmp_dir, exist_ok=True)
         )
         atlas_path = Path(atlas_dir.name)
-        atlas_config = evolve(atlas.config, path=atlas_path, load_region_map=True)
+        atlas_config = evolve(
+            atlas.config, path=atlas_path, load_region_map=True, use_boundary=False
+        )
         atlas = atlas.copy()
         atlas.config = atlas_config
     brain_regions = atlas.brain_regions

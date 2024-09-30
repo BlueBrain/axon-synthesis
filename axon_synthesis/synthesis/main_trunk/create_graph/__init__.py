@@ -186,7 +186,7 @@ class CreateGraphConfig:
         self.preferred_region_tree = KDTree(data)
 
 
-def _add_points(source_coords, pts, config, depths, rng, logger) -> tuple:
+def _add_points(source_coords, pts, config, depths, forbidden_regions, rng, logger) -> tuple:
     """Add all points to the source and target points."""
     # Add intermediate points
     all_pts = add_intermediate_points(
@@ -194,6 +194,15 @@ def _add_points(source_coords, pts, config, depths, rng, logger) -> tuple:
         source_coords,
         config.min_intermediate_distance,
         config.intermediate_number,
+    )
+
+    # Add random points from other regions
+    all_pts = add_random_points(
+        all_pts,
+        config.min_random_point_distance,
+        config.random_point_bbox_buffer,
+        rng,
+        logger=logger,
     )
 
     # Add random points from the preferred regions
@@ -207,15 +216,6 @@ def _add_points(source_coords, pts, config, depths, rng, logger) -> tuple:
             ]
         )
 
-    # Add random points from other regions
-    all_pts = add_random_points(
-        all_pts,
-        config.min_random_point_distance,
-        config.random_point_bbox_buffer,
-        rng,
-        logger=logger,
-    )
-
     # Add the bounding box points to ensure a minimum number of points
     all_pts = add_bounding_box_pts(all_pts)
 
@@ -227,7 +227,13 @@ def _add_points(source_coords, pts, config, depths, rng, logger) -> tuple:
         current_bbox[1] = np.clip(current_bbox[1], a_min=-np.inf, a_max=depths.bbox[1])
 
     # Add Voronoï points
-    all_pts = add_voronoi_points(all_pts, config.voronoi_steps)
+    all_pts = add_voronoi_points(
+        all_pts, config.voronoi_steps, initial_bbox=current_bbox, logger=logger
+    )
+
+    if forbidden_regions is not None:
+        forbidden_points = forbidden_regions.lookup(all_pts[:, :3])
+        all_pts = all_pts[~forbidden_points]
 
     return all_pts, current_bbox
 
@@ -238,6 +244,7 @@ def one_graph(
     config: CreateGraphConfig,
     depths: VoxelData | None = None,
     *,
+    forbidden_regions: VoxelData | None = None,
     output_path: FileType | None = None,
     figure_path: FileType | None = None,
     rng: SeedType = None,
@@ -264,7 +271,9 @@ def one_graph(
     )
 
     # Add other points
-    all_pts, current_bbox = _add_points(source_coords, pts, config, depths, rng, logger)
+    all_pts, current_bbox = _add_points(
+        source_coords, pts, config, depths, forbidden_regions, rng, logger
+    )
 
     # Gather points
     nodes_df = pd.DataFrame(all_pts, columns=[*COORDS_COLS, "NodeProvider"])

@@ -14,6 +14,8 @@ import pandas as pd
 from attrs import asdict
 from attrs import define
 from attrs import field
+from scipy.ndimage import convolve
+from scipy.spatial import KDTree
 from voxcell import OrientationField
 from voxcell import VoxelData
 from voxcell.nexus.voxelbrain import Atlas
@@ -52,6 +54,8 @@ class AtlasConfig:
     # flatmap_filename: Path = field(converter=Path)
     layer_names: LayerNamesType | None = field(default=None)
     load_region_map: bool = field(default=False)
+    outside_region_id: int = field(default=0)
+    use_boundary: bool = field(default=True)
 
     def to_dict(self) -> dict:
         """Return all attribute values into a dictionary."""
@@ -83,21 +87,23 @@ class AtlasHelper:
             logger: An optional logger.
         """
         if logger is None:
-            logger = LOGGER
+            self.logger = LOGGER
+        else:
+            self.logger = logger
         self.config = config
 
         # Get atlas data
-        logger.info("Loading atlas with the following config: %s", self.config)
+        self.logger.info("Loading atlas with the following config: %s", self.config)
         atlas = Atlas.open(str(self.config.path.resolve()))
 
-        logger.debug(
+        self.logger.debug(
             "Loading brain regions from the atlas using: %s", self.config.region_filename.name
         )
         self.brain_regions = atlas.load_data(self.config.region_filename.stem)
         self.orientations = atlas.load_data("orientation", cls=OrientationField)
 
         if self.config.load_region_map:
-            logger.debug("Loading region map from the atlas")
+            self.logger.debug("Loading region map from the atlas")
             self.region_map = atlas.load_region_map()
             self._build_region_map_df_level()
         else:
@@ -131,11 +137,83 @@ class AtlasHelper:
         self.y = atlas.load_data("[PH]y")
         self.depths = VoxelData.reduce(operator.sub, [self.pia_coord, self.y])
 
+        if self.config.use_boundary:
+            # Load or compute the boundary
+            boundary_file = (self.config.path / "boundary").with_suffix(".nrrd")
+            if boundary_file.exists():
+                self.logger.debug("Loading atlas boundary from the atlas folder")
+                self.boundary = atlas.load_data("boundary")
+            else:
+                self.build_boundary()
+                self.logger.debug("Saving atlas boundary to %s", boundary_file)
+                self.boundary.save_nrrd(str(boundary_file))
+            self.forbidden_regions = self.brain_regions.with_data(
+                self.brain_regions.raw == self.config.outside_region_id
+            )
+        else:
+            self.boundary = None
+            self.forbidden_regions = None
+        self.logger.debug("Atlas loaded")
+
+    def build_boundary(self, logger=None):
+        """Build the boundary orientations."""
+        if logger is None:
+            logger = LOGGER
+        self.logger.debug("Computing atlas boundary")
+
+        shape = self.brain_regions.shape
+        self.boundary = self.brain_regions.with_data(np.zeros((*shape, 3), dtype=np.float32))
+
+        outside_voxels, _ = self.get_region_voxels(self.config.outside_region_id)
+        inside_voxels, _ = self.get_region_voxels(self.config.outside_region_id, inverse=True)
+        tree = KDTree(outside_voxels)
+        _, nearest_voxel_ids = tree.query(inside_voxels, workers=-1)
+        boundary_vectors = (
+            inside_voxels - tree.data[nearest_voxel_ids]
+        ) * self.brain_regions.voxel_dimensions
+        self.boundary.raw[tuple(inside_voxels.T)] = boundary_vectors
+
+        tree = KDTree(inside_voxels)
+        _, nearest_voxel_ids = tree.query(outside_voxels, workers=-1)
+        boundary_vectors = (
+            outside_voxels - tree.data[nearest_voxel_ids]
+        ) * self.brain_regions.voxel_dimensions
+
+        # All outside points are considered as very close and going toward the inside of the atlas
+        boundary_vectors /= np.repeat(np.linalg.norm(boundary_vectors, axis=-1), 3).reshape(
+            boundary_vectors.shape
+        )
+        boundary_vectors *= -1e-3
+
+        self.boundary.raw[tuple(outside_voxels.T)] = boundary_vectors
+
+        # Smooth the boundary directions
+        self.logger.debug("Smoothing atlas boundary")
+        kernel_size = np.array([3, 3, 3])
+        kernel = np.ones(kernel_size)
+        kernel[1, 1, 1] = 2
+        kernel /= kernel.sum()
+
+        vec_norm = np.linalg.norm(self.boundary.raw, axis=-1)
+        convolved = np.zeros(self.boundary.raw.shape)
+        for i in range(3):
+            convolved[:, :, :, i] = convolve(self.boundary.raw[:, :, :, i], kernel)
+
+        # Normalize the smoothed field to keep the original distance
+        convolved *= np.repeat(vec_norm / np.linalg.norm(convolved, axis=-1), 3).reshape(
+            convolved.shape
+        )
+
+        self.boundary.raw[:, :, :, :] = convolved[:, :, :, :]
+
     def save(self, path):
         """Export the atlas to the given directory."""
         path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        if self.boundary is not None:
+            self.boundary.save_nrrd(str(path / "boundary.nrrd"))
         self.brain_regions.save_nrrd(str(path / "brain_regions.nrrd"))
-        self.orientations.save_nrrd(str(path / "orientations.nrrd"))
+        self.orientations.save_nrrd(str(path / "orientation.nrrd"))
         self.top_layer.save_nrrd(str(path / f"[PH]{self.layers[0]}.nrrd"))
         self.y.save_nrrd(str(path / "[PH]y.nrrd"))
         with (path / "hierarchy.json").open(mode="w", encoding="utf-8") as f:
@@ -175,11 +253,11 @@ class AtlasHelper:
         if self.region_map is None:
             msg = "The region_map is not loaded so the region masks can't be computed"
             raise RuntimeError(msg)
-        LOGGER.info("Computing brain region masks")
+        self.logger.info("Computing brain region masks")
         output_path = Path(output_path)
 
         if output_path.exists():
-            LOGGER.info(
+            self.logger.info(
                 "The brain region mask is not computed because it already exists in '%s'",
                 output_path,
             )
@@ -208,10 +286,10 @@ class AtlasHelper:
             for current_id, self_and_descendants_atlas_ids in region_map_df[
                 ["self_and_descendants"]
             ].to_records(index=True):
-                LOGGER.debug("Create mask for %s", current_id)
+                self.logger.debug("Create mask for %s", current_id)
                 coords = index.value_to_indices(self_and_descendants_atlas_ids)
                 if len(coords) == 0:
-                    LOGGER.warning(
+                    self.logger.warning(
                         "No voxel found for atlas ID %s using the following descendants: %s",
                         current_id,
                         self_and_descendants_atlas_ids,
@@ -220,7 +298,7 @@ class AtlasHelper:
                     str(current_id), data=coords, compression="gzip", compression_opts=1
                 )
 
-        LOGGER.info("Masks exported to %s", output_path)
+        self.logger.info("Masks exported to %s", output_path)
 
     def get_region_ids(
         self,

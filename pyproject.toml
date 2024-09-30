@@ -47,11 +47,11 @@ test = [
     "dir-content-diff>=1.9.1",
     "matplotlib>=3.5",
     "mock>=3",
-    "pytest>=6",
-    "pytest-click>=1",
-    "pytest-console-scripts>=1.3",
-    "pytest-cov>=3",
-    "pytest-html>=2",
+    "pytest>=6.1",
+    "pytest-click>=1.1",
+    "pytest-console-scripts>=1.4",
+    "pytest-cov>=4.1",
+    "pytest-html>=3.2",
 ]
 
 mypy = [
@@ -61,6 +61,11 @@ mypy = [
     "types-networkx",
     "types-PyYAML",
     "types-seaborn",
+]
+
+tecplot_export = [
+    "construct",
+    "tecio",
 ]
 
 [project.urls]
@@ -177,10 +182,10 @@ max-args=10
 # especially because of comments).
 max-line-length = 100
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 force-single-line = true
 
 [tool.mypy]
@@ -189,6 +194,7 @@ force-single-line = true
 module = [
     "bluepyparallel.*",
     "configobj.*",
+    "construct.*",
     "dask_mpi.*",
     "diff_pdf_visually.*",
     "dir_content_diff.*",
@@ -201,6 +207,7 @@ module = [
     "plotly.*",
     "plotly_helper.*",
     "scipy.*",
+    "tecio.*",
     "tmd.*",
     "voxcell.*",
 ]
