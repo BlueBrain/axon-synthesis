@@ -18,12 +18,19 @@ from axon_synthesis.white_matter_recipe import fetch
 
 def wmr_kwargs_to_config(config) -> None:
     """Extract the atlas arguments from given config to create an AtlasConfig object."""
-    config["wmr_config"] = WmrConfig(
-        config.pop("wmr_path"),
-        config.pop("wmr_subregion_uppercase"),
-        config.pop("wmr_subregion_remove_prefix"),
-        config.pop("wmr_sub_region_separator"),
-    )
+    wmr_path = config.pop("wmr_path", None)
+    wmr_subregion_uppercase = config.pop("wmr_subregion_uppercase")
+    wmr_subregion_remove_prefix = config.pop("wmr_subregion_remove_prefix")
+    wmr_sub_region_separator = config.pop("wmr_sub_region_separator")
+    if wmr_path is None:
+        config["wmr_config"] = None
+    else:
+        config["wmr_config"] = WmrConfig(
+            wmr_path,
+            wmr_subregion_uppercase,
+            wmr_subregion_remove_prefix,
+            wmr_sub_region_separator,
+        )
 
 
 clustering_parameters_option = click.option(
@@ -87,7 +94,7 @@ def fetch_white_matter_recipe(**kwargs):
 @optgroup.option(
     "--wmr-path",
     type=click.Path(exists=True, dir_okay=False),
-    required=True,
+    # required=False,
     help="Path to the White Matter Recipe file",
 )
 @optgroup.option(

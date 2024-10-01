@@ -281,31 +281,34 @@ class Inputs(BasePathBuilder):
         self.update_from_dict(
             "population_probabilities_file", "POPULATION_PROBABILITIES_FILENAME", kwargs
         )
-        self.population_probabilities = pd.read_csv(self.POPULATION_PROBABILITIES_FILENAME)
-        self.population_probabilities = self.population_probabilities.astype(
-            {
-                "probability": float,
-                **{
-                    col: str
-                    for col in self.population_probabilities.columns
-                    if col.endswith("population_id")
-                },
-            }
-        )
+        if self.POPULATION_PROBABILITIES_FILENAME.exists():
+            self.population_probabilities = pd.read_csv(self.POPULATION_PROBABILITIES_FILENAME)
+            self.population_probabilities = self.population_probabilities.astype(
+                {
+                    "probability": float,
+                    **{
+                        col: str
+                        for col in self.population_probabilities.columns
+                        if col.endswith("population_id")
+                    },
+                }
+            )
+
         self.update_from_dict(
             "projection_probabilities_file", "PROJECTION_PROBABILITIES_FILENAME", kwargs
         )
-        self.projection_probabilities = pd.read_csv(self.PROJECTION_PROBABILITIES_FILENAME)
-        self.projection_probabilities = self.projection_probabilities.astype(
-            {
-                "probability": float,
-                **{
-                    col: str
-                    for col in self.projection_probabilities.columns
-                    if col.endswith("population_id")
-                },
-            }
-        )
+        if self.PROJECTION_PROBABILITIES_FILENAME.exists():
+            self.projection_probabilities = pd.read_csv(self.PROJECTION_PROBABILITIES_FILENAME)
+            self.projection_probabilities = self.projection_probabilities.astype(
+                {
+                    "probability": float,
+                    **{
+                        col: str
+                        for col in self.projection_probabilities.columns
+                        if col.endswith("population_id")
+                    },
+                }
+            )
 
         self.update_from_dict(
             "population_tuft_number_file", "POPULATION_TUFT_NUMBER_FILENAME", kwargs
