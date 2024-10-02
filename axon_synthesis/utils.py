@@ -22,6 +22,7 @@ except ImportError:
     mpi_enabled = False
 
 try:
+    logging.getLogger("tecio").disabled = True
     from construct import Float32l as Float
     from construct import GreedyRange
     from tecio import TecDatasetAux

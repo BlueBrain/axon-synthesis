@@ -210,5 +210,6 @@ module = [
     "tecio.*",
     "tmd.*",
     "voxcell.*",
+    "wurlitzer.*",
 ]
 ignore_missing_imports = true

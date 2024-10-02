@@ -62,15 +62,19 @@ def atlas_options(*, required=False):
 
 def atlas_kwargs_to_config(config) -> None:
     """Extract the atlas arguments from given config to create an AtlasConfig object."""
-    atlas_config = AtlasConfig(
-        config.pop("atlas_path"),
-        config.pop("atlas_region_filename", None),
-        config.pop("atlas_layer_names", None),
-        config.pop("atlas_outside_region_id", None),
-        config.pop("atlas_enable_boundary", None),
-    )
+    kwargs = {
+        k: v
+        for k, v in {
+            "path": config.pop("atlas_path", None),
+            "region_filename": config.pop("atlas_region_filename", None),
+            "layer_names": config.pop("atlas_layer_names", None),
+            "outside_region_id": config.pop("atlas_outside_region_id", None),
+            "use_boundary": config.pop("atlas_enable_boundary", None),
+        }.items()
+        if v is not None
+    }
     if config.pop("atlas_enable", False):
-        config["atlas_config"] = atlas_config
+        config["atlas_config"] = AtlasConfig(**kwargs)
     else:
         config["atlas_config"] = None
 

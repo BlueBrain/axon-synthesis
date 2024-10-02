@@ -448,5 +448,6 @@ def mimic_axons(  # noqa: PLR0913
         ", ".join(workflows),
     )
     if merge_results:
-        merge_result_folders(results, output_config.path)
+        pass
+    #     merge_result_folders(results, output_config.path)
     return results

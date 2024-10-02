@@ -47,6 +47,9 @@ class AtlasConfig:
         path: The path to the directory containing the atlas.
         region_filename: The name of the file containing the brain regions.
         layer_names: The list of layer names.
+        load_region_map: Trigger for region map loading.
+        outside_region_id: The brain region ID of the outside of the brain.
+        use_boundary: Trigger to use the boundary or not.
     """
 
     path: Path = field(converter=Path)

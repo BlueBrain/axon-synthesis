@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import dask.distributed
+import morphio
 import numpy as np
 import pandas as pd
 from attrs import asdict
@@ -20,6 +21,8 @@ from neurom.core import Morphology
 from neurom.geom.transform import Translation
 from neurots.generate.tree import section_growers
 from voxcell.cell_collection import CellCollection
+from wurlitzer import STDOUT
+from wurlitzer import pipes
 
 try:
     import dask_mpi
@@ -484,7 +487,9 @@ def synthesize_one_morph_axons(
             # TODO: Diametrize the synthesized axon
 
         # Remove unifurcations of the final morphology
-        morph.remove_unifurcations()
+        morphio.set_maximum_warnings(0)
+        with pipes(axon_custom_logger, stderr=STDOUT):
+            morph.remove_unifurcations()
 
         # Export the final morph
         final_morph_path = outputs.MORPHOLOGIES / f"{morph_name}.h5"

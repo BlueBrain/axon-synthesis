@@ -23,3 +23,4 @@ tables
 typing_extensions
 TMD
 voxcell>=3.1.9
+wurlitzer
