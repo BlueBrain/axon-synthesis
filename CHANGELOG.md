@@ -1,5 +1,13 @@
 # Changelog
 
+## [axon-synthesis-v0.1.1](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/compare/axon-synthesis-v0.1.0...axon-synthesis-v0.1.1)
+
+> 2 October 2024
+
+### Fixes
+
+- Fix atlas CLI and remove useless warnings (Adrien Berchet - [c1e6afb](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/commit/c1e6afb2d26a13db9a82ad2290df43e71ca9092b))
+
 ## axon-synthesis-v0.1.0
 
 > 1 October 2024
