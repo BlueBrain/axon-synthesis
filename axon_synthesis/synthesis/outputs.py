@@ -40,7 +40,7 @@ class OutputConfig:
     main_trunk_figures: bool = False
     main_trunk_morphologies: bool = False
     morphologies: bool = True
-    morphologies_edges: bool = True
+    morphologies_edges: bool = False
     postprocess_trunk_figures: bool = False
     postprocess_trunk_morphologies: bool = False
     steiner_tree_solution_figures: bool = False
@@ -92,6 +92,7 @@ class Outputs(BasePathBuilder):
         "GRAPH_CREATION_DATA",
         "MAIN_TRUNK_FIGURES",
         "MAIN_TRUNK_MORPHOLOGIES",
+        "MORPHOLOGIES_EDGES",
         "POSTPROCESS_TRUNK_FIGURES",
         "POSTPROCESS_TRUNK_MORPHOLOGIES",
         "STEINER_TREE_SOLUTION_FIGURES",
