@@ -1,5 +1,17 @@
 # Changelog
 
+## [axon-synthesis-v0.1.2](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/compare/axon-synthesis-v0.1.1...axon-synthesis-v0.1.2)
+
+> 7 October 2024
+
+### Fixes
+
+- Ensure morphology edges are optional (Adrien Berchet - [0ce1694](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/commit/0ce169408f1d9ee240dc2df89fa92ee7716f514d))
+
+### Chores And Housekeeping
+
+- Use grower context to pass the boundary to the tuft grower (Adrien Berchet - [e5bd5ff](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/commit/e5bd5ff20d69dcf534c8fda41100f6d65a33ea8b))
+
 ## [axon-synthesis-v0.1.1](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/compare/axon-synthesis-v0.1.0...axon-synthesis-v0.1.1)
 
 > 2 October 2024
