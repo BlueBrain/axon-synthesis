@@ -19,7 +19,6 @@ from attrs import validators
 from neurom import NeuriteType
 from neurom.core import Morphology
 from neurom.geom.transform import Translation
-from neurots.generate.tree import section_growers
 from voxcell.cell_collection import CellCollection
 from wurlitzer import STDOUT
 from wurlitzer import pipes
@@ -32,6 +31,7 @@ try:
 except ImportError:
     mpi_enabled = False
 
+from axon_synthesis import __version__
 from axon_synthesis.atlas import AtlasConfig
 from axon_synthesis.atlas import AtlasHelper
 from axon_synthesis.base_path_builder import FILE_SELECTION
@@ -42,7 +42,6 @@ from axon_synthesis.constants import DEFAULT_OUTPUT_PATH
 from axon_synthesis.constants import TARGET_COORDS_COLS
 from axon_synthesis.inputs import Inputs
 from axon_synthesis.synthesis.add_tufts import build_and_graft_tufts
-from axon_synthesis.synthesis.add_tufts import create_grower
 from axon_synthesis.synthesis.main_trunk.create_graph import CreateGraphConfig
 from axon_synthesis.synthesis.main_trunk.create_graph import one_graph
 from axon_synthesis.synthesis.main_trunk.post_process import PostProcessConfig
@@ -356,6 +355,7 @@ def synthesize_one_morph_axons(
     create_graph_config,
     post_process_config,
     *,
+    tuft_context=None,
     rebuild_existing_axons=False,
     logger=None,
 ):
@@ -477,6 +477,7 @@ def synthesize_one_morph_axons(
                 barcodes,
                 inputs.tuft_parameters,
                 inputs.tuft_distributions,
+                context=tuft_context,
                 rng=rng,
                 output_dir=axon_paths.TUFT_MORPHOLOGIES,
                 figure_dir=axon_paths.TUFT_FIGURES,
@@ -544,12 +545,14 @@ def synthesize_group_morph_axons(
     if "target_orientation" not in df.columns:
         df["target_orientation"] = np.repeat([np.eye(3)], len(df), axis=0).tolist()
         if inputs.atlas is not None:
-            # Update the grower context
-            section_growers["path_distance+boundary"] = create_grower(
-                grower_boundary=inputs.atlas.boundary,
-                grower_d_max=synthesis_config.tuft_boundary_max_distance,
-                grower_scale_coeff=synthesis_config.tuft_boundary_scale_coeff,
-            )
+            # Update the context of the section grower used for the tufts
+            func_kwargs["tuft_context"] = {
+                "boundary": inputs.atlas.boundary,
+                "boundary_max_distance": synthesis_config.tuft_boundary_max_distance,
+                "boundary_scale_coeff": synthesis_config.tuft_boundary_scale_coeff
+                if synthesis_config.tuft_boundary_scale_coeff is not None
+                else synthesis_config.tuft_boundary_max_distance / 10000,
+            }
 
             mask = ~df["target_population_id"].isna()
             try:
@@ -617,6 +620,7 @@ def synthesize_axons(
         rng: The random seed or the random generator.
         parallel_config: The configuration for parallel computation.
     """
+    LOGGER.info("Using the following version of axon-synthesis: %s", __version__)
     parallel_config = ParallelConfig() if parallel_config is None else evolve(parallel_config)
     _parallel_client = _init_parallel(parallel_config)
 

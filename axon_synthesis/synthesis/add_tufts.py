@@ -27,60 +27,54 @@ from axon_synthesis.utils import disable_loggers
 from axon_synthesis.utils import sublogger
 
 
-def create_grower(grower_boundary=None, grower_d_max=200, grower_scale_coeff=None):
-    """Create a specific grower with the given boundary."""
+class SectionGrowerBoundary(SectionGrowerPath):
+    """Section grower that will not cross the given boundary."""
 
-    class SectionGrowerBoundary(SectionGrowerPath):
-        """Section grower that will not cross the given boundary."""
+    def next_point(self, current_point) -> tuple:
+        """Compute the next point and update it if close to the boundary."""
+        boundary = self.context.get("boundary", None) if self.context is not None else None
+        if boundary is None:
+            return super().next_point(current_point)
 
-        boundary = grower_boundary
-        scale_coeff = grower_scale_coeff if grower_scale_coeff is not None else grower_d_max / 10000
-        d_max = grower_d_max
+        direction = (
+            self.params.targeting * self.direction
+            + self.params.randomness * get_random_point(random_generator=self._rng)
+            + self.params.history * self.history()
+        )
 
-        def next_point(self, current_point) -> tuple:
-            """Compute the next point and update it if close to the boundary."""
-            if self.boundary is None:
-                return super().next_point(current_point)
+        direction = direction / np.linalg.norm(direction)  # From NeuroTS
+        seg_length = self.step_size_distribution.draw_positive()  # From NeuroTS
 
-            direction = (
-                self.params.targeting * self.direction
-                + self.params.randomness * get_random_point(random_generator=self._rng)
-                + self.params.history * self.history()
+        # Check where is the next point compared to the boundaries
+        voxel_pos, voxel_idx = np.modf(
+            (current_point - boundary.offset) / boundary.voxel_dimensions
+        )
+        boundary_vec = boundary.raw[tuple(voxel_idx.astype(int))]
+        distance = np.linalg.norm(boundary_vec)
+
+        # Refine boundary vector with intra-pixel position (simple linear interpolation)
+        actual_boundary_vec = boundary_vec * (
+            1 + np.dot(voxel_pos, boundary_vec) / max(1e-3, distance**2)
+        )
+        actual_distance = np.linalg.norm(actual_boundary_vec)
+
+        # Compute the boundary attenuation component
+        if actual_distance <= self.context["boundary_max_distance"]:
+            boundary_direction = actual_boundary_vec / actual_distance
+            attenuation = boundary_direction * np.exp(
+                -self.context["boundary_scale_coeff"] * actual_distance
             )
+            direction += attenuation
+            direction = direction / np.linalg.norm(direction)
 
-            direction = direction / np.linalg.norm(direction)  # From NeuroTS
-            seg_length = self.step_size_distribution.draw_positive()  # From NeuroTS
+        # Update the next point
+        next_point = current_point + seg_length * direction  # From NeuroTS
+        self.update_pathlength(seg_length)  # From NeuroTS
 
-            # Check where is the next point compared to the boundaries
-            voxel_pos, voxel_idx = np.modf(
-                (current_point - self.boundary.offset) / self.boundary.voxel_dimensions
-            )
-            boundary_vec = self.boundary.raw[tuple(voxel_idx.astype(int))]
-            distance = np.linalg.norm(boundary_vec)
-
-            # Refine boundary vector with intra-pixel position (simple linear interpolation)
-            actual_boundary_vec = boundary_vec * (
-                1 + np.dot(voxel_pos, boundary_vec) / max(1e-3, distance**2)
-            )
-            actual_distance = np.linalg.norm(actual_boundary_vec)
-
-            # Compute the boundary attenuation component
-            if actual_distance <= self.d_max:
-                boundary_direction = actual_boundary_vec / actual_distance
-                attenuation = boundary_direction * np.exp(-self.scale_coeff * actual_distance)
-                direction += attenuation
-                direction = direction / np.linalg.norm(direction)
-
-            # Update the next point
-            next_point = current_point + seg_length * direction  # From NeuroTS
-            self.update_pathlength(seg_length)  # From NeuroTS
-
-            return next_point, direction
-
-    return SectionGrowerBoundary
+        return next_point, direction
 
 
-section_growers["path_distance+boundary"] = create_grower()
+section_growers["path_distance+boundary"] = SectionGrowerBoundary
 
 
 def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None, logger=None):
@@ -146,6 +140,7 @@ def build_and_graft_tufts(
     parameters: dict,
     distributions: dict,
     *,
+    context=None,
     output_dir: FileType | None = None,
     figure_dir: FileType | None = None,
     initial_morph: Morphology | None = None,
@@ -192,7 +187,7 @@ def build_and_graft_tufts(
             initial_point=initial_point,
             parameters=params["axon"],
             distributions=distrib["axon"],
-            context=None,
+            context=context,
             random_generator=rng,
         )
         while not grower.end():
