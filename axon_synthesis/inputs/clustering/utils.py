@@ -19,6 +19,8 @@ from morphio.mut import Morphology as MorphIoMorphology
 from neurom import COLS
 from neurom import NeuriteType
 from neurom.core import Morphology
+from neurom.core import Section
+from neurom.features.section import section_path_length
 from neurom.morphmath import section_length
 from tmd.io.conversion import convert_morphio_trees
 from tmd.Topology.methods import tree_to_property_barcode
@@ -213,6 +215,7 @@ def compute_common_section_properties(
     path_distance = sum(section_length(i.points) for i in section.iter(IterType.upstream))
     radial_distance = np.linalg.norm(first_axon_pt - section.points[-1])
     path_length = sum(section_length(i.points) for i in section.iter())
+    max_path_extent = max(map(section_path_length, Section.ileaf(Section(section))))
 
     if all(i is not None for i in [n_pot, volume, fraction, strength, bouton_density]):
         mean_tuft_length = compute_mean_tuft_length(
@@ -225,7 +228,7 @@ def compute_common_section_properties(
     else:
         mean_tuft_length = None
 
-    return path_distance, radial_distance, path_length, mean_tuft_length
+    return path_distance, radial_distance, path_length, mean_tuft_length, max_path_extent
 
 
 def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
@@ -379,6 +382,7 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
             radial_distance,
             path_length,
             mean_tuft_length,
+            max_path_extent,
         ) = compute_common_section_properties(
             root_point,
             common_section,
@@ -404,6 +408,7 @@ def reduce_clusters(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 path_distance,
                 radial_distance,
                 path_length,
+                max_path_extent,
                 len(cluster),
                 tuft_orientation.tolist(),
                 mean_tuft_length,

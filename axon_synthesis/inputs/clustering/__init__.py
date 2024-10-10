@@ -412,6 +412,7 @@ def export_clusters(
             "path_distance",
             "radial_distance",
             "path_length",
+            "max_path_extent",
             "size",
             "orientation",
             "mean_tuft_length",
@@ -828,6 +829,7 @@ def cluster_morphologies(
     if len(morphologies) == 0:
         LOGGER.error("No morphology file found in '%s'", morph_dir)
         return clustering
+    LOGGER.info("Found %s morphology files in '%s'", len(morphologies), morph_dir)
     parallel_config_tmp = evolve(
         parallel_config,
         nb_processes=min(len(morphologies), parallel_config.nb_processes, os.cpu_count() or 0),
