@@ -412,7 +412,7 @@ def synthesis_options(func):
         "--tuft-properties-file",
         type=click.Path(exists=True, dir_okay=False),
         required=False,
-        help="Path to the file containing the tuft barcode given to NeuroTS.",
+        help="Path to the file containing the tuft barcodes given to NeuroTS.",
     )
     @optgroup.option(
         "--tuft-distributions-file",

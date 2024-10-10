@@ -74,7 +74,7 @@ class SectionGrowerBoundary(SectionGrowerPath):
         return next_point, direction
 
 
-section_growers["path_distance+boundary"] = SectionGrowerBoundary
+section_growers["path_distances+boundary"] = SectionGrowerBoundary
 
 
 def plot_tuft(morph, title, output_path, initial_morph=None, morph_title=None, logger=None):

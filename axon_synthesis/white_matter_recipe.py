@@ -539,7 +539,7 @@ class WhiteMatterRecipe(BasePathBuilder):
         wm_projection_targets["target_layer_profiles"] = wm_projection_targets["target"].apply(
             lambda row: row["target_layer_profiles"],
         )
-        wm_projection_targets.index.rename("proj_index", level=0, inplace=True)  # type: ignore[call-arg]
+        wm_projection_targets.index.rename("proj_index", level=0, inplace=True)  # type: ignore[call-arg,call-overload]
 
         # Get target sub regions
         region_map_df = region_map.as_dataframe()

@@ -66,7 +66,7 @@ def create_cell_collection(
             if recenter:
                 morph = morph.transform(Translation(-morph.soma.center))
             with disable_loggers("morph_tool.converter"):
-                convert(morph, converted_file, nrn_order=True)
+                convert(morph, converted_file, nrn_order=True, sanitize=True)
             morph_files.append(converted_file)
     else:
         morph_files = raw_morph_files
@@ -312,6 +312,7 @@ def mimic_axons(  # noqa: PLR0913
     morphology_dir: FileType,
     clustering_parameters: dict,
     *,
+    tuft_parameters_file: FileType | None = None,
     create_graph_config: CreateGraphConfig | None = None,
     post_process_config: PostProcessConfig | None = None,
     output_config: OutputConfig | None = None,
@@ -403,6 +404,7 @@ def mimic_axons(  # noqa: PLR0913
         morphology_data_file,
         axon_grafting_points_file,
         input_dir,
+        tuft_parameters_file=tuft_parameters_file,
         rebuild_existing_axons=True,
     )
 

@@ -64,6 +64,12 @@ from axon_synthesis.validation.mimic import mimic_axons
     default=True,
     help=("If set to True, the temporary atlas is not removed at the end of the process"),
 )
+@click.option(
+    "--tuft-parameters-file",
+    type=click.Path(exists=True, dir_okay=False),
+    required=False,
+    help="Path to the file containing the tuft parameters given to NeuroTS.",
+)
 @output_options
 @clustering_parameters_option
 @create_graph_options
