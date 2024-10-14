@@ -270,6 +270,7 @@ def get_morphology_paths(morph_dir, *, max_level=None):
     paths.loc[:, "morph_name"] = paths["morph_path"].apply(
         lambda x: str(x.relative_to(morph_dir).with_suffix(""))
     )
+    paths.loc[:, "morph_path"] = paths["morph_path"].apply(str)
     return paths
 
 

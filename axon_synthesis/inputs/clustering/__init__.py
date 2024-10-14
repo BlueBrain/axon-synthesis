@@ -508,7 +508,7 @@ def cluster_one_morph(
     morph = load_morphology(morph_path)
 
     # Get the source brain region
-    atlas_region_id = brain_regions.lookup(morph.soma.center) if atlas is not None else None
+    atlas_region_id = brain_regions.lookup(morph.soma.center) if brain_regions is not None else None
 
     # Run the clustering function on each axon
     for axon_id, axon in enumerate(get_axons(morph)):
@@ -835,6 +835,7 @@ def cluster_morphologies(
         nb_processes=min(len(morphologies), parallel_config.nb_processes, os.cpu_count() or 0),
     )
 
+    # TODO: Should use map_partitions and load the atlas and other data from the workers
     results = parallel_evaluator(
         morphologies,
         _wrapper,
