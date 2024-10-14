@@ -1,5 +1,18 @@
 # Changelog
 
+## [axon-synthesis-v0.1.3](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/compare/axon-synthesis-v0.1.2...axon-synthesis-v0.1.3)
+
+> 14 October 2024
+
+### New Features
+
+- Can pass a parameter file for tuft synthesis in mimic workflow (Adrien Berchet - [9b7aff7](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/commit/9b7aff799e3f054f3b8c5e2af4caea9cf01f9eb6))
+- Compute the maximum path extent in tuft properties (Adrien Berchet - [ff60d9e](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/commit/ff60d9ef825e80d16011cb34c1526005f54f5047))
+
+### Chores And Housekeeping
+
+- Cast paths to str when getting morphology paths (Adrien Berchet - [0e94dd1](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/commit/0e94dd14bb9be711c3ca93f8d88c05cb3927519a))
+
 ## [axon-synthesis-v0.1.2](https://bbpgitlab.epfl.ch/neuromath/axon-synthesis/compare/axon-synthesis-v0.1.1...axon-synthesis-v0.1.2)
 
 > 7 October 2024
