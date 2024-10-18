@@ -16,7 +16,9 @@ pip install axon-synthesis
 
 ## Examples
 
-TODO: Provide here some examples on how this software can be used.
+An example can be found in the ``examples`` directory.
+This example contains a small input dataset and a ``run.sh`` script that will execute the code.
+The inputs can be reviewed and modified for testing.
 
 
 ## Funding & Acknowledgment
@@ -27,4 +29,4 @@ Board of the Swiss Federal Institutes of Technology.
 
 For license and authors, see `LICENSE.txt` and `AUTHORS.md` respectively.
 
-Copyright © 2022-2023 Blue Brain Project/EPFL
+Copyright © 2023-2024 Blue Brain Project, EPFL
