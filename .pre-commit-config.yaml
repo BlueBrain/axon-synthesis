@@ -42,8 +42,11 @@ repos:
     hooks:
       - id: flake8
         additional_dependencies: ['flake8-pyproject']
-  - repo: https://github.com/johann-petrak/licenseheaders.git
-    rev: 'master'
+  - repo: https://github.com/arkinmodi/add-license-header
+    rev: v2.2.0
     hooks:
-      - id: licenseheaders
-        args: ["-t", ".copyright.tmpl", "-cy", "-E", ".py", "-f"]
+      - id: add-license-header
+        args:
+            - --license-file
+            - .copyright.tmpl
+        files: \.py$

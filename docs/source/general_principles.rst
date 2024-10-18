@@ -1,3 +1,5 @@
+.. SPDX-License-Identifier: Apache-2.0
+
 .. _synthesis_general_principles:
 
 General principles of the synthesis algorithm
