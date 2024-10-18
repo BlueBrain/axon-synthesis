@@ -12,6 +12,7 @@
    input_files
    api_ref
    changelog
+   contributing
 
 
 Workflows

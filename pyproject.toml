@@ -1,12 +1,12 @@
 [project]
 name = "axon-synthesis"
 authors = [
-    { name="bbp-ou-cells", email="bbp-ou-cells@groupes.epfl.ch" }
+    { name="Blue Brain Project, EPFL" }
 ]
 description = "A package to synthesize artificial axons"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "BBP-internal-confidential" }
+license = { text = "Apache License 2.0" }
 classifiers = [
     # TODO: Update to relevant classifiers
     "Development Status :: 2 - Pre-Alpha",
@@ -69,9 +69,9 @@ tecplot_export = [
 ]
 
 [project.urls]
-Homepage = "https://bbpteam.epfl.ch/documentation/projects/axon-synthesis"
-Repository = "https://bbpgitlab.epfl.ch/neuromath/axon-synthesis"
-Tracker = "https://bbpteam.epfl.ch/project/issues/projects/CELLS/issues"
+Homepage = "https://AxonSynthesis.readthedocs.io"
+Repository = "https://github.com/BlueBrain/AxonSynthesis"
+Tracker = "https://github.com/BlueBrain/AxonSynthesis/issues"
 
 [project.scripts]
 axon-synthesis = "axon_synthesis.cli:main"
@@ -79,8 +79,11 @@ axon-synthesis = "axon_synthesis.cli:main"
 [build-system]
 requires = [
     "setuptools>=45",
+    "setuptools_scm[toml]>=6.2",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
 
 [tool.setuptools.packages.find]
 include = ["axon_synthesis*"]

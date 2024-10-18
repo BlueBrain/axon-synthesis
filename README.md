@@ -2,7 +2,7 @@
 
 A package to synthesize artificial axons.
 
-The main documentation, is available here: ????????? (TODO: Add proper link)
+The main documentation, is available here: https://AxonSynthesis.readthedocs.io
 
 
 ## Installation
@@ -12,3 +12,19 @@ It is recommended to install ``axon-synthesis`` using [pip](https://pip.pypa.io/
 ```bash
 pip install axon-synthesis
 ```
+
+
+## Examples
+
+TODO: Provide here some examples on how this software can be used.
+
+
+## Funding & Acknowledgment
+
+The development of this software was supported by funding to the Blue Brain Project, a research
+center of the École polytechnique fédérale de Lausanne (EPFL), from the Swiss government’s ETH
+Board of the Swiss Federal Institutes of Technology.
+
+For license and authors, see `LICENSE.txt` and `AUTHORS.md` respectively.
+
+Copyright © 2022-2023 Blue Brain Project/EPFL

@@ -1,6 +1,6 @@
-"""The axon-synthesis package.
+"""axon-synthesis package.
 
-A package to synthesize artificial axons.
+A package to synthesize artificial axons
 """
 
 import importlib.metadata

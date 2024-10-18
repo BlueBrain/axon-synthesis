@@ -1,3 +1,2 @@
 [codespell]
 skip = .git/*
-ignore-regex = @groupes.epfl.ch|\.hist|vor

@@ -10,14 +10,14 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
-import importlib.metadata
+from importlib import metadata
 
 # -- Project information -----------------------------------------------------
 
-project = "axon-synthesis"
+project = "Axon Synthesis"
 
 # The short X.Y version
-version = importlib.metadata.version(project)
+version = metadata.version("axon-synthesis")
 
 # The full version, including alpha/beta/rc tags
 release = version
@@ -63,7 +63,7 @@ html_theme = "sphinx-bluebrain-theme"
 # html_static_path = ['_static']
 
 html_theme_options = {
-    "metadata_distribution": project,
+    "metadata_distribution": "axon-synthesis",
 }
 
 html_title = project
