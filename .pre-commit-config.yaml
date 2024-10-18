@@ -42,3 +42,8 @@ repos:
     hooks:
       - id: flake8
         additional_dependencies: ['flake8-pyproject']
+  - repo: https://github.com/johann-petrak/licenseheaders.git
+    rev: 'master'
+    hooks:
+      - id: licenseheaders
+        args: ["-t", ".copyright.tmpl", "-cy", "-E", ".py", "-f"]
