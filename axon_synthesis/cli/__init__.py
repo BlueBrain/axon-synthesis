@@ -61,7 +61,7 @@ seed_option = click.option(
 def main(ctx, *_args, **kwargs):
     """A command line tool for axon-synthesis management."""
     debug = kwargs.get("debug", False)
-    seed = kwargs.get("seed", None)
+    seed = kwargs.get("seed")
     log_level = kwargs.get("log_level", "info")
     if kwargs.get("debug", False):
         log_level = "debug"
