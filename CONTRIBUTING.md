@@ -137,7 +137,7 @@ The release process is the following:
   git checkout -b release_X.Y.Z
   ```
 
-* Update the CHANGELOG file using auto-changelog (see https://www.npmjs.com/package/auto-changelog):
+* Update the CHANGELOG file using auto-changelog (see [https://www.npmjs.com/package/auto-changelog](https://www.npmjs.com/package/auto-changelog)):
 
   ```shell
   auto-changelog -v X.Y.Z
