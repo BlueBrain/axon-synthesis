@@ -102,3 +102,4 @@ intersphinx_mapping = {
 myst_enable_extensions = []
 myst_heading_anchors = 5
 myst_all_links_external = True
+suppress_warnings = ["myst.header"]
