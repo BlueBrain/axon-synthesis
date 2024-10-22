@@ -4,8 +4,8 @@
 #
 # Copyright (c) 2023-2024 Blue Brain Project, EPFL.
 #
-# This file is part of AxonSynthesis.
-# See https://github.com/BlueBrain/AxonSynthesis for further info.
+# This file is part of Axon Synthesis.
+# See https://github.com/BlueBrain/axon-synthesis for further info.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -24,10 +24,11 @@ from importlib import metadata
 
 # -- Project information -----------------------------------------------------
 
-project = "Axon Synthesis"
+project_name = "Axon Synthesis"
+package_name = "axon-synthesis"
 
 # The short X.Y version
-version = metadata.version("axon-synthesis")
+version = metadata.version(package_name)
 
 # The full version, including alpha/beta/rc tags
 release = version
@@ -73,10 +74,10 @@ html_theme = "sphinx-bluebrain-theme"
 # html_static_path = ['_static']
 
 html_theme_options = {
-    "metadata_distribution": "axon-synthesis",
+    "metadata_distribution": package_name,
 }
 
-html_title = project
+html_title = project_name
 
 # If true, links to the reST sources are added to the pages.
 html_show_sourcelink = False

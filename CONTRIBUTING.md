@@ -167,4 +167,4 @@ The release process is the following:
 
 After these steps the CI should automatically build the wheel and push it to pypi.
 
-[github]: https://github.com/BlueBrain/AxonSynthesis
+[github]: https://github.com/BlueBrain/axon-synthesis

@@ -2,7 +2,7 @@
 
 A package to synthesize artificial axons.
 
-The main documentation, is available here: [https://AxonSynthesis.readthedocs.io](https://AxonSynthesis.readthedocs.io)
+The main documentation, is available here: [https://axon-synthesis.readthedocs.io](https://axon-synthesis.readthedocs.io)
 
 
 ### Installation

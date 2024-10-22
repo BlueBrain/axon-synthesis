@@ -12,7 +12,7 @@ body:
 Thanks for taking the time to fill out this bug report!
 
 
-Before submitting, make sure you search in the [issue list](https://github.com/BlueBrain/AxonSynthesis/issues) that a similar issue was not already reported.
+Before submitting, make sure you search in the [issue list](https://github.com/BlueBrain/axon-synthesis/issues) that a similar issue was not already reported.
 If it is not the case, please read the following guidelines.
 
 ### GUIDELINES FOR REPORTING BUGS
@@ -43,7 +43,7 @@ Your reports must include the following features:
   - type: input
     id: relevant_documentation
     attributes:
-      label: Optional link from https://AxonSynthesis.readthedocs.io which documents the behavior that is expected
+      label: Optional link from https://axon-synthesis.readthedocs.io which documents the behavior that is expected
       description: "
 Please make sure the behavior you are seeing is definitely in contradiction to what's documented as the correct behavior.
 "

@@ -7,8 +7,8 @@ The solution is computed using the package pcst_fast: https://github.com/fraenke
 #
 # Copyright (c) 2023-2024 Blue Brain Project, EPFL.
 #
-# This file is part of AxonSynthesis.
-# See https://github.com/BlueBrain/AxonSynthesis for further info.
+# This file is part of Axon Synthesis.
+# See https://github.com/BlueBrain/axon-synthesis for further info.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
