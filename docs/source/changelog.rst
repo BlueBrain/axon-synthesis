@@ -1,3 +1,4 @@
 .. SPDX-License-Identifier: Apache-2.0
 
-.. mdinclude:: ../../CHANGELOG.md
+.. include:: ../../CHANGELOG.md
+   :parser: myst_parser.sphinx_

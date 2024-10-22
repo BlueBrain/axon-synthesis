@@ -39,6 +39,7 @@ release = version
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "myst_parser",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.graphviz",
@@ -46,7 +47,6 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.todo",
     "sphinx_click",
-    "m2r2",
 ]
 
 todo_include_todos = True
@@ -97,3 +97,8 @@ intersphinx_mapping = {
     "pandas": ("https://pandas.pydata.org/docs", None),
     "python": ("https://docs.python.org/3", None),
 }
+
+# MyST parser settings
+myst_enable_extensions = []
+myst_heading_anchors = 5
+myst_all_links_external = True

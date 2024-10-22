@@ -34,7 +34,7 @@ examples = [
 docs = [
     "docutils<0.21",
     "kaleido",
-    "m2r2",
+    "myst_parser",
     "sphinx",
     "sphinx-bluebrain-theme",
     "sphinx-click",
