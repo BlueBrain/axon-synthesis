@@ -6,6 +6,7 @@
 
 ### Chores And Housekeeping
 
+- Move repo URL (Adrien Berchet - [#2](https://github.com/BlueBrain/axon-synthesis/pull/2))
 - Migrate the code to GitHub and open source it (Adrien Berchet - [#1](https://github.com/BlueBrain/axon-synthesis/pull/1))
 
 ## [0.1.3](https://github.com/BlueBrain/axon-synthesis/compare/0.1.2..0.1.3)
