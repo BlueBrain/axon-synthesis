@@ -35,6 +35,7 @@ docs/source/generated
 docs/source/examples
 docs/source/scripts/*.html
 docs/source/scripts/*.png
+docs/source/scripts/*.svg
 
 # reports
 reports

@@ -1,5 +1,15 @@
 """Main entry point of the Command Line Interface for the axon_synthesis package."""
 
+# LICENSE HEADER MANAGED BY add-license-header
+#
+# Copyright (c) 2023-2024 Blue Brain Project, EPFL.
+#
+# This file is part of AxonSynthesis.
+# See https://github.com/BlueBrain/AxonSynthesis for further info.
+#
+# SPDX-License-Identifier: Apache-2.0
+# LICENSE HEADER MANAGED BY add-license-header
+
 import logging
 import sys
 from pathlib import Path
@@ -51,7 +61,7 @@ seed_option = click.option(
 def main(ctx, *_args, **kwargs):
     """A command line tool for axon-synthesis management."""
     debug = kwargs.get("debug", False)
-    seed = kwargs.get("seed", None)
+    seed = kwargs.get("seed")
     log_level = kwargs.get("log_level", "info")
     if kwargs.get("debug", False):
         log_level = "debug"

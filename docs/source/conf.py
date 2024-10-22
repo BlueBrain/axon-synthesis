@@ -1,5 +1,15 @@
 """Configuration file for the Sphinx documentation builder."""
 
+# LICENSE HEADER MANAGED BY add-license-header
+#
+# Copyright (c) 2023-2024 Blue Brain Project, EPFL.
+#
+# This file is part of AxonSynthesis.
+# See https://github.com/BlueBrain/AxonSynthesis for further info.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
 # This file only contains a selection of the most common options. For a full
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
@@ -10,14 +20,14 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
-import importlib.metadata
+from importlib import metadata
 
 # -- Project information -----------------------------------------------------
 
-project = "axon-synthesis"
+project = "Axon Synthesis"
 
 # The short X.Y version
-version = importlib.metadata.version(project)
+version = metadata.version("axon-synthesis")
 
 # The full version, including alpha/beta/rc tags
 release = version
@@ -29,6 +39,7 @@ release = version
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "myst_parser",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.graphviz",
@@ -36,7 +47,6 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.todo",
     "sphinx_click",
-    "m2r2",
 ]
 
 todo_include_todos = True
@@ -63,7 +73,7 @@ html_theme = "sphinx-bluebrain-theme"
 # html_static_path = ['_static']
 
 html_theme_options = {
-    "metadata_distribution": project,
+    "metadata_distribution": "axon-synthesis",
 }
 
 html_title = project
@@ -87,3 +97,9 @@ intersphinx_mapping = {
     "pandas": ("https://pandas.pydata.org/docs", None),
     "python": ("https://docs.python.org/3", None),
 }
+
+# MyST parser settings
+myst_enable_extensions = []
+myst_heading_anchors = 5
+myst_all_links_external = True
+suppress_warnings = ["myst.header"]

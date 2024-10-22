@@ -1,5 +1,11 @@
-.. mdinclude:: ../../README.md
+.. SPDX-License-Identifier: Apache-2.0
 
+Axon Synthesis
+==============
+
+.. include:: ../../README.md
+   :parser: myst_parser.sphinx_
+   :start-line: 1
 
 .. toctree::
    :hidden:
@@ -12,6 +18,7 @@
    input_files
    api_ref
    changelog
+   contributing
 
 
 Workflows

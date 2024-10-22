@@ -1,5 +1,15 @@
 """Tests for the post-processing functions."""
 
+# LICENSE HEADER MANAGED BY add-license-header
+#
+# Copyright (c) 2023-2024 Blue Brain Project, EPFL.
+#
+# This file is part of AxonSynthesis.
+# See https://github.com/BlueBrain/AxonSynthesis for further info.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.testing as npt

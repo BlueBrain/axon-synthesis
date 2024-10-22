@@ -1,21 +1,16 @@
 """Setup for the axon-synthesis package."""
 
-import importlib.util
+# LICENSE HEADER MANAGED BY add-license-header
+#
+# Copyright (c) 2023-2024 Blue Brain Project, EPFL.
+#
+# This file is part of AxonSynthesis.
+# See https://github.com/BlueBrain/AxonSynthesis for further info.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
 
 from setuptools import setup
 
-spec = importlib.util.spec_from_file_location(
-    "axon_synthesis.version",
-    "axon_synthesis/version.py",
-)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-VERSION = module.VERSION
-
-setup_kwargs = {
-    "name": "axon-synthesis",
-    "version": VERSION,
-}
-
 if __name__ == "__main__":
-    setup(**setup_kwargs)
+    setup()
