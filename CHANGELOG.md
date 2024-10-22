@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.5](https://github.com/BlueBrain/axon-synthesis/compare/0.1.4..0.1.5)
+
+> 22 October 2024
+
+### Documentation Changes
+
+- Fix RTD (Adrien Berchet - [#4](https://github.com/BlueBrain/axon-synthesis/pull/4))
+
 ## [0.1.4](https://github.com/BlueBrain/axon-synthesis/compare/0.1.3..0.1.4)
 
 > 22 October 2024
