@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6](https://github.com/BlueBrain/axon-synthesis/compare/0.1.5..0.1.6)
+
+> 23 October 2024
+
+### Documentation Changes
+
+- Use Conda environment in RTD config (#6) (Adrien Berchet - [56f6c38](https://github.com/BlueBrain/axon-synthesis/commit/56f6c388b697ae3fe8e2c1cef0c2005819e9ca13))
+
 ## [0.1.5](https://github.com/BlueBrain/axon-synthesis/compare/0.1.4..0.1.5)
 
 > 22 October 2024
