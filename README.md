@@ -21,6 +21,12 @@ This example contains a small input dataset and a ``run.sh`` script that will ex
 The inputs can be reviewed and modified for testing.
 
 
+### Citation
+
+When you use the ``axon-synthesis`` software or method for your research, we ask you to cite the publication
+associated to this repository (use the Cite this repository button on the main page of the code).
+
+
 ### Funding & Acknowledgment
 
 The development of this software was supported by funding to the Blue Brain Project, a research
