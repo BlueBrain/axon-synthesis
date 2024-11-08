@@ -1,0 +1,65 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Computational generation of long-range axonal morphologies
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Adrien
+    family-names: Berchet
+    email: adrien.berchet@gmail.com
+    affiliation: 'Blue Brain Project, EPFL'
+    orcid: 'https://orcid.org/0000-0001-6354-9947'
+  - family-names: Petkantchin
+    given-names: Rémy
+    orcid: 'https://orcid.org/0000-0001-8137-8811'
+    affiliation: 'Blue Brain Project, EPFL'
+    email: remy.pet@gmail.com
+  - given-names: Henry
+    family-names: Markram
+    affiliation: 'Blue Brain Project, EPFL'
+    email: henry.markram@epfl.ch
+  - given-names: Lida
+    family-names: Kanari
+    email: lida.kanari@gmail.com
+    affiliation: 'Blue Brain Project, EPFL'
+    orcid: 'https://orcid.org/0000-0002-9539-5070'
+identifiers:
+  - type: doi
+    value: 10.1101/2024.10.16.618695
+    description: Preprint on BioRxiv
+repository-code: 'https://github.com/BlueBrain/axon-synthesis'
+url: 'https://axon-synthesis.readthedocs.io/en/stable/'
+abstract: >-
+  Long-range axons are fundamental to brain connectivity and
+  functional organization, enabling communication between
+  different regions of the brain. Recent advances in
+  experimental techniques have yielded a substantial number
+  of whole-brain axonal reconstructions. While most previous
+  computational generative models of neurons have
+  predominantly focused on dendrites, generating realistic
+  axonal morphologies is challenging due to their distinct
+  targeting. In this study, we present a novel algorithm for
+  axon synthesis that combines algebraic topology with the
+  Steiner tree algorithm, an extension of the minimum
+  spanning tree, to generate both the local and long-range
+  compartments of axons. We demonstrate that our
+  computationally generated axons closely replicate
+  experimental data in terms of their morphological
+  properties. This approach enables the generation of
+  biologically accurate long-range axons that span large
+  distances and connect multiple brain regions, advancing
+  the digital reconstruction of the brain. Ultimately, our
+  approach opens up new possibilities for large-scale
+  in-silico simulations, advancing research into brain
+  function and disorders.
+keywords:
+  - neuronal morphology
+  - axon synthesis
+  - Steiner tree
+  - algebraic topology
+  - brain connectivity
+license: Apache-2.0
