@@ -23,8 +23,9 @@ The inputs can be reviewed and modified for testing.
 
 ### Citation
 
-When you use the ``axon-synthesis`` software or method for your research, we ask you to cite the publication
-associated to this repository (use the Cite this repository button on the main page of the code).
+When you use the ``axon-synthesis`` software or method for your research, we ask you to cite the
+publication associated to this repository (use the ``Cite this repository`` button on the
+[main page](https://github.com/BlueBrain/axon-synthesis) of the code).
 
 
 ### Funding & Acknowledgment
