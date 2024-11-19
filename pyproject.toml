@@ -32,7 +32,6 @@ examples = [
     "morphology-workflows",
 ]
 docs = [
-    "docutils<0.21",
     "kaleido",
     "myst_parser",
     "sphinx",
