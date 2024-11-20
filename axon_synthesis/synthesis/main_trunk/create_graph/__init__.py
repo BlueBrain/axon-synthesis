@@ -88,6 +88,7 @@ class CreateGraphConfig:
     min_random_point_distance: float | None = field(
         default=None, validator=validators.optional(validators.ge(0))
     )
+    random_max_tries: int = field(default=10)
     random_point_bbox_buffer: float = field(default=0, validator=validators.ge(0))
 
     # Voronoï points
@@ -152,7 +153,7 @@ class CreateGraphConfig:
         new_pts: list[np.ndarray] = []
         min_dist = self.preferred_region_min_distance
         while n_fails < max_tries:
-            xyz = rng.choice(self.preferred_region_tree.data)
+            xyz = rng.choice(self.preferred_region_tree.data, replace=False, shuffle=False)
             if (
                 len(new_pts) == 0
                 or np.linalg.norm(
@@ -180,17 +181,15 @@ class CreateGraphConfig:
                     )
                 ]
             )
-        return np.hstack([new_pts, np.ones((len(new_pts), 1)) * NodeProvider.random])
+        return np.hstack([new_pts, np.ones((len(new_pts), 1)) * NodeProvider.attractors])
 
     def compute_region_tree(self, atlas: AtlasHelper, *, force: bool = False):
         """Compute the preferred region tree using the given Atlas."""
         if self.preferred_regions and (self.preferred_region_tree is None or force):
             preferred_region_points, _missing_ids = atlas.get_region_points(self.preferred_regions)
             self.preferred_region_tree = KDTree(preferred_region_points)
-        else:
-            self.preferred_region_tree = None
 
-    def region_tree_from_file(self, file):
+    def load_region_tree_from_file(self, file):
         """Get the preferred region tree from a file."""
         data = np.load(file, allow_pickle=False)
         self.preferred_region_tree = KDTree(data)
@@ -212,12 +211,15 @@ def _add_points(source_coords, pts, config, depths, forbidden_regions, rng, logg
         config.min_random_point_distance,
         config.random_point_bbox_buffer,
         rng,
+        max_tries=config.random_max_tries,
         logger=logger,
     )
 
     # Add random points from the preferred regions
     if config.preferred_region_tree is not None:
-        preferred_region_pts = config.pick_preferred_region_random_points(rng=rng)
+        preferred_region_pts = config.pick_preferred_region_random_points(
+            rng=rng, max_tries=config.random_max_tries
+        )
         logger.debug("Random points added in the preferred regions: %s", len(preferred_region_pts))
         all_pts = np.concatenate(
             [
@@ -405,7 +407,9 @@ def one_graph(
             pts[1:, :3],  # The first one is the source
             figure_path,
             logger=logger,
-            attractors=config.preferred_region_tree.data
+            attractors=nodes_df.loc[
+                nodes_df["NodeProvider"] == NodeProvider.attractors, COORDS_COLS
+            ].to_numpy()
             if config.preferred_region_tree is not None
             else None,
         )

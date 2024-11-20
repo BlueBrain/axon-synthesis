@@ -55,9 +55,12 @@ class PostProcessConfig:
         default_history_path_length_coeff: The coefficient used to compute the history path length
             when it is not provided.
         global_target_coeff: The coefficient applied to the global target term.
+        global_target_sigma_coeff: The sigma coefficient applied to the global target term.
         target_coeff: The coefficient applied to the next target term.
+        target_sigma_coeff: The sigma coefficient applied to the next target term.
         random_coeff: The coefficient applied to the random term.
         history_coeff: The coefficient applied to the history term.
+        history_sigma_coeff: The sigma coefficient applied to the history term.
         length_coeff: The coefficient applied to step length.
         max_random_direction_picks: The maximum number of random direction picks (random directions
             are picked again when they are not facing the target)

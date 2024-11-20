@@ -44,13 +44,18 @@ def create_graph_options(func):
     )
     @optgroup.option(
         "--create-graph-min-intermediate-distance",
-        type=click.FloatRange(min=0),
+        type=click.FloatRange(min=0, min_open=True),
         help="The min distance between two successive intermediate points",
     )
     @optgroup.option(
         "--create-graph-min-random-point-distance",
-        type=click.FloatRange(min=0),
+        type=click.FloatRange(min=0, min_open=True),
         help="The min distance used to add random points",
+    )
+    @optgroup.option(
+        "--create-graph-random-max-tries",
+        type=click.IntRange(min=1),
+        help="The max number of tries to place a new random point",
     )
     @optgroup.option(
         "--create-graph-random-point-bbox-buffer",
@@ -64,7 +69,7 @@ def create_graph_options(func):
     )
     @optgroup.option(
         "--create-graph-duplicate_precision",
-        type=click.FloatRange(min=0),
+        type=click.FloatRange(min=0, min_open=True),
         help="The precision used to detect duplicated points",
     )
     @optgroup.option(
@@ -138,6 +143,7 @@ def create_graph_kwargs_to_config(config) -> None:
         "intermediate_number": config.pop("create_graph_intermediate_number", None),
         "min_intermediate_distance": config.pop("create_graph_min_intermediate_distance", None),
         "min_random_point_distance": config.pop("create_graph_min_random_point_distance", None),
+        "random_max_tries": config.pop("create_graph_random_max_tries", None),
         "random_point_bbox_buffer": config.pop("create_graph_random_point_bbox_buffer", None),
         "voronoi_steps": config.pop("create_graph_voronoi_steps", None),
         "duplicate_precision": config.pop("create_graph_duplicate_precision", None),
@@ -183,7 +189,7 @@ def post_process_options(func):
     )
     @optgroup.option(
         "--post-processing-default-history-path-length",
-        type=click.FloatRange(min=0),
+        type=click.FloatRange(min=0, min_open=True),
         help="The coefficient used to compute the history path length when it is not provided",
     )
     @optgroup.option(
@@ -192,9 +198,19 @@ def post_process_options(func):
         help="The coefficient applied to the global target term",
     )
     @optgroup.option(
+        "--post-processing-global-target-sigma-coeff",
+        type=click.FloatRange(min=0, min_open=True),
+        help="The sigma coefficient applied to the global target term",
+    )
+    @optgroup.option(
         "--post-processing-target-coeff",
         type=click.FloatRange(min=0),
         help="The coefficient applied to the next target term",
+    )
+    @optgroup.option(
+        "--post-processing-target-sigma-coeff",
+        type=click.FloatRange(min=0, min_open=True),
+        help="The sigma coefficient applied to the next target term",
     )
     @optgroup.option(
         "--post-processing-random-coeff",
@@ -207,8 +223,13 @@ def post_process_options(func):
         help="The coefficient applied to the history term",
     )
     @optgroup.option(
+        "--post-processing-history-sigma-coeff",
+        type=click.FloatRange(min=0, min_open=True),
+        help="The sigma coefficient applied to the history term",
+    )
+    @optgroup.option(
         "--post-processing-length-coeff",
-        type=click.FloatRange(min=0),
+        type=click.FloatRange(min=0, min_open=True),
         help="The coefficient applied to step length",
     )
     @optgroup.option(
@@ -231,9 +252,12 @@ def post_process_kwargs_to_config(config) -> None:
             "post_processing_default_history_path_length", None
         ),
         "global_target_coeff": config.pop("post_processing_global_target_coeff", None),
+        "global_target_sigma_coeff": config.pop("post_processing_global_target_sigma_coeff", None),
         "target_coeff": config.pop("post_processing_target_coeff", None),
+        "target_sigma_coeff": config.pop("post_processing_target_sigma_coeff", None),
         "random_coeff": config.pop("post_processing_random_coeff", None),
         "history_coeff": config.pop("post_processing_history_coeff", None),
+        "history_sigma_coeff": config.pop("post_processing_history_sigma_coeff", None),
         "length_coeff": config.pop("post_processing_length_coeff", None),
         "max_random_direction_picks": config.pop(
             "post_processing_max_random_direction_picks", None
