@@ -434,7 +434,7 @@ annotations = list(preferred_region_solution_fig.select_annotations())
 combined_fig.update_layout(
     {
         "width": 1000,
-        "height": 600,
+        "height": 650,
         "margin": {"l": 0, "r": 0, "t": 0, "b": 0, "autoexpand": True, "pad": 0},
         "paper_bgcolor": "rgba(255, 255, 255, 255)",
         "plot_bgcolor": "rgba(255, 255, 255, 255)",
@@ -463,6 +463,7 @@ combined_fig.update_layout(
             "visible": False,
         },
         "legend": {
+            "entrywidth": 250,
             "xanchor": "center",
             "x": 0.5,
             "yanchor": "top",
