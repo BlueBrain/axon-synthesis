@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 from attrs import evolve
+from plotly.subplots import make_subplots
 from scipy.spatial import KDTree
 
 from axon_synthesis.constants import NodeProvider
@@ -70,75 +71,62 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
     fig = go.Figure()
     annotations = []
 
-    fig.add_trace(
+    common_objects = [
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.source.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.source.name, "y"],
-            marker={"color": "black", "size": 20},
+            marker={"color": "black", "size": 25},
             mode="markers",
             name="Source point",
             legendgroup=1,
         ),
-    )
-
-    fig.add_trace(
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.target.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.target.name, "y"],
-            marker={"color": "rgb(255,127,0)", "size": 20},
+            marker={"color": "rgb(255,127,0)", "size": 25},
             mode="markers",
             name="Target points",
             legendgroup=2,
-        )
-    )
-
-    fig.add_trace(
+        ),
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.intermediate.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.intermediate.name, "y"],
-            marker={"color": "blue", "size": 15},
+            marker={"color": "blue", "size": 20},
             mode="markers",
             name="Intermediate points",
             legendgroup=3,
-        )
-    )
-
-    fig.add_trace(
+        ),
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.random.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.random.name, "y"],
-            marker={"color": "green", "size": 15},
+            marker={"color": "green", "size": 20},
             mode="markers",
             name="Random points",
             legendgroup=4,
-        )
-    )
-
-    fig.add_trace(
+        ),
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.bbox.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.bbox.name, "y"],
-            marker={"color": "rgb(255,0,255)", "size": 15},
+            marker={"color": "rgb(255,0,255)", "size": 20},
             mode="markers",
             name="Bounding box points",
             legendgroup=5,
-        )
-    )
-
-    fig.add_trace(
+        ),
         go.Scatter(
             x=nodes.loc[nodes["NodeProvider"] == NodeProvider.Voronoi.name, "x"],
             y=nodes.loc[nodes["NodeProvider"] == NodeProvider.Voronoi.name, "y"],
-            marker={"color": "red", "size": 10},
+            marker={"color": "red", "size": 15},
             mode="markers",
             name="Voronoï points",
             legendgroup=6,
-        )
-    )
+        ),
+    ]
+    not_preferred_objects = []
+    preferred_objects = []
 
     if solution_edges is not None:
         solution_edges["cutter"] = None
-        fig.add_trace(
+        common_objects.append(
             go.Scatter(
                 x=solution_edges[["x_from", "x_to", "cutter"]].to_numpy().flatten().tolist(),
                 y=solution_edges[["y_from", "y_to", "cutter"]].to_numpy().flatten().tolist(),
@@ -154,7 +142,7 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
         )
 
     if preferred_regions_pts is None:
-        fig.add_trace(
+        not_preferred_objects.append(
             go.Scatter(
                 x=edges[["x_from", "x_to", "cutter"]].to_numpy().flatten().tolist(),
                 y=edges[["y_from", "y_to", "cutter"]].to_numpy().flatten().tolist(),
@@ -175,7 +163,7 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
             x = [row["x_from"], row["x_to"]]
             y = [row["y_from"], row["y_to"]]
             color = row["rgb_color"]
-            fig.add_trace(
+            preferred_objects.append(
                 go.Scatter(
                     x=x,
                     y=y,
@@ -190,7 +178,7 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
             )
 
         # Add empty plot just to add the color bar and the legend entry
-        fig.add_trace(
+        preferred_objects.append(
             go.Scatter(
                 x=[None],
                 y=[None],
@@ -214,7 +202,7 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
                 "y": 1.23,
             },
         )
-        fig.add_trace(
+        preferred_objects.append(
             go.Scatter(
                 x=edges["x_from"],
                 y=edges["y_from"],
@@ -247,16 +235,16 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
         for i in preferred_regions_pts:
             name = f": {i[3]}" if len(i) >= 4 and i[3] is not None else ""
             print("Add preferred region point", i)
-            fig.add_trace(
+            preferred_objects.append(
                 go.Scatter(
                     x=[i[0]],
                     y=[i[1]],
                     marker={
                         "color": "maroon",
-                        "size": 15,
+                        "size": 20,
                     },
                     mode="markers",
-                    name=f"Preferred region point{name}",
+                    name=f"Attractor point{name}",
                     legendgroup=11,
                 ),
             )
@@ -285,7 +273,7 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
                 line={"color": "grey", "width": 3, "dash": "dash"},
             )
 
-    fig.add_trace(
+    common_objects.append(
         go.Scatter(
             x=0.5 * (edges["x_from"] + edges["x_to"]),
             y=0.5 * (edges["y_from"] + edges["y_to"]),
@@ -299,6 +287,10 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
             legendgroup=9,
         )
     )
+
+    fig.add_traces(common_objects)
+    fig.add_traces(not_preferred_objects)
+    fig.add_traces(preferred_objects)
 
     fig.update_layout(
         {
@@ -325,7 +317,7 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
                 "yanchor": "middle",
                 "y": 0.5,
                 "tracegroupgap": 20,
-                "font": {"size": 16, "family": "computer modern", "color": "black"},
+                "font": {"size": 16, "family": "cmr10", "color": "black"},
             },
         },
         annotations=annotations,
@@ -341,6 +333,8 @@ def plot(nodes, edges, figure_path, solution_edges=None, preferred_regions_pts=N
         fig.write_html(figure_path + "_no_legend.html")
         fig.write_image(figure_path + "_no_legend.png", scale=2)
         fig.write_image(figure_path + "_no_legend.svg", scale=2)
+
+    return fig
 
 
 config = create_graph.CreateGraphConfig(
@@ -383,8 +377,8 @@ _, solution_edges = steiner_tree.compute_solution(
 )
 
 
-plot(nodes, edges, "graph_creation")
-plot(nodes, edges, "graph_creation_solution", solution_edges)
+graph_creation_fig = plot(nodes, edges, "graph_creation")
+graph_creation_solution_fig = plot(nodes, edges, "graph_creation_solution", solution_edges)
 
 # ruff: noqa: T201
 print("Nodes:")
@@ -415,16 +409,72 @@ _, solution_edges_preferred_regions = steiner_tree.compute_solution(
     edges_preferred_regions,
 )
 
-plot(
+preferred_region_fig = plot(
     nodes_preferred_regions,
     edges_preferred_regions,
     "graph_creation_preferred_regions",
     preferred_regions_pts=points_preferred_regions,
 )
-plot(
+preferred_region_solution_fig = plot(
     nodes_preferred_regions,
     edges_preferred_regions,
     "graph_creation_solution_preferred_regions",
     solution_edges_preferred_regions,
     preferred_regions_pts=points_preferred_regions,
 )
+
+# Combine the two figures into one with subplots
+combined_fig = make_subplots(rows=1, cols=2, horizontal_spacing=0)
+for i in graph_creation_solution_fig.data:
+    i.showlegend = False
+    combined_fig.add_trace(i, row=1, col=1)
+for i in preferred_region_solution_fig.data:
+    combined_fig.add_trace(i, row=1, col=2)
+annotations = list(preferred_region_solution_fig.select_annotations())
+combined_fig.update_layout(
+    {
+        "width": 1000,
+        "height": 600,
+        "margin": {"l": 0, "r": 0, "t": 0, "b": 0, "autoexpand": True, "pad": 0},
+        "paper_bgcolor": "rgba(255, 255, 255, 255)",
+        "plot_bgcolor": "rgba(255, 255, 255, 255)",
+        "xaxis1": {
+            "scaleanchor": "x",
+            "scaleratio": 1,
+            "showgrid": False,
+            "visible": False,
+        },
+        "yaxis1": {
+            "scaleanchor": "x",
+            "scaleratio": 1,
+            "showgrid": False,
+            "visible": False,
+        },
+        "xaxis2": {
+            "scaleanchor": "x",
+            "scaleratio": 1,
+            "showgrid": False,
+            "visible": False,
+        },
+        "yaxis2": {
+            "scaleanchor": "x",
+            "scaleratio": 1,
+            "showgrid": False,
+            "visible": False,
+        },
+        "legend": {
+            "xanchor": "center",
+            "x": 0.5,
+            "yanchor": "top",
+            "y": 0,
+            "tracegroupgap": 10,
+            "font": {"size": 16, "family": "cmr10", "color": "black"},
+            "orientation": "h",
+        },
+    },
+    annotations=annotations,
+)
+figure_path = "graph_creation_solution_preferred_regions_subplots"
+combined_fig.write_html(figure_path + ".html")
+combined_fig.write_image(figure_path + ".png", scale=2)
+combined_fig.write_image(figure_path + ".svg", scale=2)
