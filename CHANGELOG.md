@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.8](https://github.com/BlueBrain/axon-synthesis/compare/0.1.7..0.1.8)
+
+> 25 November 2024
+
+### Build
+
+- Fix dependencies for docs generation (Adrien Berchet - [#12](https://github.com/BlueBrain/axon-synthesis/pull/12))
+
+### New Features
+
+- Add new CLI options and create a specific NodeProvider entry for attractors (Adrien Berchet - [#13](https://github.com/BlueBrain/axon-synthesis/pull/13))
+
+## [0.1.7](https://github.com/BlueBrain/axon-synthesis/compare/0.1.6..0.1.7)
+
+> 8 November 2024
+
+### Chores And Housekeeping
+
+- Add CITATION.cff file (Adrien Berchet - [#9](https://github.com/BlueBrain/axon-synthesis/pull/9))
+
+### Documentation Changes
+
+- Fix Citation section in README (Adrien Berchet - [#10](https://github.com/BlueBrain/axon-synthesis/pull/10))
+
 ## [0.1.6](https://github.com/BlueBrain/axon-synthesis/compare/0.1.5..0.1.6)
 
 > 23 October 2024
