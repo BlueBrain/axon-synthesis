@@ -1,5 +1,7 @@
 .. SPDX-License-Identifier: Apache-2.0
 
+.. image:: BBP-Axon-Synthesis.jpg
+
 Axon Synthesis
 ==============
 
