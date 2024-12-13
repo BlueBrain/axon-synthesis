@@ -51,6 +51,9 @@ jobs:
     - name: Clear results in tox environments
       run: |
         rm -rf .tox/*/tmp
+    - name: CHECK ImageMagick
+      run: |
+        compare -version
     - name: Run tox with latest versions
       if: ${{ matrix.min_versions == 'latest_versions' }}
       run: |
