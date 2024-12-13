@@ -1,8 +1,21 @@
 # Changelog
 
+## [0.1.9](https://github.com/BlueBrain/axon-synthesis/compare/0.1.8..0.1.9)
+
+> 13 December 2024
+
+### Documentation Changes
+
+- Fix stable version on RTD (Adrien Berchet - [#16](https://github.com/BlueBrain/axon-synthesis/pull/16))
+- Add banner and badges (Adrien Berchet - [#15](https://github.com/BlueBrain/axon-synthesis/pull/15))
+
+### CI Improvements
+
+- Fix ImageMagick (Adrien Berchet - [#18](https://github.com/BlueBrain/axon-synthesis/pull/18))
+
 ## [0.1.8](https://github.com/BlueBrain/axon-synthesis/compare/0.1.7..0.1.8)
 
-> 25 November 2024
+> 26 November 2024
 
 ### Build
 
