@@ -11,7 +11,7 @@ build:
     python: "miniconda3-4.7"
   jobs:
     pre_install:
-      - git update-index --assume-unchanged docs/environment.yml docs/conf.py
+      - git update-index --assume-unchanged docs/environment.yml docs/source/conf.py
 
 sphinx:
   configuration: docs/source/conf.py
