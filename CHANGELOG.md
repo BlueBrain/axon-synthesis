@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.10](https://github.com/BlueBrain/axon-synthesis/compare/0.1.9..0.1.10)
+
+> 13 December 2024
+
+### Documentation Changes
+
+- Fix stable version on RTD (Adrien Berchet - [#20](https://github.com/BlueBrain/axon-synthesis/pull/20))
+
 ## [0.1.9](https://github.com/BlueBrain/axon-synthesis/compare/0.1.8..0.1.9)
 
 > 13 December 2024
