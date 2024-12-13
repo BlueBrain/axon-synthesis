@@ -30,14 +30,8 @@ jobs:
     - name: Get current month
       id: date
       run: echo "date=$(date +'%Y-%m')" >> $GITHUB_OUTPUT
-    - name: Cache APT Packages
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: graphviz poppler-utils imagemagick
-        version: 1.0
-        execute_install_scripts: true
-    - name: Install MPI
-      run: sudo apt-get install libopenmpi-dev
+    - name: Install packages
+      run: sudo apt-get install -y libopenmpi-dev graphviz poppler-utils imagemagick
     - name: Cache tox and precommit environments
       uses: actions/cache@v4
       with:
