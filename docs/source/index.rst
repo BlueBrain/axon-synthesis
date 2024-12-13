@@ -1,11 +1,13 @@
 .. SPDX-License-Identifier: Apache-2.0
 
+.. image:: BBP-Axon-Synthesis.jpg
+
 Axon Synthesis
 ==============
 
 .. include:: ../../README.md
    :parser: myst_parser.sphinx_
-   :start-line: 1
+   :start-line: 3
 
 .. toctree::
    :hidden:
