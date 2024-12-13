@@ -9,6 +9,9 @@ build:
   os: ubuntu-22.04
   tools:
     python: "miniconda3-4.7"
+  jobs:
+    pre_install:
+      - git update-index --assume-unchanged docs/environment.yml docs/conf.py
 
 sphinx:
   configuration: docs/source/conf.py
