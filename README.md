@@ -1,5 +1,9 @@
 ![AxonSynthesis Logo](docs/source/BBP-Axon-Synthesis.jpg)
 
+# Warning
+
+The Blue Brain Project concluded in December 2024, so development has ceased under the BlueBrain GitHub organization. Future development will take place at: https://github.com/openbraininstitute/axon-synthesis
+
 # Axon Synthesis
 
 [![Version](https://img.shields.io/pypi/v/axon-synthesis)](https://github.com/BlueBrain/AxonSynthesis/releases)
